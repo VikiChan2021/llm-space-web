@@ -1,17 +1,22 @@
 import type { HostServices, ModelClient } from "@llm-space/ui/host";
 
-/** Unavailable in the display-only viewer — never called while presentational. */
+import { GUEST_MODEL_ID, GUEST_PROVIDER } from "@/guest/guest-api";
+
+export const GUEST_WORKBENCH_ENABLED =
+  import.meta.env.VITE_GUEST_WORKBENCH === "1";
+
+/** Unavailable in the display-only viewer; never called while presentational. */
 function unavailable(): never {
-  throw new Error("This action is not available in the shared-thread viewer.");
+  throw new Error("This action is not available in the web viewer.");
 }
 
 /**
- * A display-only {@link HostServices}: `presentational` hides all edit/run
- * chrome, and every capability is a no-op (or throws if somehow invoked). No
- * transport / tool execution / model client, so nothing reaches a backend.
+ * The web host remains browser-only. Guest mode enables editing and the
+ * injected HTTP model transport, but intentionally exposes no local tools,
+ * filesystem, MCP, generator, or desktop command bridge.
  */
 export const webHost: HostServices = {
-  presentational: true,
+  presentational: !GUEST_WORKBENCH_ENABLED,
   transport: null,
   executeTool: null,
   skills: {
@@ -30,25 +35,27 @@ export const webHost: HostServices = {
     ensureRootDir: (relativePath) => Promise.resolve(relativePath),
   },
   files: {
-    // No filesystem in the display-only viewer; `@include` resolves to "".
     readText: () => Promise.resolve(""),
     exists: () => Promise.resolve(false),
     directoryExists: () => Promise.resolve(null),
     pickFile: () => Promise.resolve(null),
     pickDirectory: () => Promise.resolve(null),
   },
-  // No code generation in the display-only viewer.
   generator: null,
   actions: {
     openSettings: () => {
-      /* no settings surface in the viewer */
+      if (GUEST_WORKBENCH_ENABLED) {
+        window.alert("BYOK 设置即将开放。");
+      }
     },
     openLink: (url) => window.open(url, "_blank", "noopener,noreferrer"),
     shareThread: () => {
-      /* no share surface in the viewer */
+      if (GUEST_WORKBENCH_ENABLED) {
+        window.alert("游客 Thread 分享即将开放。");
+      }
     },
     openVariables: () => {
-      /* no variables dialog in the viewer */
+      /* registered by the active playground */
     },
     registerOpenVariables: () => () => {
       /* nothing to unregister */
@@ -59,19 +66,33 @@ export const webHost: HostServices = {
   },
 };
 
-/** An empty {@link ModelClient}: the viewer shows `thread.modelName`, not a list. */
 export const webModelClient: ModelClient = {
-  availableModels: () => Promise.resolve([]),
-  builtinProviders: () => Promise.resolve([]),
-  getDefaultModel: () => Promise.resolve(null),
+  availableModels: () =>
+    Promise.resolve(GUEST_WORKBENCH_ENABLED ? [GUEST_PROVIDER] : []),
+  builtinProviders: () =>
+    Promise.resolve(GUEST_WORKBENCH_ENABLED ? [GUEST_PROVIDER] : []),
+  getDefaultModel: () =>
+    Promise.resolve(
+      GUEST_WORKBENCH_ENABLED
+        ? { provider: GUEST_PROVIDER.id, id: GUEST_MODEL_ID }
+        : null
+    ),
   setDefaultModel: () => Promise.resolve(null),
-  removeProvider: () => Promise.resolve([]),
-  addProvider: () => Promise.resolve([]),
-  addCustomProvider: () => Promise.resolve([]),
-  updateProvider: () => Promise.resolve([]),
-  setModelEnabled: () => Promise.resolve([]),
-  setAllModelsEnabled: () => Promise.resolve([]),
+  removeProvider: () =>
+    Promise.resolve(GUEST_WORKBENCH_ENABLED ? [GUEST_PROVIDER] : []),
+  addProvider: () =>
+    Promise.resolve(GUEST_WORKBENCH_ENABLED ? [GUEST_PROVIDER] : []),
+  addCustomProvider: () =>
+    Promise.resolve(GUEST_WORKBENCH_ENABLED ? [GUEST_PROVIDER] : []),
+  updateProvider: () =>
+    Promise.resolve(GUEST_WORKBENCH_ENABLED ? [GUEST_PROVIDER] : []),
+  setModelEnabled: () =>
+    Promise.resolve(GUEST_WORKBENCH_ENABLED ? [GUEST_PROVIDER] : []),
+  setAllModelsEnabled: () =>
+    Promise.resolve(GUEST_WORKBENCH_ENABLED ? [GUEST_PROVIDER] : []),
   testModelConnection: () => Promise.resolve(),
-  removeCustomModel: () => Promise.resolve([]),
-  upsertCustomModel: () => Promise.resolve([]),
+  removeCustomModel: () =>
+    Promise.resolve(GUEST_WORKBENCH_ENABLED ? [GUEST_PROVIDER] : []),
+  upsertCustomModel: () =>
+    Promise.resolve(GUEST_WORKBENCH_ENABLED ? [GUEST_PROVIDER] : []),
 };

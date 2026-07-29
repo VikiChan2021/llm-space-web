@@ -5,7 +5,9 @@
   "private": true,
   "scripts": {
     "dev": "vite",
+    "dev:guest": "LLM_SPACE_WEB_BASE=/llm-space-web/ VITE_GUEST_WORKBENCH=1 vite --port 15175",
     "build": "NODE_OPTIONS=--max-old-space-size=4096 vite build",
+    "build:guest": "LLM_SPACE_WEB_BASE=/llm-space-web/ VITE_GUEST_WORKBENCH=1 NODE_OPTIONS=--max-old-space-size=4096 vite build",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -1,8 +1,56 @@
 # LLM Space Capability Map
 
-- Last updated: 2026-07-12
-- Map status: refreshed after Headless Thread Semantics V1. A dedicated browser-safe `@llm-space/core/thread` entrypoint now owns prompt materialization, usage arithmetic, and persisted run/evaluation lifecycle rules; desktop retains UI/session and host-specific adapters. Public or dynamically loaded plugins remain absent.
+- Last updated: 2026-07-29
+- Map status: refreshed after the Guest Workbench Hosted Alpha. A public browser Workbench and quota-bounded server-funded model Run are live at `https://kandian.site/llm-space-web/`; GitHub login, BYOK, durable tenant Threads, billing, and executable tools remain deferred. The earlier opaque-session, Personal-Tenant, PostgreSQL, and forced-RLS foundation remains locally verified but is not in the guest entry flow. Public or dynamically loaded plugins remain absent.
 - Evidence rule: entries marked `confirmed` cite current rendered-product or current-code evidence. Entries marked `stale` rely on previous logs or code paths not fully re-inspected in this loop. Entries marked `unknown` need a future product-surface check before they can drive a recommendation.
+
+## Interactive Browser Workbench
+
+- Status: Guest Workbench Hosted Alpha deployed and browser-verified
+- Freshness: confirmed
+- Last checked: 2026-07-29
+- Evidence:
+  - Current Playwright inspection of `https://kandian.site/llm-space-web/` reached `#/workbench` from the Landing without authentication.
+  - A real browser Run streamed a `glm-4.7-flash` answer in 1.96 seconds, changed the visible quota from 20/20 to 19/20, created Run history, and survived reload through local storage.
+  - Browser network evidence showed quota GET and model POST requests returning 200; the post-reload console had zero errors or warnings.
+  - At 768px, `documentElement.scrollWidth === innerWidth === 768`; current screenshots are under `audits/2026-07-29-205241-guest-workbench-hosted-alpha/`.
+  - `apps/web/src/app.tsx` conditionally routes the guest Workbench while the default GitHub Pages build retains the Landing and shared-thread viewer.
+  - `apps/web/src/host/web-host.ts` exposes only the fixed guest model in the Alpha build and leaves tools, filesystem, MCP, and Generator unavailable.
+  - `packages/ui/src/host/types.ts` already defines host-neutral `HostServices` and `ModelClient` seams.
+  - `packages/ui/src/components/thread-playground/` already contains the shared editor, variables, tools, run history, structured evaluation, and reduced trace views.
+  - `apps/server/src/http-server.ts` serves bearer-authenticated `/health`, `/rpc`, and SSE `/stream`.
+  - `packages/runtime/src/remote-protocol.ts` covers filesystem, models, MCP, built-in tools, search, network, skills, and traces.
+  - `apps/desktop/src/bun/remote/remote-runtime-client.ts` implements the protocol with standard fetch/Web Streams APIs, but its version policy is desktop-specific.
+  - `packages/runtime/src/runtime/model-groups.ts` currently returns configured API keys and custom headers, while `models.resolveGeneratorEnv` returns resolved provider keys/environment values; these trusted-desktop contracts are not browser-safe.
+  - Planning log `logs/2026-07-29-174431-web-workbench-transformation-plan.md` defines the recommended same-origin, local/self-hosted migration.
+- Boundary: an unauthenticated visitor can edit one browser-local Thread, configure prompt/messages/model parameters, run the fixed server-funded model, inspect Run history, and see remaining daily quota. Thread data is not synchronized or persisted server-side.
+- Explicit non-goals: no claim of production multi-user SaaS readiness; no provider/Langfuse secret exposure; no Bash/filesystem/stdio MCP/Generator; no native menus, updater, window controls, OS reveal, or native pickers.
+- Visible gaps: BYOK, login activation, durable tenant Thread CRUD, multi-tab Workspace shell, mobile-first layout, scalable distributed quotas, audit/monitoring/backups, abort-specific browser regression, and stronger abuse controls.
+
+## Hosted Multi-User SaaS
+
+- Status: Guest Alpha deployed; Slice 1 identity/tenant foundation remains locally verified but disconnected
+- Freshness: confirmed
+- Last checked: 2026-07-29
+- Evidence:
+  - The user selected the public multi-user SaaS direction on 2026-07-29.
+  - The guest entry flow intentionally bypasses GitHub OAuth and Personal Tenant activation.
+  - `apps/server/src/runtime-factory.ts` writes `process.env.LLM_SPACE_HOME`, while `packages/core/src/server/paths.ts` and runtime managers resolve one global settings root.
+  - `apps/server/src/auth.ts` accepts one long-lived bearer token and has no user or tenant context.
+  - `packages/runtime/src/runtime/model-groups.ts` exposes configured API keys and custom headers; the remote protocol also exposes resolved generator environment values.
+  - `packages/runtime/src/tools/built-in/fs.ts` accepts arbitrary absolute paths and can execute Bash; `McpManager` supports stdio commands, cwd, env, and remote secret headers.
+  - Planning log `logs/2026-07-29-180322-hosted-multi-user-saas-v1.md` defines the proposed GitHub-login, Personal-Tenant, BYOK, PostgreSQL/RLS, model-only Hosted Alpha.
+  - `apps/cloud` now implements GitHub Authorization Code + PKCE, signed short-lived OAuth state, opaque revocable sessions, Personal Tenant/Workspace provisioning, same-origin logout, and a redacted session view.
+  - `apps/cloud/migrations/0001_identity_and_tenants.sql` defines the V1 identity/business tables, membership-bound sessions, forced tenant RLS, a fixed-search-path provisioning function, audit events, and runtime-role grants.
+  - Cloud startup rejects PostgreSQL `SUPERUSER`/`BYPASSRLS` roles and verifies every tenant table has both RLS and forced RLS.
+  - Focused tests cover config, OAuth sealing/tampering/expiry, GitHub protocol, session/cookie/Origin behavior, and client tenant-header spoofing.
+  - A current disposable PostgreSQL 16 container test applied the migration from an empty database, rejected a superuser runtime, verified idempotent identity provisioning and session restoration, and proved Tenant A cannot select Tenant B's Workspace.
+  - The Guest Alpha adds a same-origin model-only API, opaque guest cookie, HMAC browser/IP daily counters, bounded input/output/concurrency, and a fixed server-side `glm-4.7-flash` provider.
+  - Tencent Cloud deployment uses the existing `kandian.site` TLS virtual host, isolated `/llm-space-web/` static/API locations, a hardened systemd service under the `llmspace` account, and a `root:llmspace` mode-640 environment file.
+  - Direct production SSE and real-browser model Runs succeeded; the deployed frontend was scanned against the configured secret and was clean.
+- Boundary: the public guest deployment is a single-instance Hosted Alpha with browser-local Threads and a platform-funded quota. The PostgreSQL/RLS identity foundation is not yet connected to this surface.
+- Explicit non-goals for the current Alpha: GitHub login activation, BYOK, team organizations, invitations, billing, executable host filesystem/Bash tools, stdio MCP, code generation, full mobile UX, production SLA, or compliance claims.
+- Visible gaps: authenticated tenant activation; encrypted write-only BYOK; tenant-scoped Thread CRUD and optimistic locking; distributed/idempotent quota accounting; account/workspace deletion execution; KMS, monitoring, backups, alerting, WAF/rate limiting, and operational runbooks. Restoring executable tools additionally requires isolated runtime workers, storage volumes, resource limits, and network policy.
 
 ## First-Run Model Setup
 

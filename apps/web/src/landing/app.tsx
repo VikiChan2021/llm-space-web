@@ -135,6 +135,19 @@ export function App() {
                   variants={item}
                   className="mt-10 flex w-full flex-col items-stretch gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center"
                 >
+                  {import.meta.env.VITE_GUEST_WORKBENCH === '1' && (
+                    <a
+                      href="#/workbench"
+                      className="group shadow-brand/60 relative inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-semibold text-white shadow-[0_6px_24px_-8px] transition-transform hover:-translate-y-0.5 sm:w-auto"
+                      style={{
+                        backgroundImage:
+                          'linear-gradient(180deg, oklch(0.7 0.16 275) 0%, oklch(0.6 0.17 268) 100%)',
+                      }}
+                    >
+                      {lang === 'zh' ? '打开 Web 工作台' : 'Open Web Workbench'}
+                      <ArrowRightIcon className="h-3.5 w-3.5 opacity-80" />
+                    </a>
+                  )}
                   <DownloadButton build={primary?.appleSilicon} />
                   <IntelButton build={primary?.intel} />
                 </motion.div>

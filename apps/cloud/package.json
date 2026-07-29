@@ -1,0 +1,21 @@
+{
+  "name": "@llm-space/cloud",
+  "version": "4.0.1",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "dev:guest": "bun --watch src/guest-index.ts",
+    "start": "bun src/index.ts",
+    "start:guest": "bun src/guest-index.ts",
+    "pack:guest": "bun build src/guest-node-index.ts --target=node --minify --outfile dist/llm-space-guest-api.mjs",
+    "migrate": "bun src/migrate.ts",
+    "test": "bun test src",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "catalog:",
+    "@earendil-works/pi-ai": "catalog:",
+    "@llm-space/core": "workspace:*"
+  }
+}

@@ -46,6 +46,22 @@ run = "bun run dev:web"
 description = "Run the headless LLM Space runtime server"
 run = "bun run dev:server"
 
+[tasks."dev:cloud"]
+description = "Run the Hosted SaaS control plane"
+run = "bun run dev:cloud"
+
+[tasks."dev:guest-api"]
+description = "Run the guest model API on :8791"
+run = "bun run dev:guest-api"
+
+[tasks."dev:guest-web"]
+description = "Run the guest Web Workbench on :15175"
+run = "bun run dev:guest-web"
+
+[tasks."migrate:cloud"]
+description = "Apply Hosted SaaS PostgreSQL migrations"
+run = "bun run migrate:cloud"
+
 [tasks.test]
 description = "Run all Bun tests"
 run = "bun run test"
@@ -75,6 +91,14 @@ run = "bun run build:stable"
 [tasks."build:web"]
 description = "Build the static web app for GitHub Pages (base=/llm-space/)"
 run = "bun run build:web"
+
+[tasks."build:guest-web"]
+description = "Build the guest Web Workbench (base=/llm-space-web/)"
+run = "bun run build:guest-web"
+
+[tasks."pack:guest-api"]
+description = "Bundle the guest API for the Bun server runtime"
+run = "bun run pack:guest-api"
 
 [tasks.release]
 description = "Cut a stable release: bump version, tag, push — triggers release CI"

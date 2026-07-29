@@ -3,10 +3,16 @@ import { createGistConnector, GIST_CONNECTOR_ID } from "@llm-space/core/storage"
 import { ModelProvider } from "@llm-space/ui/components/model-provider";
 import { ThemeProvider } from "@llm-space/ui/components/theme-provider";
 import { HostServicesProvider } from "@llm-space/ui/host";
+import { Toaster } from "@llm-space/ui/ui/sonner";
 import { TooltipProvider } from "@llm-space/ui/ui/tooltip";
 import { Route, Routes, useParams } from "react-router-dom";
 
-import { webHost, webModelClient } from "@/host/web-host";
+import { GuestWorkbench } from "@/guest/guest-workbench";
+import {
+  GUEST_WORKBENCH_ENABLED,
+  webHost,
+  webModelClient,
+} from "@/host/web-host";
 import { App as Landing } from "@/landing/app";
 import { I18nProvider } from "@/landing/lib/i18n";
 import { NotFound } from "@/not-found";
@@ -45,6 +51,7 @@ export function App() {
       <ModelProvider client={webModelClient}>
         <HostServicesProvider value={webHost}>
           <TooltipProvider delayDuration={800}>
+            <Toaster theme="dark" position="top-center" closeButton />
             <I18nProvider>
               <Routes>
                 <Route
@@ -52,6 +59,9 @@ export function App() {
                   element={<SharedThreadRoute />}
                 />
                 <Route path="/shared/*" element={<NotFound />} />
+                {GUEST_WORKBENCH_ENABLED ? (
+                  <Route path="/workbench" element={<GuestWorkbench />} />
+                ) : null}
                 <Route path="*" element={<Landing />} />
               </Routes>
             </I18nProvider>

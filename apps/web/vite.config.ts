@@ -4,21 +4,17 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const base = process.env.LLM_SPACE_WEB_BASE ?? "/llm-space/";
+const guestApiOrigin =
+  process.env.GUEST_API_ORIGIN ?? "http://127.0.0.1:8791";
 
-// Served under the repo subpath at deer-flow.github.io/llm-space/. Absolute
-// asset references in JSX must go through `import.meta.env.BASE_URL`.
 export default defineConfig({
-  base: "/llm-space/",
+  base,
   plugins: [react()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
     },
-    // Share one React copy with the `@llm-space/ui` package (else hooks throw).
-    // CodeMirror is intentionally NOT deduped: the web app has no direct
-    // CodeMirror dep, so every import already resolves to the single copy under
-    // the package's node_modules — deduping would force resolution from web's
-    // own (empty) context and fail.
     dedupe: ["react", "react-dom"],
   },
   build: {
@@ -29,5 +25,13 @@ export default defineConfig({
   server: {
     port: 5175,
     strictPort: true,
+    proxy: {
+      [`${base}api`]: {
+        target: guestApiOrigin,
+        changeOrigin: true,
+        rewrite: (requestPath) =>
+          requestPath.slice(base.length - 1),
+      },
+    },
   },
 });
