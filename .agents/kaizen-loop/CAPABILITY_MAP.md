@@ -1,31 +1,28 @@
-# LLM Space Capability Map
+# LLM Space 能力地图
 
-- Last updated: 2026-07-29
-- Map status: refreshed after the Guest Workbench Hosted Alpha. A public browser Workbench and quota-bounded server-funded model Run are live at `https://kandian.site/llm-space-web/`; GitHub login, BYOK, durable tenant Threads, billing, and executable tools remain deferred. The earlier opaque-session, Personal-Tenant, PostgreSQL, and forced-RLS foundation remains locally verified but is not in the guest entry flow. Public or dynamically loaded plugins remain absent.
-- Evidence rule: entries marked `confirmed` cite current rendered-product or current-code evidence. Entries marked `stale` rely on previous logs or code paths not fully re-inspected in this loop. Entries marked `unknown` need a future product-surface check before they can drive a recommendation.
+- 最后更新：2026-07-29
+- 地图状态：游客工作台 Hosted Alpha 已在线运行；“游客 Thread 资料库 V1”已在本地实现并完成浏览器验收，但尚未发布到线上。GitHub 登录、BYOK、租户级持久 Thread、账单和可执行工具继续延期。此前的匿名会话、Personal Tenant、PostgreSQL 与强制 RLS 基础仍仅在本地验证，尚未接入游客入口。当前没有公开或动态加载的插件。
+- 证据规则：`confirmed` 表示有当前渲染产品或当前代码证据；`stale` 表示依赖旧日志或本轮未完全复查的代码路径；`unknown` 表示需要未来重新检查产品界面后才能用于决策。
 
-## Interactive Browser Workbench
+## 交互式浏览器工作台
 
-- Status: Guest Workbench Hosted Alpha deployed and browser-verified
-- Freshness: confirmed
-- Last checked: 2026-07-29
-- Evidence:
-  - Current Playwright inspection of `https://kandian.site/llm-space-web/` reached `#/workbench` from the Landing without authentication.
-  - A real browser Run streamed a `glm-4.7-flash` answer in 1.96 seconds, changed the visible quota from 20/20 to 19/20, created Run history, and survived reload through local storage.
-  - Browser network evidence showed quota GET and model POST requests returning 200; the post-reload console had zero errors or warnings.
-  - At 768px, `documentElement.scrollWidth === innerWidth === 768`; current screenshots are under `audits/2026-07-29-205241-guest-workbench-hosted-alpha/`.
-  - `apps/web/src/app.tsx` conditionally routes the guest Workbench while the default GitHub Pages build retains the Landing and shared-thread viewer.
-  - `apps/web/src/host/web-host.ts` exposes only the fixed guest model in the Alpha build and leaves tools, filesystem, MCP, and Generator unavailable.
-  - `packages/ui/src/host/types.ts` already defines host-neutral `HostServices` and `ModelClient` seams.
-  - `packages/ui/src/components/thread-playground/` already contains the shared editor, variables, tools, run history, structured evaluation, and reduced trace views.
-  - `apps/server/src/http-server.ts` serves bearer-authenticated `/health`, `/rpc`, and SSE `/stream`.
-  - `packages/runtime/src/remote-protocol.ts` covers filesystem, models, MCP, built-in tools, search, network, skills, and traces.
-  - `apps/desktop/src/bun/remote/remote-runtime-client.ts` implements the protocol with standard fetch/Web Streams APIs, but its version policy is desktop-specific.
-  - `packages/runtime/src/runtime/model-groups.ts` currently returns configured API keys and custom headers, while `models.resolveGeneratorEnv` returns resolved provider keys/environment values; these trusted-desktop contracts are not browser-safe.
-  - Planning log `logs/2026-07-29-174431-web-workbench-transformation-plan.md` defines the recommended same-origin, local/self-hosted migration.
-- Boundary: an unauthenticated visitor can edit one browser-local Thread, configure prompt/messages/model parameters, run the fixed server-funded model, inspect Run history, and see remaining daily quota. Thread data is not synchronized or persisted server-side.
-- Explicit non-goals: no claim of production multi-user SaaS readiness; no provider/Langfuse secret exposure; no Bash/filesystem/stdio MCP/Generator; no native menus, updater, window controls, OS reveal, or native pickers.
-- Visible gaps: BYOK, login activation, durable tenant Thread CRUD, multi-tab Workspace shell, mobile-first layout, scalable distributed quotas, audit/monitoring/backups, abort-specific browser regression, and stronger abuse controls.
+- 状态：线上 Hosted Alpha 可用；游客 Thread 资料库 V1 已在本地完成并通过浏览器验收，尚未部署
+- 新鲜度：confirmed
+- 最后检查：2026-07-29
+- 证据：
+  - 当前线上 `https://kandian.site/llm-space-web/` 仍允许游客从 Landing 免登录进入 `#/workbench`，并运行受额度约束的服务器端 `glm-4.7-flash`。
+  - 本地实现将单一 `llm-space.guest.thread.v1` 数据迁移为版本化的 `llm-space.guest.workspace.v1` 工作区；新格式写入成功后才删除旧键。
+  - 游客现可在左侧响应式抽屉中新建、选择、复制、导出、删除 Thread，并可通过工作台标题重命名；导入 JSON 会创建新 Thread，不覆盖已有记录。
+  - 首次访问会立即持久化示例 Thread；刷新会恢复最后打开项；删除最后一项会自动创建新的示例 Thread。
+  - Run 期间，新建、切换、复制、导入、删除和重置均被锁定，只读导出仍可用；停止后操作恢复。
+  - 聚焦数据测试覆盖初始化、旧数据迁移、存储读写失败、Thread 生命周期、导入和导出，共 10 项通过。
+  - 真实浏览器流程完成新建、重命名、刷新恢复、导出、确认删除、重新导入和 Run 锁定验收；最终受控浏览器上下文控制台为零错误、零警告。
+  - 768px 视口满足 `documentElement.scrollWidth === innerWidth === 768`，打开抽屉后没有页面级横向溢出。
+  - 审计截图位于 `audits/2026-07-29-guest-thread-library-v1/`，包括桌面 Thread 资料库、Run 锁定状态和 768px 响应式抽屉。
+  - `apps/web/src/host/web-host.ts` 仍只暴露固定游客模型；工具、文件系统、MCP 和 Generator 继续不可用。
+- 能力边界：未登录游客可管理多个浏览器本地 Thread，编辑 Prompt、消息、变量和模型参数，运行固定的服务器资助模型，查看 Run 历史和剩余额度，并通过 JSON 导入导出携带单个 Thread。Thread 仍不在服务端同步或持久化。
+- 明确非目标：不宣称已经达到生产级多用户 SaaS；不暴露供应商或 Langfuse 密钥；不开放 Bash、文件系统、stdio MCP、Generator、原生菜单、更新器、窗口控制或系统文件选择器。
+- 可见缺口：本地资料库 V1 尚未线上部署；BYOK、登录激活、租户级 Thread CRUD、多标签 Workspace、Run 错误恢复、移动端专项优化、分布式额度、审计监控、备份和更强滥用防护仍待开发。
 
 ## Hosted Multi-User SaaS
 

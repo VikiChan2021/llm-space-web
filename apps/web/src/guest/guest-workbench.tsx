@@ -1,62 +1,72 @@
 import type { Thread } from "@llm-space/core";
+import { ConfirmDialog } from "@llm-space/ui/components/confirm-dialog";
 import { ThreadPlayground } from "@llm-space/ui/components/thread-playground";
 import { Button } from "@llm-space/ui/ui/button";
-import { RotateCcwIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { LibraryIcon, RotateCcwIcon } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import {
   createGuestTransport,
-  GUEST_MODEL_ID,
-  GUEST_PROVIDER_ID,
   readGuestQuota,
   type GuestQuota,
 } from "./guest-api";
+import { GuestThreadLibrary } from "./guest-thread-library";
+import {
+  addGuestThread,
+  createStarterThread,
+  deleteGuestThread,
+  duplicateGuestThread,
+  loadGuestWorkspace,
+  MAX_GUEST_THREAD_IMPORT_BYTES,
+  parseGuestThreadImport,
+  resetGuestThread,
+  saveGuestWorkspace,
+  selectGuestThread,
+  serializeGuestThread,
+  uniqueGuestThreadTitle,
+  updateGuestThread,
+  type GuestWorkspace,
+  type GuestWorkspaceFactory,
+  type GuestWorkspaceStorage,
+} from "./guest-workspace";
 
-const STORAGE_KEY = "llm-space.guest.thread.v1";
+const BROWSER_WORKSPACE_FACTORY: GuestWorkspaceFactory = {
+  createId: () => crypto.randomUUID(),
+  now: () => new Date().toISOString(),
+};
+const BROWSER_STORAGE = _browserStorage();
 
-function _initialThread(): Thread {
-  return {
-    title: "游客体验工作台",
-    model: {
-      provider: GUEST_PROVIDER_ID,
-      id: GUEST_MODEL_ID,
-      params: { maxTokens: 2_048, reasoning: "off", temperature: 0.7 },
-    },
-    context: {
-      systemPrompt:
-        "你是一个严谨、友好的 AI 助手。优先给出清晰、可操作的中文回答。",
-      messages: [
-        {
-          id: crypto.randomUUID(),
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: "请用三点说明：一个好的 Agent 工作台应当帮助开发者解决哪些问题？",
-            },
-          ],
-        },
-      ],
-      tools: [],
-    },
-  };
-}
-
-function _loadThread(): Thread {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (!saved) return _initialThread();
-  try {
-    return JSON.parse(saved) as Thread;
-  } catch {
-    return _initialThread();
-  }
+interface GuestWorkspaceState {
+  workspace: GuestWorkspace;
+  storageError: string | null;
 }
 
 export function GuestWorkbench() {
-  const [thread, setThread] = useState<Thread>(_loadThread);
+  const [workspaceState, setWorkspaceState] = useState<GuestWorkspaceState>(
+    () => {
+      const loaded = loadGuestWorkspace(
+        BROWSER_STORAGE,
+        BROWSER_WORKSPACE_FACTORY
+      );
+      return {
+        workspace: loaded.workspace,
+        storageError: loaded.storageError,
+      };
+    }
+  );
   const [revision, setRevision] = useState(0);
   const [quota, setQuota] = useState<GuestQuota | null>(null);
   const [quotaError, setQuotaError] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [running, setRunning] = useState(false);
+  const workspaceRef = useRef(workspaceState.workspace);
+  const { workspace, storageError } = workspaceState;
+  const activeRecord =
+    workspace.threads.find(
+      (record) => record.id === workspace.activeThreadId
+    ) ?? workspace.threads[0];
 
   const refreshQuota = useCallback(async () => {
     try {
@@ -78,24 +88,165 @@ export function GuestWorkbench() {
       }),
     [refreshQuota]
   );
-  const handleChange = useCallback((nextThread: Thread) => {
-    setThread(nextThread);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextThread));
-  }, []);
-  const handleRename = useCallback((title: string) => {
-    setThread((current) => {
-      const next = { ...current, title };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
-    return Promise.resolve(true);
-  }, []);
+
+  const commitWorkspace = useCallback(
+    (transform: (current: GuestWorkspace) => GuestWorkspace) => {
+      const nextWorkspace = transform(workspaceRef.current);
+      if (nextWorkspace === workspaceRef.current) return;
+      workspaceRef.current = nextWorkspace;
+      setWorkspaceState({
+        workspace: nextWorkspace,
+        storageError: saveGuestWorkspace(BROWSER_STORAGE, nextWorkspace),
+      });
+    },
+    []
+  );
+
+  const handleChange = useCallback(
+    (nextThread: Thread) => {
+      commitWorkspace((current) =>
+        updateGuestThread(
+          current,
+          activeRecord.id,
+          nextThread,
+          BROWSER_WORKSPACE_FACTORY.now()
+        )
+      );
+    },
+    [activeRecord.id, commitWorkspace]
+  );
+  const handleRename = useCallback(
+    (title: string) => {
+      const trimmed = title.trim();
+      const unique = uniqueGuestThreadTitle(
+        trimmed,
+        workspace.threads,
+        activeRecord.id
+      );
+      if (unique !== trimmed) {
+        return Promise.reject(new Error("已有同名 Thread，请换一个名称。"));
+      }
+      commitWorkspace((current) =>
+        updateGuestThread(
+          current,
+          activeRecord.id,
+          { ...activeRecord.thread, title: trimmed },
+          BROWSER_WORKSPACE_FACTORY.now()
+        )
+      );
+      return Promise.resolve(true);
+    },
+    [
+      activeRecord.id,
+      activeRecord.thread,
+      commitWorkspace,
+      workspace.threads,
+    ]
+  );
+  const handleCreate = useCallback(() => {
+    if (running) return;
+    commitWorkspace((current) =>
+      addGuestThread(
+        current,
+        createStarterThread(BROWSER_WORKSPACE_FACTORY.createId),
+        BROWSER_WORKSPACE_FACTORY
+      )
+    );
+  }, [commitWorkspace, running]);
+  const handleSelect = useCallback(
+    (recordId: string) => {
+      if (running || recordId === activeRecord.id) return;
+      commitWorkspace((current) => selectGuestThread(current, recordId));
+    },
+    [activeRecord.id, commitWorkspace, running]
+  );
+  const handleDuplicate = useCallback(
+    (recordId: string) => {
+      if (running) return;
+      commitWorkspace((current) =>
+        duplicateGuestThread(current, recordId, BROWSER_WORKSPACE_FACTORY)
+      );
+    },
+    [commitWorkspace, running]
+  );
+  const handleDelete = useCallback(
+    (recordId: string) => {
+      if (running) return;
+      commitWorkspace((current) =>
+        deleteGuestThread(current, recordId, BROWSER_WORKSPACE_FACTORY)
+      );
+      toast.success("Thread 已删除");
+    },
+    [commitWorkspace, running]
+  );
   const handleReset = useCallback(() => {
-    const next = _initialThread();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    setThread(next);
+    if (running) return;
+    commitWorkspace((current) =>
+      resetGuestThread(
+        current,
+        activeRecord.id,
+        BROWSER_WORKSPACE_FACTORY.createId,
+        BROWSER_WORKSPACE_FACTORY.now()
+      )
+    );
     setRevision((value) => value + 1);
-  }, []);
+    setResetConfirmOpen(false);
+    toast.success("已重置为示例内容");
+  }, [activeRecord.id, commitWorkspace, running]);
+  const handleImport = useCallback(
+    async (file: File): Promise<boolean> => {
+      if (running) return false;
+      if (file.size > MAX_GUEST_THREAD_IMPORT_BYTES) {
+        toast.error("文件过大", {
+          description: "V1 最多导入 1 MiB 的 Thread JSON。",
+        });
+        return false;
+      }
+      const imported = await parseGuestThreadImport(file.name, await file.text());
+      if (!imported) {
+        toast.error("无法导入", {
+          description: "请选择有效的 LLM Space Thread JSON 文件。",
+        });
+        return false;
+      }
+      const fallbackTitle = file.name.replace(/\.json$/i, "").trim();
+      const thread = {
+        ...imported,
+        title: imported.title?.trim() || fallbackTitle || "导入的 Thread",
+      };
+      commitWorkspace((current) =>
+        addGuestThread(current, thread, BROWSER_WORKSPACE_FACTORY)
+      );
+      if (thread.context?.tools?.length) {
+        toast.warning("Thread 已导入", {
+          description: "游客模式会保留工具定义，但不会执行工具。",
+        });
+      } else {
+        toast.success("Thread 已导入");
+      }
+      return true;
+    },
+    [commitWorkspace, running]
+  );
+  const handleExport = useCallback(
+    (recordId: string) => {
+      const record = workspace.threads.find((item) => item.id === recordId);
+      if (!record) return;
+      const blob = new Blob([serializeGuestThread(record.thread)], {
+        type: "application/json;charset=utf-8",
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${_safeFileStem(record.thread.title)}.json`;
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Thread JSON 已导出");
+    },
+    [workspace.threads]
+  );
 
   return (
     <div className="dark flex h-dvh min-w-0 flex-col bg-background text-foreground">
@@ -112,7 +263,7 @@ export function GuestWorkbench() {
             暂未开放。
           </p>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           <div className="text-right text-xs">
             <div className="font-medium">
               {quota
@@ -125,26 +276,108 @@ export function GuestWorkbench() {
               超额后可配置自己的 API Key（即将开放）
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={handleReset}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setLibraryOpen(true)}
+          >
+            <LibraryIcon className="size-3.5" />
+            Threads {workspace.threads.length}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={running}
+            onClick={() => setResetConfirmOpen(true)}
+          >
             <RotateCcwIcon className="size-3.5" />
             重置示例
           </Button>
         </div>
       </header>
+
+      {storageError ? (
+        <div
+          role="alert"
+          className="border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive"
+        >
+          {storageError}
+        </div>
+      ) : null}
+
       <main className="min-h-0 min-w-0 flex-1 p-2 sm:p-4">
         <ThreadPlayground
-          key={revision}
+          key={`${activeRecord.id}:${revision}`}
           active
           className="size-full min-w-0 overflow-hidden rounded-xl border shadow-lg"
-          path="guest/workbench.json"
-          title={thread.title}
-          initialValue={thread}
+          path={`guest/${activeRecord.id}.json`}
+          title={activeRecord.thread.title}
+          initialValue={activeRecord.thread}
           transport={transport}
           onChange={handleChange}
           onRenameTitle={handleRename}
-          onStreamingEnd={() => void refreshQuota()}
+          onStreamingStart={() => setRunning(true)}
+          onStreamingEnd={() => {
+            setRunning(false);
+            void refreshQuota();
+          }}
         />
       </main>
+
+      <GuestThreadLibrary
+        open={libraryOpen}
+        onOpenChange={setLibraryOpen}
+        records={workspace.threads}
+        activeThreadId={activeRecord.id}
+        running={running}
+        onCreate={handleCreate}
+        onSelect={handleSelect}
+        onDuplicate={handleDuplicate}
+        onExport={handleExport}
+        onDelete={handleDelete}
+        onImport={handleImport}
+      />
+
+      <ConfirmDialog
+        open={resetConfirmOpen}
+        onOpenChange={setResetConfirmOpen}
+        title="重置当前 Thread？"
+        description={`“${activeRecord.thread.title || "未命名 Thread"}”的当前内容、Run 历史和评估会被示例内容替换。此操作无法撤销。`}
+        cancelLabel="取消"
+        confirmLabel="重置"
+        onConfirm={handleReset}
+      />
     </div>
   );
+}
+
+function _safeFileStem(title: string | undefined): string {
+  const trimmed = title?.trim() || "llm-space-thread";
+  return (
+    trimmed
+      .split("")
+      .filter((character) => character.charCodeAt(0) >= 32)
+      .join("")
+      .replace(/[<>:"/\\|?*]/g, "-")
+      .replace(/[.\s]+$/g, "")
+      .slice(0, 80) || "llm-space-thread"
+  );
+}
+
+function _browserStorage(): GuestWorkspaceStorage {
+  try {
+    return window.localStorage;
+  } catch {
+    return {
+      getItem: () => {
+        throw new Error("浏览器禁止访问本地存储");
+      },
+      setItem: () => {
+        throw new Error("浏览器禁止访问本地存储");
+      },
+      removeItem: () => {
+        throw new Error("浏览器禁止访问本地存储");
+      },
+    };
+  }
 }
