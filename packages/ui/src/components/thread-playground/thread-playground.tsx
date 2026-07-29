@@ -56,6 +56,10 @@ import { ModelConfigEditor } from "./model/model-config-editor";
 import { SystemPromptEditor } from "./prompt/system-prompt-editor";
 import { RunHistoryListView } from "./run-history-list-view";
 import {
+  RunRecoveryBanner,
+  type ThreadRunRecoveryConfig,
+} from "./run-recovery-banner";
+import {
   canRedo,
   canUndo,
   createThreadStore,
@@ -103,6 +107,7 @@ export interface ThreadPlaygroundProps {
   validateTitle?: TitleValidator;
   onStreamingStart?: () => void;
   onStreamingEnd?: () => void;
+  runRecovery?: ThreadRunRecoveryConfig;
 }
 
 export function ThreadPlayground({
@@ -136,6 +141,7 @@ function _ThreadPlayground({
   onChange,
   onStreamingStart,
   onStreamingEnd,
+  runRecovery,
   ...props
 }: ThreadPlaygroundProps) {
   // Keep live refs to the provider list and default model so the store can
@@ -166,6 +172,7 @@ function _ThreadPlayground({
       loadSkills: () => listEnabledPromptVariableSkills(skills, { runtimeId }),
       loadFile: (path) => files.readText(path),
       fileExists: (path) => files.exists(path),
+      captureRunResults: Boolean(runRecovery),
     })
   );
   useThreadPlaygroundEvents(store, {
@@ -175,7 +182,11 @@ function _ThreadPlayground({
   });
   return (
     <ThreadStoreContext.Provider value={store}>
-      <ThreadPlaygroundContent runtimeId={runtimeId} {...props} />
+      <ThreadPlaygroundContent
+        runtimeId={runtimeId}
+        runRecovery={runRecovery}
+        {...props}
+      />
     </ThreadStoreContext.Provider>
   );
 }
@@ -194,12 +205,14 @@ function ThreadPlaygroundContent({
   readonly: readonlyFromProps = false,
   active = false,
   compactImages = false,
+  runRecovery,
 }: Omit<
   ThreadPlaygroundProps,
   "initialValue" | "onChange" | "onStreamingStart" | "onStreamingEnd"
 >) {
   const containerRef = useRef<HTMLDivElement>(null);
   const status = useThreadStore((s) => s.status);
+  const lastRunResult = useThreadStore((s) => s.lastRunResult);
   const savedModel = useThreadStore((s) => s.thread.model);
   const fallbackModel = useFirstAvailableModel();
   // A thread can run once a model resolves (its own, or the first available).
@@ -208,7 +221,8 @@ function ThreadPlaygroundContent({
   const redoable = useThreadStore((s) => canRedo(s.changeHistory));
   const { effectiveAutoRunTools, reactLoop, setAutoRunTools, setReactLoop } =
     useRunMode();
-  const { run, abort, undo, redo, syncTitle } = useThreadStoreActions();
+  const { run, abort, undo, redo, syncTitle, dismissRunResult } =
+    useThreadStoreActions();
   const [systemPromptStreaming, setSystemPromptStreaming] = useState(false);
   const title = useMemo(
     () => titleFromProps ?? threadTitleFromPath(path),
@@ -241,6 +255,18 @@ function ThreadPlaygroundContent({
       // Ignored
     }
   }, [abort]);
+  const handleRetry = useCallback(() => {
+    if (!lastRunResult) return;
+    void run(lastRunResult.retryFromMessageId);
+  }, [lastRunResult, run]);
+  const recoveryPresentation = useMemo(() => {
+    if (!lastRunResult || !runRecovery) return null;
+    return lastRunResult.outcome === "failed"
+      ? runRecovery.describeFailure(lastRunResult.error)
+      : runRecovery.describeAbort({
+          partialOutput: lastRunResult.partialOutput,
+        });
+  }, [lastRunResult, runRecovery]);
   const runHistoryPanelRef = usePanelRef();
   const [historyOpen, setHistoryOpen] = useState(false);
   const toggleHistory = useCallback(() => {
@@ -435,6 +461,14 @@ function ThreadPlaygroundContent({
               {headerActions}
             </div>
           </header>
+          {lastRunResult && recoveryPresentation ? (
+            <RunRecoveryBanner
+              result={lastRunResult}
+              presentation={recoveryPresentation}
+              onRetry={handleRetry}
+              onDismiss={dismissRunResult}
+            />
+          ) : null}
           <ResizablePanelGroup
             className="flex min-h-0 grow"
             orientation="horizontal"

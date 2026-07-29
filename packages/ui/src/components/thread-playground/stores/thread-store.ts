@@ -95,6 +95,19 @@ const _noFileExists = (): Promise<boolean> => Promise.resolve(false);
 const MAX_AUTO_TOOL_TURNS = 50;
 
 export type ThreadStoreStatus = "idle" | "running";
+export type ThreadRunResult =
+  | {
+      outcome: "failed";
+      error: unknown;
+      partialOutput: boolean;
+      retryFromMessageId?: string;
+    }
+  | {
+      outcome: "aborted";
+      partialOutput: boolean;
+      retryFromMessageId?: string;
+    };
+
 export interface ThreadState {
   thread: Thread;
   runtimeId?: string;
@@ -102,6 +115,8 @@ export interface ThreadState {
   status: ThreadStoreStatus;
   abortController: AbortController | null;
   activeRunId: string | null;
+  /** Latest recoverable non-success result; page-session only, never serialized. */
+  lastRunResult: ThreadRunResult | null;
   collapsedMessageIds: string[];
   /**
    * Id of the message whose editor should grab focus on mount — set only by
@@ -119,6 +134,7 @@ export interface ThreadState {
   evaluationRubrics: EvaluationRubricRecord[];
 
   run(fromMessageId?: string): Promise<void>;
+  dismissRunResult(): void;
   undo(): void;
   redo(): void;
   restoreThread(thread: Thread): void;
@@ -223,6 +239,11 @@ export function createThreadStore(
     fileExists?: (path: string) => Promise<boolean>;
     /** Monotonic clock used for client-observed model timing. */
     now?: () => number;
+    /**
+     * Capture failed/aborted results for a host-rendered recovery surface.
+     * Disabled by default so existing desktop toast behavior stays unchanged.
+     */
+    captureRunResults?: boolean;
   } = {}
 ): ThreadStore {
   const normalizedInputThread = ensureThreadVariableState(
@@ -511,6 +532,7 @@ export function createThreadStore(
         status: "idle",
         abortController: null,
         activeRunId: null,
+        lastRunResult: null,
         collapsedMessageIds: [],
         autoFocusMessageId: null,
         changeHistory: createInitialHistory(normalizedInitialThread),
@@ -932,9 +954,23 @@ export function createThreadStore(
             }
           }
           if (!isRunnableConversation(messages)) {
-            toast.error("Error", { description: RUN_LAST_MESSAGE_ERROR });
+            if (options.captureRunResults) {
+              set({
+                lastRunResult: {
+                  outcome: "failed",
+                  error: new Error(RUN_LAST_MESSAGE_ERROR),
+                  partialOutput: false,
+                },
+              });
+            } else {
+              toast.error("Error", { description: RUN_LAST_MESSAGE_ERROR });
+            }
             return;
           }
+          const retryFromMessageId =
+            messages.at(-1)?.role === "user"
+              ? messages.at(-1)?.id
+              : undefined;
           let promptSnapshot: ThreadContext["snapshot"] =
             get().thread.context?.snapshot;
           let preparedContext: ThreadContext | null = null;
@@ -948,12 +984,23 @@ export function createThreadStore(
             preparedContext = rendered.context;
             promptSnapshot = rendered.snapshot;
           } catch (error) {
-            toast.error("Unable to render prompt variables", {
-              description:
-                error instanceof PromptVariableError || error instanceof Error
-                  ? error.message
-                  : "Please check the system prompt variables.",
-            });
+            if (options.captureRunResults) {
+              set({
+                lastRunResult: {
+                  outcome: "failed",
+                  error,
+                  partialOutput: false,
+                  ...(retryFromMessageId ? { retryFromMessageId } : {}),
+                },
+              });
+            } else {
+              toast.error("Unable to render prompt variables", {
+                description:
+                  error instanceof PromptVariableError || error instanceof Error
+                    ? error.message
+                    : "Please check the system prompt variables.",
+              });
+            }
             return;
           }
           const abortController = new AbortController();
@@ -964,6 +1011,7 @@ export function createThreadStore(
             abortController,
             activeRunId: runId,
             streamingMessage: null,
+            lastRunResult: null,
           });
 
           // Commit the truncation while running so it folds into the run's
@@ -996,6 +1044,9 @@ export function createThreadStore(
           // `sawEvent` alone can't tell a failed run from a successful one.
           // A failed run is never recorded in the run history.
           let failed = false;
+          // An explicitly stopped run may retain partial output, but is not a
+          // successful snapshot and must not enter Run history.
+          let aborted = false;
 
           // Throttle live-preview updates (frame-aligned, at most one per
           // PREVIEW_THROTTLE_MS) — see createFrameThrottle for why per-event
@@ -1027,7 +1078,7 @@ export function createThreadStore(
             // undo step, and record a run snapshot. No-op for undo if the
             // thread is unchanged.
             const finalThread = get().thread;
-            if (sawEvent && !failed) {
+            if (sawEvent && !failed && !aborted) {
               const threadWithSnapshot = withPromptVariableSnapshot(
                 finalThread,
                 promptSnapshot
@@ -1070,15 +1121,28 @@ export function createThreadStore(
               return;
             }
             try {
+              aborted = true;
               abortController.abort();
             } catch {
               // Ignored
             }
-            if (streamingMessage && hasContent(streamingMessage)) {
+            const partialOutput = Boolean(
+              streamingMessage && hasContent(streamingMessage)
+            );
+            if (partialOutput && streamingMessage) {
               commit(streamingMessage);
               streamingMessage = null;
             }
             finalizeActiveRun();
+            if (options.captureRunResults) {
+              set({
+                lastRunResult: {
+                  outcome: "aborted",
+                  partialOutput,
+                  ...(retryFromMessageId ? { retryFromMessageId } : {}),
+                },
+              });
+            }
           };
 
           // Stream a single model turn into `messages`. Returns whether it
@@ -1199,9 +1263,27 @@ export function createThreadStore(
                 return "aborted";
               }
               failed = true;
-              console.error(error);
-              if (error instanceof Error) {
-                toast.error("Error", { description: error.message });
+              const partialOutput = Boolean(
+                streamingMessage && hasContent(streamingMessage)
+              );
+              if (partialOutput && streamingMessage) {
+                commit(streamingMessage);
+                streamingMessage = null;
+              }
+              if (options.captureRunResults) {
+                set({
+                  lastRunResult: {
+                    outcome: "failed",
+                    error,
+                    partialOutput,
+                    ...(retryFromMessageId ? { retryFromMessageId } : {}),
+                  },
+                });
+              } else {
+                console.error(error);
+                if (error instanceof Error) {
+                  toast.error("Error", { description: error.message });
+                }
               }
               return "failed";
             }
@@ -1467,6 +1549,9 @@ export function createThreadStore(
           }
           stopActiveRun?.();
         },
+        dismissRunResult() {
+          set({ lastRunResult: null });
+        },
       };
     })
   );
@@ -1500,6 +1585,7 @@ export function useThreadStore<T>(selector: (s: ThreadState) => T): T {
 const selectActions = (s: ThreadState) => ({
   run: s.run,
   abort: s.abort,
+  dismissRunResult: s.dismissRunResult,
   undo: s.undo,
   redo: s.redo,
   restoreThread: s.restoreThread,

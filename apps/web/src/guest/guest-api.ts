@@ -16,6 +16,29 @@ export interface GuestQuota {
   byokAvailable: boolean;
 }
 
+export interface GuestRunErrorDetails {
+  code: string;
+  status?: number;
+  requestId?: string;
+  quota?: GuestQuota;
+}
+
+export class GuestRunError extends Error {
+  readonly code: string;
+  readonly status?: number;
+  readonly requestId?: string;
+  readonly quota?: GuestQuota;
+
+  constructor(message: string, details: GuestRunErrorDetails) {
+    super(message);
+    this.name = "GuestRunError";
+    this.code = details.code;
+    this.status = details.status;
+    this.requestId = details.requestId;
+    this.quota = details.quota;
+  }
+}
+
 export const GUEST_PROVIDER: ModelProviderGroup = {
   id: GUEST_PROVIDER_ID,
   name: "智谱 BigModel",
@@ -83,9 +106,9 @@ export function createGuestTransport(
       signal,
     });
     if (!response.ok) {
-      const payload = await _readError(response);
-      if (payload.quota) onQuotaChanged(payload.quota);
-      throw new Error(payload.message);
+      const error = await readGuestRunError(response);
+      if (error.quota) onQuotaChanged(error.quota);
+      throw error;
     }
 
     const remaining = Number(response.headers.get("X-Guest-Quota-Remaining"));
@@ -97,10 +120,29 @@ export function createGuestTransport(
     }
 
     for await (const data of _readSseData(response.body)) {
-      if (data === "[START]" || data === "[DONE]") continue;
-      yield JSON.parse(data) as AgentEvent;
+      const event = parseGuestStreamData(data, response);
+      if (event) yield event;
     }
   };
+}
+
+export function parseGuestStreamData(
+  data: string,
+  response: Pick<Response, "headers" | "status">
+): AgentEvent | null {
+  if (data === "[START]" || data === "[DONE]") return null;
+  const payload = JSON.parse(data) as unknown;
+  if (_isGuestStreamError(payload)) {
+    throw new GuestRunError(payload.error.message, {
+      code: payload.error.code,
+      status: response.status >= 400 ? response.status : undefined,
+      requestId:
+        payload.error.requestId ??
+        response.headers.get("X-Request-Id") ??
+        undefined,
+    });
+  }
+  return payload as AgentEvent;
 }
 
 async function* _readSseData(
@@ -132,24 +174,62 @@ async function* _readSseData(
   }
 }
 
-async function _readError(
+export async function readGuestRunError(
   response: Response
-): Promise<{ message: string; quota?: GuestQuota }> {
+): Promise<GuestRunError> {
+  const headerRequestId =
+    response.headers.get("X-Request-Id") ?? undefined;
   try {
     const payload = (await response.json()) as {
-      error?: { message?: unknown };
+      error?: {
+        code?: unknown;
+        message?: unknown;
+        requestId?: unknown;
+      };
       quota?: GuestQuota;
     };
-    return {
-      message:
-        typeof payload.error?.message === "string"
-          ? payload.error.message
-          : "模型服务暂时不可用，请稍后重试。",
-      ...(payload.quota ? { quota: payload.quota } : {}),
-    };
+    return new GuestRunError(
+      typeof payload.error?.message === "string"
+        ? payload.error.message
+        : "模型服务暂时不可用，请稍后重试。",
+      {
+        code:
+          typeof payload.error?.code === "string"
+            ? payload.error.code
+            : "unknown_error",
+        status: response.status,
+        requestId:
+          typeof payload.error?.requestId === "string"
+            ? payload.error.requestId
+            : headerRequestId,
+        ...(payload.quota ? { quota: payload.quota } : {}),
+      }
+    );
   } catch {
-    return { message: "模型服务暂时不可用，请稍后重试。" };
+    return new GuestRunError("模型服务暂时不可用，请稍后重试。", {
+      code: "unknown_error",
+      status: response.status,
+      requestId: headerRequestId,
+    });
   }
+}
+
+function _isGuestStreamError(value: unknown): value is {
+  type: "guest_run_error";
+  error: { code: string; message: string; requestId?: string };
+} {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  if (record.type !== "guest_run_error") return false;
+  const error = record.error;
+  if (!error || typeof error !== "object") return false;
+  const errorRecord = error as Record<string, unknown>;
+  return (
+    typeof errorRecord.code === "string" &&
+    typeof errorRecord.message === "string" &&
+    (errorRecord.requestId === undefined ||
+      typeof errorRecord.requestId === "string")
+  );
 }
 
 function _apiUrl(path: string): string {

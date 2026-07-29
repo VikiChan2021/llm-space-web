@@ -45,6 +45,7 @@ export function createGuestFetchHandler(
   const activeRuns = new Map<string, number>();
 
   return async function guestFetchHandler(request: Request): Promise<Response> {
+    const requestId = randomBytes(12).toString("hex");
     try {
       const url = new URL(request.url);
       if (request.method === "GET" && url.pathname === "/health") {
@@ -115,7 +116,8 @@ export function createGuestFetchHandler(
             else activeRuns.set(guestHash, next);
           },
           quota,
-          dependencies.config
+          dependencies.config,
+          requestId
         );
         if (identity.setCookie) {
           response.headers.append("Set-Cookie", identity.setCookie);
@@ -127,7 +129,7 @@ export function createGuestFetchHandler(
           ok: false,
           error: { code: "not_found", message: "Endpoint not found." },
         },
-        { status: 404 }
+        { status: 404, headers: { "X-Request-Id": requestId } }
       );
     } catch (error) {
       const known =
@@ -147,12 +149,19 @@ export function createGuestFetchHandler(
       return _json(
         {
           ok: false,
-          error: { code: known.code, message: known.message },
+          error: {
+            code: known.code,
+            message: known.message,
+            requestId,
+          },
           ...(known.quota
             ? { quota: _publicQuota(known.quota, dependencies.config) }
             : {}),
         },
-        { status: known.status }
+        {
+          status: known.status,
+          headers: { "X-Request-Id": requestId },
+        }
       );
     }
   };
@@ -283,10 +292,12 @@ function _streamResponse(
   events: AsyncIterable<AgentEvent>,
   release: () => void,
   quota: GuestQuotaDecision,
-  config: GuestCloudConfig
+  config: GuestCloudConfig,
+  requestId: string
 ): Response {
   const encoder = new TextEncoder();
   let released = false;
+  let cancelled = false;
   const finish = () => {
     if (released) return;
     released = true;
@@ -304,16 +315,32 @@ function _streamResponse(
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.close();
       } catch (error) {
-        controller.error(
-          error instanceof Error
-            ? new Error("模型服务暂时不可用，请稍后重试。")
-            : error
+        if (cancelled) return;
+        console.error(
+          "Guest model stream failed.",
+          requestId,
+          error instanceof Error ? error.name : "UnknownError"
         );
+        controller.enqueue(
+          encoder.encode(
+            `data: ${JSON.stringify({
+              type: "guest_run_error",
+              error: {
+                code: "model_service_unavailable",
+                message: "模型服务暂时不可用，请稍后重试。",
+                requestId,
+              },
+            })}\n\n`
+          )
+        );
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.close();
       } finally {
         finish();
       }
     },
     cancel() {
+      cancelled = true;
       finish();
     },
   });
@@ -321,6 +348,7 @@ function _streamResponse(
   headers.set("Content-Type", "text/event-stream; charset=utf-8");
   headers.set("Connection", "keep-alive");
   headers.set("X-Accel-Buffering", "no");
+  headers.set("X-Request-Id", requestId);
   _setQuotaHeaders(headers, quota, config);
   return new Response(body, { headers });
 }

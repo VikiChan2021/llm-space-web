@@ -75,6 +75,7 @@ describe("guest HTTP API", () => {
       "text/event-stream"
     );
     expect(response.headers.get("x-guest-quota-remaining")).toBe("1");
+    expect(response.headers.get("x-request-id")).toMatch(/^[a-f0-9]{24}$/);
     expect(text).toContain("data: [START]");
     expect(text).toContain('"type":"agent_start"');
     expect(text).toContain("data: [DONE]");
@@ -102,6 +103,9 @@ describe("guest HTTP API", () => {
     const body = await exhausted.text();
     expect(exhausted.status).toBe(429);
     expect(body).toContain("BYOK");
+    expect(body).toContain('"code":"guest_daily_limit"');
+    expect(body).toContain('"requestId":"');
+    expect(exhausted.headers.get("x-request-id")).toMatch(/^[a-f0-9]{24}$/);
     expect(body).not.toContain(CONFIG.apiKey);
     quotaStore.close();
   });
@@ -138,6 +142,31 @@ describe("guest HTTP API", () => {
     );
     expect(rejectedTool.status).toBe(400);
     expect(executed).toBe(false);
+    quotaStore.close();
+  });
+
+  test("sends a redacted structured SSE error after streaming has started", async () => {
+    const execute: GuestModelExecutor = async function* () {
+      await Promise.resolve();
+      yield { type: "agent_start" };
+      throw new Error(`upstream leaked ${CONFIG.apiKey}`);
+    };
+    const quotaStore = new GuestQuotaStore(":memory:", CONFIG.hmacSecret);
+    const handler = createGuestFetchHandler({
+      config: CONFIG,
+      quotaStore,
+      execute,
+    });
+
+    const response = await handler(_runRequest(GUEST_ID));
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain('"type":"guest_run_error"');
+    expect(body).toContain('"code":"model_service_unavailable"');
+    expect(body).toContain('"requestId":"');
+    expect(body).toContain("data: [DONE]");
+    expect(body).not.toContain(CONFIG.apiKey);
     quotaStore.close();
   });
 });

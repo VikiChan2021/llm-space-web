@@ -11,6 +11,7 @@ import {
   readGuestQuota,
   type GuestQuota,
 } from "./guest-api";
+import { GUEST_RUN_RECOVERY } from "./guest-run-recovery";
 import { GuestThreadLibrary } from "./guest-thread-library";
 import {
   addGuestThread,
@@ -321,6 +322,7 @@ export function GuestWorkbench() {
             setRunning(false);
             void refreshQuota();
           }}
+          runRecovery={GUEST_RUN_RECOVERY}
         />
       </main>
 
