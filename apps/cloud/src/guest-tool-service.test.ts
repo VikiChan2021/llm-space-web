@@ -59,7 +59,7 @@ describe("guest tool service", () => {
     }
   });
 
-  test("uses keyless bounded providers for web search and fetch", async () => {
+  test("uses the Tencent-reachable bounded provider for web search", async () => {
     const originalFetch = globalThis.fetch;
     const calls: string[] = [];
     globalThis.fetch = ((input) => {
@@ -70,15 +70,13 @@ describe("guest tool service", () => {
             ? input.toString()
             : input.url;
       calls.push(url);
-      if (url.startsWith("https://lite.duckduckgo.com/")) {
+      if (url.startsWith("https://cn.bing.com/search")) {
         return Promise.resolve(new Response(`
-          <a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2F&amp;rut=safe" class='result-link'>Example &amp; Result</a>
-          <td class='result-snippet'>A <b>bounded</b> result.</td>
+          <h2 class=""><a href="https://example.com/">Example &amp; Result</a></h2>
+          <div class="b_caption"><p>A <b>bounded</b> result.</p></div>
         `));
       }
-      return Promise.resolve(
-        new Response("# Example\n\nFetched through the fixed reader.")
-      );
+      throw new Error(`Unexpected URL: ${url}`);
     }) as typeof fetch;
 
     try {
@@ -86,10 +84,6 @@ describe("guest tool service", () => {
         query: "example",
         limit: 1,
       });
-      const fetched = await callGuestBuiltinTool("web_fetch", {
-        url: "https://1.1.1.1/example",
-      });
-
       expect(JSON.parse(search)).toEqual([
         {
           title: "Example & Result",
@@ -97,12 +91,8 @@ describe("guest tool service", () => {
           snippet: "A bounded result.",
         },
       ]);
-      expect(fetched).toContain("Fetched through the fixed reader.");
       expect(calls[0]).toStartWith(
-        "https://lite.duckduckgo.com/lite/?q=example"
-      );
-      expect(calls[1]).toBe(
-        "https://r.jina.ai/https://1.1.1.1/example"
+        "https://cn.bing.com/search?q=example"
       );
     } finally {
       globalThis.fetch = originalFetch;

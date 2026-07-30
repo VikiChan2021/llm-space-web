@@ -1,10 +1,14 @@
 import { lookup } from "node:dns/promises";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
 const MAX_TOOL_OUTPUT_CHARS = 20_000;
+const MAX_WEB_RESPONSE_BYTES = 512_000;
+const MAX_WEB_REDIRECTS = 3;
 const MAX_REMOTE_TOOLS = 32;
 const MCP_TIMEOUT_MS = 10_000;
 const DEMO_MCP_SERVER_ID = "guest-demo-mcp";
@@ -252,7 +256,7 @@ async function _weatherReport(location: string): Promise<string> {
 }
 
 async function _webSearch(query: string, limit: number): Promise<string> {
-  const searchUrl = new URL("https://lite.duckduckgo.com/lite/");
+  const searchUrl = new URL("https://cn.bing.com/search");
   searchUrl.searchParams.set("q", query);
   const response = await _fixedFetch(searchUrl.toString(), {
     headers: {
@@ -268,7 +272,7 @@ async function _webSearch(query: string, limit: number): Promise<string> {
     );
   }
   const html = await response.text();
-  const results = _parseDuckDuckGoResults(html, limit);
+  const results = _parseBingResults(html, limit);
   if (results.length === 0) {
     throw new GuestToolError(
       502,
@@ -282,36 +286,29 @@ async function _webSearch(query: string, limit: number): Promise<string> {
 }
 
 async function _webFetch(url: URL): Promise<string> {
-  const response = await _fixedFetch(`https://r.jina.ai/${url.toString()}`, {
-    headers: {
-      Accept: "text/plain",
-      "User-Agent": "llm-space-guest-web-fetch/1.0",
-      "X-Return-Format": "markdown",
-    },
-  });
-  if (!response.ok) {
+  const response = await _safePublicWebRequest(url);
+  if (response.status < 200 || response.status >= 300) {
     throw new GuestToolError(
       response.status === 429 ? 429 : 502,
       response.status === 429 ? "tool_daily_limit" : "tool_upstream_error",
       `网页读取服务返回 ${response.status}。`
     );
   }
-  return _truncate(await response.text());
+  const content = response.contentType.toLowerCase().includes("text/html")
+    ? _htmlToReadableText(response.body)
+    : response.body;
+  return _truncate(`URL: ${response.url.toString()}\n\n${content.trim()}`);
 }
 
-function _parseDuckDuckGoResults(
+function _parseBingResults(
   html: string,
   limit: number
 ): { title: string; url: string; snippet: string }[] {
   const results: { title: string; url: string; snippet: string }[] = [];
   const pattern =
-    /<a[^>]+href=["']([^"']+)["'][^>]*class=["']result-link["'][^>]*>([\s\S]*?)<\/a>[\s\S]*?<td[^>]*class=["']result-snippet["'][^>]*>([\s\S]*?)<\/td>/gi;
+    /<h2[^>]*>\s*<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>\s*<\/h2>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/gi;
   for (const match of html.matchAll(pattern)) {
-    const redirectUrl = new URL(
-      _decodeHtml(match[1] ?? ""),
-      "https://duckduckgo.com"
-    );
-    const target = redirectUrl.searchParams.get("uddg") ?? redirectUrl.href;
+    const target = _decodeBingResultUrl(_decodeHtml(match[1] ?? ""));
     let parsedTarget: URL;
     try {
       parsedTarget = new URL(target);
@@ -332,6 +329,37 @@ function _parseDuckDuckGoResults(
     if (results.length >= limit) break;
   }
   return results;
+}
+
+function _decodeBingResultUrl(value: string): string {
+  try {
+    const redirect = new URL(value, "https://cn.bing.com");
+    const encoded = redirect.searchParams.get("u");
+    if (encoded?.startsWith("a1")) {
+      return Buffer.from(encoded.slice(2), "base64url").toString("utf8");
+    }
+    return redirect.toString();
+  } catch {
+    return value;
+  }
+}
+
+function _htmlToReadableText(html: string): string {
+  return _decodeHtml(
+    html
+      .replace(/<(script|style|noscript|svg)[^>]*>[\s\S]*?<\/\1>/gi, " ")
+      .replace(/<br\s*\/?\s*>/gi, "\n")
+      .replace(
+        /<\/\s*(h[1-6]|p|div|section|article|main|header|footer|li)>/gi,
+        "\n"
+      )
+      .replace(/<li[^>]*>/gi, "- ")
+      .replace(/<[^>]*>/g, " ")
+  )
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function _htmlText(value: string): string {
@@ -363,6 +391,139 @@ function _decodeHtml(value: string): string {
       );
     }
   );
+}
+
+interface SafeWebResponse {
+  status: number;
+  contentType: string;
+  body: string;
+  url: URL;
+}
+
+async function _safePublicWebRequest(
+  url: URL,
+  redirectCount = 0
+): Promise<SafeWebResponse> {
+  const target = _validatePublicWebUrl(url);
+  const host = target.hostname.replace(/^\[|\]$/g, "");
+  let addresses: { address: string; family: number }[];
+  try {
+    addresses = isIP(host)
+      ? [{ address: host, family: isIP(host) }]
+      : await lookup(host, { all: true, verbatim: true });
+  } catch {
+    throw new GuestToolError(400, "tool_dns_error", "无法解析网页地址。");
+  }
+  if (
+    addresses.length === 0 ||
+    addresses.some((entry) => _isPrivateIp(entry.address))
+  ) {
+    throw new GuestToolError(
+      400,
+      "private_tool_url",
+      "url 不能指向本机、私网或云元数据服务。"
+    );
+  }
+  const selected =
+    addresses.find((entry) => entry.family === 4) ?? addresses[0];
+  const response = await _requestPinnedAddress(target, selected);
+  if (
+    response.status >= 300 &&
+    response.status < 400 &&
+    response.location
+  ) {
+    if (redirectCount >= MAX_WEB_REDIRECTS) {
+      throw new GuestToolError(
+        502,
+        "tool_upstream_error",
+        "网页重定向次数过多。"
+      );
+    }
+    return _safePublicWebRequest(
+      new URL(response.location, target),
+      redirectCount + 1
+    );
+  }
+  return {
+    status: response.status,
+    contentType: response.contentType,
+    body: response.body,
+    url: target,
+  };
+}
+
+function _requestPinnedAddress(
+  url: URL,
+  address: { address: string; family: number }
+): Promise<{
+  status: number;
+  contentType: string;
+  location?: string;
+  body: string;
+}> {
+  return new Promise((resolve, reject) => {
+    const request = (url.protocol === "https:" ? httpsRequest : httpRequest)(
+      url,
+      {
+        headers: {
+          Accept:
+            "text/html,text/plain,application/json,application/xml;q=0.9,*/*;q=0.5",
+          "Accept-Encoding": "identity",
+          "User-Agent": "Mozilla/5.0 (compatible; LLM-Space-Guest/1.0)",
+        },
+        lookup: (_hostname, _options, callback) => {
+          if (typeof _options === "object" && _options.all) {
+            callback(null, [address]);
+            return;
+          }
+          callback(null, address.address, address.family);
+        },
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+        let bytes = 0;
+        response.on("data", (chunk: Buffer | string) => {
+          const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          bytes += buffer.length;
+          if (bytes > MAX_WEB_RESPONSE_BYTES) {
+            request.destroy(new Error("response_too_large"));
+            return;
+          }
+          chunks.push(buffer);
+        });
+        response.on("end", () => {
+          resolve({
+            status: response.statusCode ?? 502,
+            contentType:
+              typeof response.headers["content-type"] === "string"
+                ? response.headers["content-type"]
+                : "",
+            ...(typeof response.headers.location === "string"
+              ? { location: response.headers.location }
+              : {}),
+            body: Buffer.concat(chunks).toString("utf8"),
+          });
+        });
+      }
+    );
+    request.setTimeout(MCP_TIMEOUT_MS, () => {
+      request.destroy(new Error("request_timeout"));
+    });
+    request.on("error", (error) => {
+      reject(
+        new GuestToolError(
+          error.message === "response_too_large" ? 413 : 502,
+          error.message === "response_too_large"
+            ? "tool_output_too_large"
+            : "tool_upstream_error",
+          error.message === "response_too_large"
+            ? "网页响应过大。"
+            : "工具依赖的外部服务暂时不可用。"
+        )
+      );
+    });
+    request.end();
+  });
 }
 
 function _callDemoMcpTool(
@@ -624,10 +785,15 @@ function _requirePublicWebUrl(
       "url 格式无效。"
     );
   }
+  return _validatePublicWebUrl(url);
+}
+
+function _validatePublicWebUrl(url: URL): URL {
   if (
     (url.protocol !== "http:" && url.protocol !== "https:") ||
     url.username ||
-    url.password
+    url.password ||
+    (url.port && url.port !== "80" && url.port !== "443")
   ) {
     throw new GuestToolError(
       400,
@@ -658,9 +824,6 @@ function _requirePublicWebUrl(
     }
     return url;
   }
-  // Web pages are fetched only by the fixed Jina relay, never by this host.
-  // Avoid resolving public names locally because proxy/VPN fake-IP DNS ranges
-  // (for example 198.18.0.0/15) would otherwise reject every public domain.
   return url;
 }
 
