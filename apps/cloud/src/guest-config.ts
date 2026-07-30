@@ -12,6 +12,7 @@ export interface GuestCloudConfig {
   maxRequestBytes: number;
   maxTextCharacters: number;
   maxOutputTokens: number;
+  remoteMcpEnabled: boolean;
   trustProxy: boolean;
   secureCookies: boolean;
 }
@@ -89,6 +90,7 @@ export function loadGuestCloudConfig(
       16,
       16_384
     ),
+    remoteMcpEnabled: environment.GUEST_REMOTE_MCP_ENABLED === "1",
     trustProxy: environment.GUEST_TRUST_PROXY === "1",
     secureCookies: publicUrl.protocol === "https:",
   };

@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_GUEST_WORKBENCH?: string;
+  readonly VITE_GUEST_REMOTE_MCP_ENABLED?: string;
 }
 
 interface ImportMeta {

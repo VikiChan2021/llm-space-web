@@ -11,6 +11,8 @@ import {
   readGuestQuota,
   type GuestQuota,
 } from "./guest-api";
+import { OPEN_GUEST_MCP_SETTINGS_EVENT } from "./guest-mcp";
+import { GuestMcpSettingsDialog } from "./guest-mcp-settings-dialog";
 import { GUEST_RUN_RECOVERY } from "./guest-run-recovery";
 import { GuestThreadLibrary } from "./guest-thread-library";
 import {
@@ -60,6 +62,7 @@ export function GuestWorkbench() {
   const [quota, setQuota] = useState<GuestQuota | null>(null);
   const [quotaError, setQuotaError] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [mcpSettingsOpen, setMcpSettingsOpen] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const workspaceRef = useRef(workspaceState.workspace);
@@ -80,6 +83,18 @@ export function GuestWorkbench() {
   useEffect(() => {
     void refreshQuota();
   }, [refreshQuota]);
+  useEffect(() => {
+    const openMcpSettings = () => setMcpSettingsOpen(true);
+    window.addEventListener(
+      OPEN_GUEST_MCP_SETTINGS_EVENT,
+      openMcpSettings
+    );
+    return () =>
+      window.removeEventListener(
+        OPEN_GUEST_MCP_SETTINGS_EVENT,
+        openMcpSettings
+      );
+  }, []);
 
   const transport = useMemo(
     () =>
@@ -220,7 +235,8 @@ export function GuestWorkbench() {
       );
       if (thread.context?.tools?.length) {
         toast.warning("Thread 已导入", {
-          description: "游客模式会保留工具定义，但不会执行工具。",
+          description:
+            "工具定义已保留；受支持工具可以执行，其他工具会显示明确的安全边界。",
         });
       } else {
         toast.success("Thread 已导入");
@@ -260,8 +276,8 @@ export function GuestWorkbench() {
             </span>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Thread 自动保存在当前浏览器。Bash、文件工具、MCP 和 Generator
-            暂未开放。
+            Thread 与虚拟文件保存在当前浏览器。安全 Built-in、Custom
+            Tool、MCP 和 ReAct 可体验；Bash 与 Generator 等待隔离沙箱。
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
@@ -315,6 +331,7 @@ export function GuestWorkbench() {
           title={activeRecord.thread.title}
           initialValue={activeRecord.thread}
           transport={transport}
+          runtimeId={activeRecord.id}
           onChange={handleChange}
           onRenameTitle={handleRename}
           onStreamingStart={() => setRunning(true)}
@@ -338,6 +355,11 @@ export function GuestWorkbench() {
         onExport={handleExport}
         onDelete={handleDelete}
         onImport={handleImport}
+      />
+
+      <GuestMcpSettingsDialog
+        open={mcpSettingsOpen}
+        onOpenChange={setMcpSettingsOpen}
       />
 
       <ConfirmDialog

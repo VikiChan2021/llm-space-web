@@ -9,5 +9,6 @@ export type {
   PathsHost,
   RuntimeScopedHostOptions,
   SkillsHost,
+  ToolExecutionPolicy,
   ToolCallResult,
 } from "./types";

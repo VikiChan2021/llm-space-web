@@ -16,6 +16,7 @@
   "dependencies": {
     "@earendil-works/pi-agent-core": "catalog:",
     "@earendil-works/pi-ai": "catalog:",
-    "@llm-space/core": "workspace:*"
+    "@llm-space/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.29.0"
   }
 }

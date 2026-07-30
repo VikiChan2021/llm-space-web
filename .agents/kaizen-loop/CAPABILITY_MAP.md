@@ -1,12 +1,12 @@
 # LLM Space 能力地图
 
 - 最后更新：2026-07-30
-- 地图状态：游客工作台 Hosted Alpha 已在线运行；“游客 Thread 资料库 V1”和“Run 错误恢复 V1”均已在本地实现并完成浏览器验收，但尚未发布到线上。GitHub 登录、BYOK、租户级持久 Thread、账单和可执行工具继续延期。此前的匿名会话、Personal Tenant、PostgreSQL 与强制 RLS 基础仍仅在本地验证，尚未接入游客入口。当前没有公开或动态加载的插件。
+- 地图状态：游客工作台 Hosted Alpha 已在线运行；“游客 Thread 资料库 V1”“Run 错误恢复 V1”和“游客安全工具闭环 V1”均已在本地实现并完成浏览器验收，但尚未发布到线上。Built-in Tools、MCP、Custom Tool、ReAct、自动工具运行、分享和历史图标均保留，其中安全工具已从空入口升级为可执行闭环。下一优先级回到“游客核心迭代闭环 V1”的引导、历史入口可发现性和中文化。GitHub 登录、BYOK、租户级持久 Thread、账单、Bash、stdio MCP、Generator，以及公共远程 MCP 的网络层出站策略仍需独立安全边界。此前的匿名会话、Personal Tenant、PostgreSQL 与强制 RLS 基础仍仅在本地验证，尚未接入游客入口。当前没有公开或动态加载的插件。
 - 证据规则：`confirmed` 表示有当前渲染产品或当前代码证据；`stale` 表示依赖旧日志或本轮未完全复查的代码路径；`unknown` 表示需要未来重新检查产品界面后才能用于决策。
 
 ## 交互式浏览器工作台
 
-- 状态：线上 Hosted Alpha 可用；游客 Thread 资料库 V1 与 Run 错误恢复 V1 已在本地完成并通过浏览器验收，尚未部署
+- 状态：线上 Hosted Alpha 可用；游客 Thread 资料库、Run 错误恢复与安全工具闭环 V1 已在本地完成并通过浏览器验收，尚未部署
 - 新鲜度：confirmed
 - 最后检查：2026-07-30
 - 证据：
@@ -26,10 +26,57 @@
   - 15 个聚焦测试覆盖服务端协议、Web 错误解析与分类、部分输出保留、停止和重试语义；完整 lint、类型检查、默认 Web 构建和游客 Web 构建均通过。
   - 真实 Chromium 已完成临时服务失败后手动重试成功、额度耗尽、输入过大、短期限流和主动停止五类受控流程；只有 429/413 请求本身产生浏览器网络资源日志，没有应用主动输出的错误或堆栈。
   - 当前验收截图位于 `output/playwright/run-recovery-v1/`，包括临时失败技术详情、额度耗尽、主动停止和 768px 结果条布局。
-  - `apps/web/src/host/web-host.ts` 仍只暴露固定游客模型；工具、文件系统、MCP 和 Generator 继续不可用。
-- 能力边界：未登录游客可管理多个浏览器本地 Thread，编辑 Prompt、消息、变量和模型参数，运行固定的服务器资助模型，查看 Run 历史和剩余额度，并通过 JSON 导入导出携带单个 Thread。Thread 仍不在服务端同步或持久化。
-- 明确非目标：不宣称已经达到生产级多用户 SaaS；不暴露供应商或 Langfuse 密钥；不开放 Bash、文件系统、stdio MCP、Generator、原生菜单、更新器、窗口控制或系统文件选择器。
-- 可见缺口：本地资料库 V1 与 Run 错误恢复 V1 尚未线上部署；失败结果不跨刷新持久化，也没有失败时间线或后台重试；BYOK、登录激活、租户级 Thread CRUD、多标签 Workspace、移动端专项优化、分布式额度、审计监控、备份和更强滥用防护仍待开发。
+  - `apps/web/src/host/web-host.ts` 已注入游客 Built-in/MCP 执行器与独立工具策略；浏览器虚拟文件、Custom 人工结果、同源演示 MCP、低风险自动执行和 ReAct 已可用。
+- 能力边界：未登录游客可管理多个浏览器本地 Thread，编辑 Prompt、消息、变量、工具和模型参数，运行固定的服务器资助模型，完成安全工具/ReAct 闭环，查看 Run 历史和剩余额度，并通过 JSON 导入导出携带单个 Thread。Thread 与虚拟文件仍不在服务端同步或持久化。
+- 明确非目标：不宣称已经达到生产级多用户 SaaS；不暴露供应商或 Langfuse 密钥；不开放宿主 Bash、宿主文件系统、stdio MCP、Generator、原生菜单、更新器、窗口控制或系统文件选择器。
+- 可见缺口：三项本地 V1 尚未线上部署；失败结果不跨刷新持久化，也没有失败时间线或后台重试；公共远程 MCP 上线前还需腾讯云网络层出站限制；BYOK、登录激活、租户级 Thread CRUD、多标签 Workspace、移动端专项优化、分布式额度、审计监控、备份和更强滥用防护仍待开发。
+
+## 游客核心迭代闭环
+
+- 状态：底层能力可用，但默认游客流程的可发现性、中文化和能力边界尚未收口
+- 新鲜度：confirmed
+- 最后检查：2026-07-30
+- 证据：
+  - 使用当前本地提交 `cf5cb8d` 和真实 Chromium 导入包含两个 Run 的受控 Thread，成功打开运行记录、非破坏式 Trace 检查、双 Run 对比和人工评估。
+  - 人工选择“Run A Better”并填写中文评估说明后，评估记录写回浏览器本地 Thread；刷新页面后仍可在运行记录中打开，证明现有数据持久化闭环可用。
+  - 当前默认示例只引导用户执行一次通用问答，没有告诉用户修改哪一项、再次运行、打开运行记录、检查 Trace 或比较结果。
+  - 运行记录入口是标题栏中的无文字历史图标；只有悬停提示，首次用户无法从静态界面理解它承载 Trace、恢复、比较和评估四项核心能力。
+  - 运行记录、Trace 检查和评估主流程仍大量使用英文，包括 `Run history`、`Compare Runs`、`Inspect Run`、`Restore`、`Evaluate Runs`、`Rubric` 和评估结论。
+  - 游客安全工具闭环已经消除工具空入口；本能力下一轮可直接聚焦默认引导、历史入口可发现性和中文化。
+  - ReAct/自动执行设置已具有真实运行能力；技能、Bash 和 Generator 入口仍需隔离沙箱边界说明。
+  - 浏览器审计截图位于 `output/playwright/core-experience-audit/`，包含默认核心界面、运行记录中文化缺口、评估中文化缺口和不可用工具死入口。
+  - 本轮未启动游客额度 API，因此浏览器控制台只有两条 `/api/guest/quota` 500 资源错误；核心 Trace/评估交互没有产生应用异常。
+- 能力边界：专家用户或导入已有 Run 的用户可以在浏览器中完成单 Thread 的运行历史查看、快照 Trace 检查、恢复、两次 Run 对比、人工结论和刷新持久化；这些能力共用现有 Thread JSON，不依赖登录或服务端 Thread 存储。
+- 明确非目标：本能力本身不新增分享、登录、BYOK、团队协作、批量数据集、自动评审器、Bash、stdio MCP、Generator 或服务端 Thread 同步；游客可执行工具改由独立的“游客安全工具闭环 V1”能力承接。
+- 可见缺口：默认游客仍无法自然完成“第一次运行—修改—第二次运行—检查/比较—保存评估”；核心入口不可发现且中英文混杂；工具闭环已实现，但尚未纳入默认新手路径。
+
+## 游客安全工具闭环
+
+- 状态：本地实现完成并通过受控浏览器验收，尚未部署
+- 新鲜度：confirmed
+- 最后检查：2026-07-30
+- 证据：
+  - `apps/web/src/host/web-host.ts` 已注入游客 `executeTool`、Built-in/MCP 列表与 `ToolExecutionPolicy`；共享桌面 Host 没有改变默认行为。
+  - Built-in 对话框保留原有 File system、Web、Misc 分类，当前分别显示 10、3、3 个工具；`bash` 与 `skill` 入口保留并明确返回安全边界。
+  - 浏览器虚拟工作区按 Thread ID 隔离，支持 read/write/edit/ls/tree/grep/glob/present_files，拒绝绝对路径、`..`、跨 Thread 越界和超量内容。
+  - 服务端 Guest Tool API 提供有界天气、Web Search、Web Fetch 和演示 MCP；网页读取只走固定 Jina Reader，搜索只走固定 DuckDuckGo Lite，不接受用户自定义认证头。
+  - Guest API 现在接受最多 20 个有界工具 Schema，并支持 Tool Result 作为下一模型回合输入；工具调用另设每日 60 次和单游客并发 1 的内存限制。
+  - Demo MCP 提供 `calculator` 与 `current_time`；Web MCP 配置保留公共 HTTPS Streamable HTTP 入口，并拒绝非 HTTPS、凭据、查询参数、片段、非 443 端口、私网/环回/元数据 DNS 结果和重定向。
+  - Custom Function Tool 使用现有 JSON Schema 编辑器；自动模式遇到 Custom 时暂停，用户填写结果后可以继续 ReAct。
+  - Web Host 将游客 ReAct 限为最多 6 个模型回合、8 次自动工具调用；低风险读取、搜索、天气和演示 MCP 可自动运行，写入、人工问题和未知远程 MCP 必须确认。
+  - 真实 Chromium 已完成 Built-in 列表、虚拟 `read` 自动执行、两回合 ReAct、Demo MCP 计算 `9-4=5`、Custom 人工结果、继续 Run、Run history 与刷新恢复；历史图标和分享占位入口未改。
+  - 浏览器验收时发现并修复 Guest API 基路径双斜杠导致的 MCP 404；修复后同一流程成功且刷新未产生新的应用错误。
+  - 审计截图与中文验收记录位于 `audits/2026-07-30-130332-guest-safe-tool-loop-v1/`。
+  - 21 个聚焦测试全部通过；全仓类型检查和零警告 lint 通过；最新游客 Web 构建与 Guest API 打包通过。
+  - 全仓测试为 400 通过、1 跳过、6 失败；失败来自本轮未改动的 Windows 路径、符号链接、生成文件 CRLF 和缺少 `python3` 的既有测试，不能据此宣称全仓测试全绿。
+- 已实现边界：
+  - 原有入口与图标全部保留，不通过隐藏或删除解决能力缺口；分享按钮本轮继续保持原占位行为，分享实现仍按用户此前决定延期。
+  - Built-in Tools V1 提供可真实运行的安全工具：服务器侧受限网络/天气工具、浏览器本地虚拟工作区文件工具、交互工具和有界辅助工具；不得把腾讯云宿主文件系统或进程直接暴露给游客。
+  - Custom Function Tool 保持现有定义方式，并打通“模型发起调用—用户填写结果—继续 Run”的人工闭环；不把用户输入的 JavaScript 当作服务端可执行代码。
+  - MCP V1 提供同源演示 MCP 和可选的公共 HTTPS Streamable HTTP MCP；游客自定义远程地址必须经过独立代理、SSRF 防护、超时、大小、并发和工具数量限制。stdio、自定义密钥头和 OAuth 留待登录/BYOK 或隔离运行时。
+  - 自动工具运行和 ReAct 对明确标记为低风险的工具开放；未知远程 MCP、写入类工具和人工交互工具默认停下等待确认。游客 ReAct 使用独立的低回合/工具调用上限，并按每个模型回合消耗免费额度。
+- 明确非目标：本 V1 不开放腾讯云宿主 Bash、宿主文件系统、stdio MCP、任意进程启动、任意私网 URL、自定义 MCP 认证头、OAuth、Generator、技能安装、分享发布、登录或 BYOK。
+- 可见缺口：真实智谱模型的 Tool Call 协议仍未使用当前本机安全环境中的真实 Key 完成端到端复验；本轮浏览器模型事件来自受控 Mock Guest API。公共远程 MCP 目前只有应用层 SSRF 防护，腾讯云部署前必须补网络层出站策略，否则生产只开放同源演示 MCP。工具额度当前是单进程内存计数，不适合多副本；达到 ReAct 上限的专用可恢复结果条、重复调用检测和总时长上限仍待强化。
 
 ## Hosted Multi-User SaaS
 
@@ -55,6 +102,22 @@
 - Boundary: the public guest deployment is a single-instance Hosted Alpha with browser-local Threads and a platform-funded quota. The PostgreSQL/RLS identity foundation is not yet connected to this surface.
 - Explicit non-goals for the current Alpha: GitHub login activation, BYOK, team organizations, invitations, billing, executable host filesystem/Bash tools, stdio MCP, code generation, full mobile UX, production SLA, or compliance claims.
 - Visible gaps: authenticated tenant activation; encrypted write-only BYOK; tenant-scoped Thread CRUD and optimistic locking; distributed/idempotent quota accounting; account/workspace deletion execution; KMS, monitoring, backups, alerting, WAF/rate limiting, and operational runbooks. Restoring executable tools additionally requires isolated runtime workers, storage volumes, resource limits, and network policy.
+
+## 游客 Thread 分享
+
+- 状态：桌面端可经 GitHub Gist 分享；游客 Web 只能查看已有共享 Thread，不能创建分享
+- 新鲜度：confirmed
+- 最后检查：2026-07-30
+- 证据：
+  - 当前本地提交 `cf5cb8d` 的真实 Chromium 工作台标题栏已显示“Share thread”按钮。
+  - 点击该按钮只出现“游客 Thread 分享即将开放。”提示，没有预览、隐私确认、链接生成、复制、更新或撤销流程。
+  - `apps/web/src/host/web-host.ts` 明确把游客 `shareThread` 实现为上述占位提示。
+  - 当前 `#/shared/gist/threads/mock` 路由可在真实 Chromium 中加载只读共享查看器，展示标题、描述、作者、更新时间和完整 Thread 内容，说明 Web 读取与呈现基础已经存在。
+  - 桌面端现有分享通过 GitHub 登录后创建 secret Gist；用户已要求 GitHub 登录延期，因此该写入路径不能直接作为游客 V1。
+  - 当前发现证据位于 `.agents/kaizen-loop/audits/2026-07-30-012542-guest-thread-share-discovery/`。
+- 能力边界：桌面用户登录 GitHub 后可以把 Thread 发布为任何持有链接者可读的 secret Gist；Web 查看器可以只读展示 Gist Thread。游客 Web 当前只能导入导出 JSON，不能生成浏览器分享链接。
+- 明确非目标：当前没有匿名服务端快照、分享链接有效期、游客侧撤销或更新、分享记录管理、内容举报、密码保护、团队权限或搜索发现。
+- 可见缺口：工作台已有可见分享入口和可复用查看器，但两端之间没有游客可用的发布协议、隐私确认、受限存储、撤销凭据和滥用防护，按钮目前形成明确的功能断点。
 
 ## First-Run Model Setup
 

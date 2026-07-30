@@ -23,6 +23,17 @@ export interface GuestRunErrorDetails {
   quota?: GuestQuota;
 }
 
+export interface GuestToolCallResult {
+  contentText: string;
+  isError: boolean;
+}
+
+export interface GuestMcpToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+}
+
 export class GuestRunError extends Error {
   readonly code: string;
   readonly status?: number;
@@ -214,6 +225,54 @@ export async function readGuestRunError(
   }
 }
 
+export async function callGuestBuiltinApi(
+  name: string,
+  args: Record<string, unknown>
+): Promise<GuestToolCallResult> {
+  return _postGuestJson("/api/guest/tools/call", {
+    name,
+    arguments: args,
+  });
+}
+
+export async function listGuestMcpToolsApi(input: {
+  serverId: string;
+  url?: string;
+}): Promise<GuestMcpToolDefinition[]> {
+  const result = await _postGuestJson<{
+    serverId: string;
+    tools: GuestMcpToolDefinition[];
+  }>("/api/guest/mcp/tools", input);
+  return result.tools;
+}
+
+export async function callGuestMcpApi(input: {
+  serverId: string;
+  url?: string;
+  toolName: string;
+  arguments: Record<string, unknown>;
+}): Promise<GuestToolCallResult> {
+  return _postGuestJson("/api/guest/mcp/call", input);
+}
+
+async function _postGuestJson<T>(
+  path: string,
+  body: Record<string, unknown>
+): Promise<T> {
+  const response = await fetch(_apiUrl(path), {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw await readGuestRunError(response);
+  }
+  return (await response.json()) as T;
+}
+
 function _isGuestStreamError(value: unknown): value is {
   type: "guest_run_error";
   error: { code: string; message: string; requestId?: string };
@@ -233,5 +292,9 @@ function _isGuestStreamError(value: unknown): value is {
 }
 
 function _apiUrl(path: string): string {
-  return `${import.meta.env.BASE_URL}${path}`;
+  return joinGuestApiUrl(import.meta.env.BASE_URL, path);
+}
+
+export function joinGuestApiUrl(baseUrl: string, path: string): string {
+  return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
 }

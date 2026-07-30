@@ -153,7 +153,8 @@ function _ThreadPlayground({
   const defaultModel = useDefaultModel();
   const defaultModelRef = useRef(defaultModel);
   defaultModelRef.current = defaultModel;
-  const { executeTool, skills, files } = useHostServices();
+  const { executeTool, toolExecutionPolicy, skills, files } =
+    useHostServices();
   const [store] = useState(() =>
     createThreadStore(initialValue, {
       transport,
@@ -169,6 +170,11 @@ function _ThreadPlayground({
       executeTool: executeTool
         ? (tool, args) => executeTool(tool, args, { runtimeId })
         : undefined,
+      canAutoExecuteTool: toolExecutionPolicy
+        ? (tool) => toolExecutionPolicy.canAutoExecute(tool)
+        : undefined,
+      maxAutoToolTurns: toolExecutionPolicy?.maxAutoTurns,
+      maxAutoToolCalls: toolExecutionPolicy?.maxAutoToolCalls,
       loadSkills: () => listEnabledPromptVariableSkills(skills, { runtimeId }),
       loadFile: (path) => files.readText(path),
       fileExists: (path) => files.exists(path),
@@ -211,6 +217,7 @@ function ThreadPlaygroundContent({
   "initialValue" | "onChange" | "onStreamingStart" | "onStreamingEnd"
 >) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const { toolExecutionPolicy } = useHostServices();
   const status = useThreadStore((s) => s.status);
   const lastRunResult = useThreadStore((s) => s.lastRunResult);
   const savedModel = useThreadStore((s) => s.thread.model);
@@ -455,6 +462,14 @@ function ThreadPlaygroundContent({
                         className="pointer-events-none"
                       />
                     </DropdownMenuItem>
+                    {toolExecutionPolicy?.notice ? (
+                      <>
+                        <DropdownMenuSeparator />
+                        <div className="text-muted-foreground max-w-72 px-2 py-1.5 text-xs leading-relaxed">
+                          {toolExecutionPolicy.notice}
+                        </div>
+                      </>
+                    ) : null}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </ButtonGroup>

@@ -17,8 +17,18 @@ describe("guest cloud config", () => {
     expect(config.ipDailyLimit).toBe(100);
     expect(config.maxConcurrentPerGuest).toBe(1);
     expect(config.maxOutputTokens).toBe(2048);
+    expect(config.remoteMcpEnabled).toBe(false);
     expect(config.secureCookies).toBe(false);
     expect(config.apiKey).toBe("test-only-key");
+  });
+
+  test("only enables public remote MCP through an explicit production flag", () => {
+    expect(
+      loadGuestCloudConfig({
+        ...BASE_ENV,
+        GUEST_REMOTE_MCP_ENABLED: "1",
+      }).remoteMcpEnabled
+    ).toBe(true);
   });
 
   test("requires a sufficiently long HMAC secret", () => {

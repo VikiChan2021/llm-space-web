@@ -39,6 +39,22 @@ export type ExecuteTool = (
   options?: ExecuteToolOptions
 ) => Promise<ToolCallResult>;
 
+/**
+ * Host-owned safety policy for automatic tool execution. Manual tool calls
+ * still go through {@link ExecuteTool}; this policy only controls the
+ * auto-run/ReAct path.
+ */
+export interface ToolExecutionPolicy {
+  /** Maximum model turns in one automatic ReAct run. Defaults to 50. */
+  maxAutoTurns?: number;
+  /** Maximum tool calls executed automatically in one run. */
+  maxAutoToolCalls?: number;
+  /** Whether this specific tool may run without a user click. */
+  canAutoExecute(tool: McpTool | BuiltinTool): boolean;
+  /** Optional helper text shown in the Run settings menu. */
+  notice?: string;
+}
+
 /** Read-only skills access used by prompt variables + examples. */
 export interface SkillsHost {
   getSettings(options?: RuntimeScopedHostOptions): Promise<SkillsSettings>;
@@ -182,6 +198,7 @@ export interface HostServices {
   presentational: boolean;
   transport: AgentTransport | null;
   executeTool: ExecuteTool | null;
+  toolExecutionPolicy?: ToolExecutionPolicy;
   skills: SkillsHost;
   mcp: McpHost;
   builtinTools: BuiltinToolsHost;

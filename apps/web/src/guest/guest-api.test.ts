@@ -2,11 +2,21 @@ import { describe, expect, test } from "bun:test";
 
 import {
   GuestRunError,
+  joinGuestApiUrl,
   parseGuestStreamData,
   readGuestRunError,
 } from "./guest-api";
 
 describe("游客 Run 结构化错误", () => {
+  test("API 地址只保留一个路径分隔符", () => {
+    expect(
+      joinGuestApiUrl("/llm-space-web/", "/api/guest/mcp/call")
+    ).toBe("/llm-space-web/api/guest/mcp/call");
+    expect(joinGuestApiUrl("/", "api/guest/runs")).toBe(
+      "/api/guest/runs"
+    );
+  });
+
   test("保留安全错误码、状态、请求编号和额度", async () => {
     const response = new Response(
       JSON.stringify({

@@ -1,6 +1,16 @@
 import type { HostServices, ModelClient } from "@llm-space/ui/host";
 
 import { GUEST_MODEL_ID, GUEST_PROVIDER } from "@/guest/guest-api";
+import {
+  listGuestMcpServers,
+  listGuestMcpTools,
+  OPEN_GUEST_MCP_SETTINGS_EVENT,
+} from "@/guest/guest-mcp";
+import {
+  canGuestAutoExecute,
+  executeGuestTool,
+  GUEST_BUILTIN_TOOLS,
+} from "@/guest/guest-tools";
 
 export const GUEST_WORKBENCH_ENABLED =
   import.meta.env.VITE_GUEST_WORKBENCH === "1";
@@ -18,17 +28,36 @@ function unavailable(): never {
 export const webHost: HostServices = {
   presentational: !GUEST_WORKBENCH_ENABLED,
   transport: null,
-  executeTool: null,
+  executeTool: GUEST_WORKBENCH_ENABLED
+    ? (tool, args, options) =>
+        executeGuestTool(tool, args, options?.runtimeId)
+    : null,
+  toolExecutionPolicy: GUEST_WORKBENCH_ENABLED
+    ? {
+        maxAutoTurns: 6,
+        maxAutoToolCalls: 8,
+        canAutoExecute: canGuestAutoExecute,
+        notice:
+          "游客模式只会自动运行低风险工具；写入、Custom Tool 和未信任 MCP 会停下等待确认。每个 ReAct 模型回合都会消耗一次免费 Run。",
+      }
+    : undefined,
   skills: {
     getSettings: () => Promise.resolve({ discoveryPaths: [] }),
     listSkills: () => Promise.resolve([]),
   },
   mcp: {
-    listServers: () => Promise.resolve([]),
-    listTools: () => unavailable(),
+    listServers: () =>
+      Promise.resolve(
+        GUEST_WORKBENCH_ENABLED ? listGuestMcpServers() : []
+      ),
+    listTools: (serverId) =>
+      GUEST_WORKBENCH_ENABLED
+        ? listGuestMcpTools(serverId)
+        : unavailable(),
   },
   builtinTools: {
-    list: () => Promise.resolve([]),
+    list: () =>
+      Promise.resolve(GUEST_WORKBENCH_ENABLED ? GUEST_BUILTIN_TOOLS : []),
     fsReveal: () => unavailable(),
   },
   paths: {
@@ -43,9 +72,15 @@ export const webHost: HostServices = {
   },
   generator: null,
   actions: {
-    openSettings: () => {
+    openSettings: (tab) => {
       if (GUEST_WORKBENCH_ENABLED) {
-        window.alert("BYOK 设置即将开放。");
+        if (tab === "mcp") {
+          window.dispatchEvent(
+            new CustomEvent(OPEN_GUEST_MCP_SETTINGS_EVENT)
+          );
+        } else {
+          window.alert("BYOK 设置即将开放。");
+        }
       }
     },
     openLink: (url) => window.open(url, "_blank", "noopener,noreferrer"),

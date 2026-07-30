@@ -11,6 +11,8 @@ dist
 
 # Playwright
 .playwright-mcp
+.playwright-cli/
+/output/
 
 # code coverage
 coverage

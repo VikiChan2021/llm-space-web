@@ -23,6 +23,7 @@ const CONFIG: GuestCloudConfig = {
   maxRequestBytes: 128 * 1024,
   maxTextCharacters: 12_000,
   maxOutputTokens: 2048,
+  remoteMcpEnabled: false,
   trustProxy: true,
   secureCookies: false,
 };
@@ -110,7 +111,7 @@ describe("guest HTTP API", () => {
     quotaStore.close();
   });
 
-  test("rejects non-text and oversized conversations before execution", async () => {
+  test("accepts bounded tools and rejects malformed or oversized requests", async () => {
     let executed = false;
     const execute: GuestModelExecutor = async function* () {
       await Promise.resolve();
@@ -130,11 +131,28 @@ describe("guest HTTP API", () => {
     expect(oversized.status).toBe(413);
     expect(executed).toBe(false);
 
+    const acceptedTool = await handler(
+      _runRequest(GUEST_ID, CONFIG.publicUrl.origin, "hello", [
+        {
+          name: "lookup_order",
+          description: "Look up one order.",
+          parameters: {
+            type: "object",
+            required: ["id"],
+            properties: { id: { type: "string" } },
+          },
+        },
+      ])
+    );
+    await acceptedTool.text();
+    expect(acceptedTool.status).toBe(200);
+    expect(executed).toBe(true);
+
+    executed = false;
     const rejectedTool = await handler(
       _runRequest(GUEST_ID, CONFIG.publicUrl.origin, "hello", [
         {
-          type: "function",
-          name: "unsafe_tool",
+          name: "../unsafe",
           description: "must not reach the model",
           parameters: {},
         },
@@ -142,6 +160,131 @@ describe("guest HTTP API", () => {
     );
     expect(rejectedTool.status).toBe(400);
     expect(executed).toBe(false);
+    quotaStore.close();
+  });
+
+  test("runs the same-origin demo MCP through the bounded guest tool API", async () => {
+    const quotaStore = new GuestQuotaStore(":memory:", CONFIG.hmacSecret);
+    const handler = createGuestFetchHandler({
+      config: CONFIG,
+      quotaStore,
+      execute: _completedExecutor,
+      now: () => new Date("2026-07-29T12:00:00.000Z"),
+    });
+
+    const listed = await handler(
+      _toolRequest("/api/guest/mcp/tools", {
+        serverId: "guest-demo-mcp",
+      })
+    );
+    const listedBody = await listed.text();
+    expect(listed.status).toBe(200);
+    expect(listedBody).toContain('"name":"calculator"');
+    expect(listedBody).toContain('"name":"current_time"');
+
+    const called = await handler(
+      _toolRequest("/api/guest/mcp/call", {
+        serverId: "guest-demo-mcp",
+        toolName: "calculator",
+        arguments: { a: 7, operator: "*", b: 6 },
+      })
+    );
+    const calledBody = await called.text();
+    expect(called.status).toBe(200);
+    expect(calledBody).toContain('\\"result\\":42');
+    expect(calledBody).not.toContain(CONFIG.apiKey);
+    quotaStore.close();
+  });
+
+  test("keeps public remote MCP closed until network egress isolation is enabled", async () => {
+    const quotaStore = new GuestQuotaStore(":memory:", CONFIG.hmacSecret);
+    const handler = createGuestFetchHandler({
+      config: CONFIG,
+      quotaStore,
+      execute: _completedExecutor,
+    });
+
+    const response = await handler(
+      _toolRequest("/api/guest/mcp/tools", {
+        serverId: "public-docs",
+        url: "https://example.com/mcp",
+      })
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(403);
+    expect(body).toContain('"code":"remote_mcp_disabled"');
+    quotaStore.close();
+  });
+
+  test("accepts a tool-result continuation as the final wire message", async () => {
+    let executed = false;
+    const execute: GuestModelExecutor = async function* () {
+      await Promise.resolve();
+      executed = true;
+      yield { type: "agent_start" };
+      yield { type: "agent_end", messages: [] };
+    };
+    const quotaStore = new GuestQuotaStore(":memory:", CONFIG.hmacSecret);
+    const handler = createGuestFetchHandler({
+      config: CONFIG,
+      quotaStore,
+      execute,
+    });
+    const response = await handler(
+      new Request("http://internal/api/guest/runs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: CONFIG.publicUrl.origin,
+          Cookie: `llm_space_guest=${GUEST_ID}`,
+          "X-Real-IP": "1.2.3.4",
+        },
+        body: JSON.stringify({
+          model: { provider: "bigmodel", id: "glm-4.7-flash" },
+          context: {
+            systemPrompt: "",
+            tools: [
+              {
+                name: "calculator",
+                description: "Calculate.",
+                parameters: { type: "object" },
+              },
+            ],
+            messages: [
+              {
+                role: "user",
+                content: [{ type: "text", text: "2+2?" }],
+                timestamp: Date.now(),
+              },
+              {
+                role: "assistant",
+                content: [
+                  {
+                    type: "toolCall",
+                    id: "call-1",
+                    name: "calculator",
+                    arguments: { a: 2, operator: "+", b: 2 },
+                  },
+                ],
+                timestamp: Date.now(),
+              },
+              {
+                role: "toolResult",
+                toolCallId: "call-1",
+                toolName: "calculator",
+                content: [{ type: "text", text: "4" }],
+                isError: false,
+                timestamp: Date.now(),
+              },
+            ],
+          },
+        }),
+      })
+    );
+    await response.text();
+    expect(response.status).toBe(200);
+    expect(executed).toBe(true);
     quotaStore.close();
   });
 
@@ -205,5 +348,21 @@ function _runRequest(
         ],
       },
     }),
+  });
+}
+
+function _toolRequest(
+  path: string,
+  body: Record<string, unknown>
+): Request {
+  return new Request(`http://internal${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: CONFIG.publicUrl.origin,
+      Cookie: `llm_space_guest=${GUEST_ID}`,
+      "X-Real-IP": "1.2.3.4",
+    },
+    body: JSON.stringify(body),
   });
 }

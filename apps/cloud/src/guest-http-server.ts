@@ -9,9 +9,21 @@ import type {
   GuestQuotaDecision,
   GuestQuotaStore,
 } from "./guest-quota";
+import {
+  callGuestBuiltinTool,
+  callGuestMcpTool,
+  GUEST_BUILTIN_TOOLS,
+  GuestToolError,
+  isDemoMcpServer,
+  listDemoMcpTools,
+  listRemoteMcpTools,
+} from "./guest-tool-service";
 
 const GUEST_COOKIE = "llm_space_guest";
-const MAX_MESSAGES = 40;
+const MAX_MESSAGES = 80;
+const MAX_TOOLS = 20;
+const MAX_TOOL_CALLS_PER_DAY = 60;
+const MAX_ACTIVE_TOOL_CALLS = 1;
 
 export type GuestModelExecutor = (
   request: AgentStreamRequest,
@@ -43,6 +55,8 @@ export function createGuestFetchHandler(
 ) {
   const now = dependencies.now ?? (() => new Date());
   const activeRuns = new Map<string, number>();
+  const activeToolCalls = new Map<string, number>();
+  const toolUsage = new Map<string, { day: string; count: number }>();
 
   return async function guestFetchHandler(request: Request): Promise<Response> {
     const requestId = randomBytes(12).toString("hex");
@@ -65,6 +79,114 @@ export function createGuestFetchHandler(
           dependencies.config.ipDailyLimit
         );
         return _json(_publicQuota(quota, dependencies.config), {
+          headers: identity.setCookie
+            ? { "Set-Cookie": identity.setCookie }
+            : undefined,
+        });
+      }
+      if (request.method === "GET" && url.pathname === "/api/guest/tools") {
+        return _json({ tools: GUEST_BUILTIN_TOOLS });
+      }
+      if (
+        request.method === "POST" &&
+        url.pathname === "/api/guest/tools/call"
+      ) {
+        _assertSameOrigin(request, dependencies.config.publicUrl);
+        _assertJsonRequest(request);
+        const identity = _guestIdentity(request, dependencies.config);
+        const body = await _readJsonObject(request, dependencies.config);
+        const name = _readBoundedString(body.name, "name", 120);
+        const args = _readArguments(body.arguments);
+        const contentText = await _withGuestToolSlot({
+          identity,
+          quotaStore: dependencies.quotaStore,
+          activeToolCalls,
+          toolUsage,
+          now: now(),
+          run: () => callGuestBuiltinTool(name, args),
+        });
+        return _json(
+          { contentText, isError: false },
+          {
+            headers: identity.setCookie
+              ? { "Set-Cookie": identity.setCookie }
+              : undefined,
+          }
+        );
+      }
+      if (
+        request.method === "POST" &&
+        url.pathname === "/api/guest/mcp/tools"
+      ) {
+        _assertSameOrigin(request, dependencies.config.publicUrl);
+        _assertJsonRequest(request);
+        const identity = _guestIdentity(request, dependencies.config);
+        const body = await _readJsonObject(request, dependencies.config);
+        const serverId = _readBoundedString(
+          body.serverId,
+          "serverId",
+          120
+        );
+        _assertRemoteMcpEnabled(
+          serverId,
+          dependencies.config.remoteMcpEnabled
+        );
+        const tools = isDemoMcpServer(serverId)
+          ? listDemoMcpTools()
+          : await listRemoteMcpTools(
+              _readBoundedString(body.url, "url", 2_000)
+            );
+        return _json(
+          { serverId, tools },
+          {
+            headers: identity.setCookie
+              ? { "Set-Cookie": identity.setCookie }
+              : undefined,
+          }
+        );
+      }
+      if (
+        request.method === "POST" &&
+        url.pathname === "/api/guest/mcp/call"
+      ) {
+        _assertSameOrigin(request, dependencies.config.publicUrl);
+        _assertJsonRequest(request);
+        const identity = _guestIdentity(request, dependencies.config);
+        const body = await _readJsonObject(request, dependencies.config);
+        const serverId = _readBoundedString(
+          body.serverId,
+          "serverId",
+          120
+        );
+        _assertRemoteMcpEnabled(
+          serverId,
+          dependencies.config.remoteMcpEnabled
+        );
+        const toolName = _readBoundedString(
+          body.toolName,
+          "toolName",
+          160
+        );
+        const args = _readArguments(body.arguments);
+        const result = await _withGuestToolSlot({
+          identity,
+          quotaStore: dependencies.quotaStore,
+          activeToolCalls,
+          toolUsage,
+          now: now(),
+          run: () =>
+            callGuestMcpTool({
+              serverId,
+              toolName,
+              arguments: args,
+              ...(isDemoMcpServer(serverId)
+                ? {}
+                : {
+                    url: _readBoundedString(body.url, "url", 2_000),
+                  }),
+            }),
+        });
+        return _json(result, {
           headers: identity.setCookie
             ? { "Set-Cookie": identity.setCookie }
             : undefined,
@@ -135,6 +257,8 @@ export function createGuestFetchHandler(
       const known =
         error instanceof GuestHttpError
           ? error
+          : error instanceof GuestToolError
+            ? new GuestHttpError(error.status, error.code, error.message)
           : new GuestHttpError(
               500,
               "internal_error",
@@ -230,21 +354,44 @@ function _validateRequest(
     context.messages.length === 0 ||
     context.messages.length > MAX_MESSAGES ||
     !Array.isArray(context.tools) ||
-    context.tools.length !== 0
+    context.tools.length > MAX_TOOLS
   ) {
     throw new GuestHttpError(
       400,
       "invalid_context",
-      "游客体验只支持模型对话，暂不开放工具运行。"
+      "游客 Thread 的消息或工具数量超出允许范围。"
     );
   }
   const last = context.messages.at(-1);
-  if (last?.role !== "user") {
+  if (last?.role !== "user" && last?.role !== "toolResult") {
     throw new GuestHttpError(
       400,
       "invalid_conversation",
-      "最后一条消息必须来自用户。"
+      "最后一条消息必须来自用户或已完成的工具结果。"
     );
+  }
+  const toolNames = new Set<string>();
+  for (const tool of context.tools) {
+    if (
+      !tool ||
+      typeof tool !== "object" ||
+      typeof tool.name !== "string" ||
+      !/^[A-Za-z_][A-Za-z0-9_.:-]{0,119}$/.test(tool.name) ||
+      toolNames.has(tool.name) ||
+      typeof tool.description !== "string" ||
+      tool.description.length > 2_000 ||
+      !tool.parameters ||
+      typeof tool.parameters !== "object" ||
+      Array.isArray(tool.parameters) ||
+      JSON.stringify(tool.parameters).length > 16_000
+    ) {
+      throw new GuestHttpError(
+        400,
+        "invalid_tool_schema",
+        "工具定义格式无效、重复或过大。"
+      );
+    }
+    toolNames.add(tool.name);
   }
   let characters =
     typeof context.systemPrompt === "string"
@@ -253,7 +400,9 @@ function _validateRequest(
   for (const message of context.messages) {
     if (
       !message ||
-      (message.role !== "user" && message.role !== "assistant") ||
+      (message.role !== "user" &&
+        message.role !== "assistant" &&
+        message.role !== "toolResult") ||
       !Array.isArray(message.content)
     ) {
       throw new GuestHttpError(
@@ -263,20 +412,44 @@ function _validateRequest(
       );
     }
     for (const content of message.content) {
-      if (
-        !content ||
-        (content.type !== "text" && content.type !== "thinking")
-      ) {
+      if (!content || typeof content !== "object") {
         throw new GuestHttpError(
           400,
           "unsupported_content",
           "游客体验暂时只支持文本内容。"
         );
       }
-      characters +=
-        content.type === "text"
-          ? content.text.length
-          : content.thinking.length;
+      if (content.type === "text" && typeof content.text === "string") {
+        characters += content.text.length;
+        continue;
+      }
+      if (
+        message.role === "assistant" &&
+        content.type === "thinking" &&
+        typeof content.thinking === "string"
+      ) {
+        characters += content.thinking.length;
+        continue;
+      }
+      if (
+        message.role === "assistant" &&
+        content.type === "toolCall" &&
+        typeof content.id === "string" &&
+        typeof content.name === "string" &&
+        toolNames.has(content.name) &&
+        content.arguments &&
+        typeof content.arguments === "object" &&
+        !Array.isArray(content.arguments) &&
+        JSON.stringify(content.arguments).length <= 16_000
+      ) {
+        characters += JSON.stringify(content.arguments).length;
+        continue;
+      }
+      throw new GuestHttpError(
+        400,
+        "unsupported_content",
+        "游客体验收到不支持的消息内容。"
+      );
     }
   }
   if (characters > config.maxTextCharacters) {
@@ -284,6 +457,127 @@ function _validateRequest(
       413,
       "text_limit",
       `游客体验单次最多支持 ${config.maxTextCharacters} 个文本字符。`
+    );
+  }
+}
+
+async function _readJsonObject(
+  request: Request,
+  config: GuestCloudConfig
+): Promise<Record<string, unknown>> {
+  const declaredLength = Number(request.headers.get("content-length") ?? "0");
+  if (
+    Number.isFinite(declaredLength) &&
+    declaredLength > config.maxRequestBytes
+  ) {
+    throw new GuestHttpError(
+      413,
+      "request_too_large",
+      "工具请求内容过大。"
+    );
+  }
+  const text = await request.text();
+  if (Buffer.byteLength(text, "utf8") > config.maxRequestBytes) {
+    throw new GuestHttpError(
+      413,
+      "request_too_large",
+      "工具请求内容过大。"
+    );
+  }
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    throw new GuestHttpError(400, "invalid_json", "请求格式无效。");
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new GuestHttpError(400, "invalid_request", "请求格式无效。");
+  }
+  return value as Record<string, unknown>;
+}
+
+function _readBoundedString(
+  value: unknown,
+  field: string,
+  maximum: number
+): string {
+  if (
+    typeof value !== "string" ||
+    !value.trim() ||
+    value.length > maximum
+  ) {
+    throw new GuestHttpError(
+      400,
+      "invalid_tool_request",
+      `${field} 格式无效。`
+    );
+  }
+  return value.trim();
+}
+
+function _readArguments(value: unknown): Record<string, unknown> {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    JSON.stringify(value).length > 16_000
+  ) {
+    throw new GuestHttpError(
+      400,
+      "invalid_tool_arguments",
+      "工具参数格式无效或过大。"
+    );
+  }
+  return value as Record<string, unknown>;
+}
+
+async function _withGuestToolSlot<T>(input: {
+  identity: { id: string; setCookie: string | null };
+  quotaStore: Pick<GuestQuotaStore, "hashIdentity">;
+  activeToolCalls: Map<string, number>;
+  toolUsage: Map<string, { day: string; count: number }>;
+  now: Date;
+  run: () => Promise<T>;
+}): Promise<T> {
+  const guestHash = input.quotaStore.hashIdentity("guest", input.identity.id);
+  const active = input.activeToolCalls.get(guestHash) ?? 0;
+  if (active >= MAX_ACTIVE_TOOL_CALLS) {
+    throw new GuestHttpError(
+      429,
+      "guest_tool_concurrency_limit",
+      "当前已有一个工具调用，请等待它完成。"
+    );
+  }
+  const day = input.now.toISOString().slice(0, 10);
+  const usage = input.toolUsage.get(guestHash);
+  const count = usage?.day === day ? usage.count : 0;
+  if (count >= MAX_TOOL_CALLS_PER_DAY) {
+    throw new GuestHttpError(
+      429,
+      "guest_tool_daily_limit",
+      "今日游客工具额度已用完。"
+    );
+  }
+  input.activeToolCalls.set(guestHash, active + 1);
+  input.toolUsage.set(guestHash, { day, count: count + 1 });
+  try {
+    return await input.run();
+  } finally {
+    const next = (input.activeToolCalls.get(guestHash) ?? 1) - 1;
+    if (next <= 0) input.activeToolCalls.delete(guestHash);
+    else input.activeToolCalls.set(guestHash, next);
+  }
+}
+
+function _assertRemoteMcpEnabled(
+  serverId: string,
+  remoteMcpEnabled: boolean
+): void {
+  if (!isDemoMcpServer(serverId) && !remoteMcpEnabled) {
+    throw new GuestToolError(
+      403,
+      "remote_mcp_disabled",
+      "公共远程 MCP 需先配置独立网络出口隔离；当前线上仅开放演示 MCP。"
     );
   }
 }

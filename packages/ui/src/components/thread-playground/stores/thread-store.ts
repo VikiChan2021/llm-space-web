@@ -224,6 +224,12 @@ export function createThreadStore(
       tool: McpTool | BuiltinTool,
       args: Record<string, unknown>
     ) => Promise<{ contentText: string; isError: boolean }>;
+    /** Host policy for whether a tool may run without an explicit user click. */
+    canAutoExecuteTool?: (tool: McpTool | BuiltinTool) => boolean;
+    /** Host-specific ReAct model-turn limit; defaults to 50. */
+    maxAutoToolTurns?: number;
+    /** Host-specific automatic tool-call limit; defaults to unbounded. */
+    maxAutoToolCalls?: number;
     /**
      * Load the enabled local skills used when rendering prompt variables.
      * Injected so the store stays decoupled from the skills/RPC layer; defaults
@@ -436,7 +442,8 @@ export function createThreadStore(
        */
       const executePendingToolCalls = async (
         messages: Message[],
-        signal: AbortSignal
+        signal: AbortSignal,
+        autoToolCallsUsed: number
       ): Promise<Message[] | null> => {
         const execute = options.executeTool;
         if (!execute) {
@@ -465,6 +472,15 @@ export function createThreadStore(
           if (!tool || !isExecutableTool(tool)) {
             return null;
           }
+          if (
+            options.canAutoExecuteTool &&
+            !options.canAutoExecuteTool(tool)
+          ) {
+            toast.info("Auto-run paused for review", {
+              description: `${tool.name} requires a manual tool call in this host.`,
+            });
+            return null;
+          }
           // A destructive `bash` command must never be auto-executed, even under
           // "auto run tools" or the ReAct loop — treat it like a `terminate`
           // tool: stop the loop and leave it pending for the user to review and
@@ -484,6 +500,15 @@ export function createThreadStore(
             }
           }
           executable.push({ toolCall, tool });
+        }
+        const maxAutoToolCalls =
+          options.maxAutoToolCalls ?? Number.POSITIVE_INFINITY;
+        if (autoToolCallsUsed + executable.length > maxAutoToolCalls) {
+          toast.warning("Auto-run tool limit reached", {
+            description:
+              "The pending tool calls were left for manual review.",
+          });
+          return null;
         }
         const results = await Promise.all(
           executable.map(async ({ toolCall, tool }) => {
@@ -1298,7 +1323,15 @@ export function createThreadStore(
             //  - only the ReAct loop continues to the next turn; plain auto-run
             //    executes tools once and stops, staying step-by-step.
             // Capped so a model that calls tools forever can't spin forever.
-            for (let turn = 0; turn < MAX_AUTO_TOOL_TURNS; turn++) {
+            const maxAutoToolTurns = Math.max(
+              1,
+              Math.min(
+                MAX_AUTO_TOOL_TURNS,
+                options.maxAutoToolTurns ?? MAX_AUTO_TOOL_TURNS
+              )
+            );
+            let autoToolCallsUsed = 0;
+            for (let turn = 0; turn < maxAutoToolTurns; turn++) {
               const outcome = await streamTurn();
               if (outcome !== "completed") {
                 break;
@@ -1311,7 +1344,8 @@ export function createThreadStore(
               }
               const withResults = await executePendingToolCalls(
                 messages,
-                abortController.signal
+                abortController.signal,
+                autoToolCallsUsed
               );
               if (!isActiveRun()) {
                 break;
@@ -1319,6 +1353,12 @@ export function createThreadStore(
               if (!withResults) {
                 break;
               }
+              const lastWithResults = withResults.at(-1);
+              const executedCount =
+                lastWithResults?.role === "assistant"
+                  ? (lastWithResults.toolCalls?.length ?? 0)
+                  : 0;
+              autoToolCallsUsed += executedCount;
               messages = withResults;
               if (!reactLoop) {
                 break;
