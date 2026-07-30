@@ -1,16 +1,17 @@
 # LLM Space 能力地图
 
 - 最后更新：2026-07-30
-- 地图状态：游客工作台 Hosted Alpha 已在线运行；“游客 Thread 资料库 V1”“Run 错误恢复 V1”和“游客安全工具闭环 V1”均已在本地实现并完成浏览器验收，但尚未发布到线上。Built-in Tools、MCP、Custom Tool、ReAct、自动工具运行、分享和历史图标均保留，其中安全工具已从空入口升级为可执行闭环。下一优先级回到“游客核心迭代闭环 V1”的引导、历史入口可发现性和中文化。GitHub 登录、BYOK、租户级持久 Thread、账单、Bash、stdio MCP、Generator，以及公共远程 MCP 的网络层出站策略仍需独立安全边界。此前的匿名会话、Personal Tenant、PostgreSQL 与强制 RLS 基础仍仅在本地验证，尚未接入游客入口。当前没有公开或动态加载的插件。
+- 地图状态：游客工作台 Hosted Alpha 已在线运行；“游客 Thread 资料库 V1”“Run 错误恢复 V1”和“游客安全工具闭环 V1”已部署到 `https://kandian.site/llm-space-web/`。Built-in Tools、MCP、Custom Tool、ReAct、自动工具运行、分享和历史图标均保留，其中安全工具已从空入口升级为可执行闭环。下一优先级回到“游客核心迭代闭环 V1”的引导、历史入口可发现性和中文化。GitHub 登录、BYOK、租户级持久 Thread、账单、Bash、stdio MCP、Generator，以及公共远程 MCP 的网络层出站策略仍需独立安全边界。此前的匿名会话、Personal Tenant、PostgreSQL 与强制 RLS 基础仍仅在本地验证，尚未接入游客入口。当前没有公开或动态加载的插件。
 - 证据规则：`confirmed` 表示有当前渲染产品或当前代码证据；`stale` 表示依赖旧日志或本轮未完全复查的代码路径；`unknown` 表示需要未来重新检查产品界面后才能用于决策。
 
 ## 交互式浏览器工作台
 
-- 状态：线上 Hosted Alpha 可用；游客 Thread 资料库、Run 错误恢复与安全工具闭环 V1 已在本地完成并通过浏览器验收，尚未部署
+- 状态：线上 Hosted Alpha 可用；游客 Thread 资料库、Run 错误恢复与安全工具闭环 V1 已完成部署和真实浏览器验收
 - 新鲜度：confirmed
 - 最后检查：2026-07-30
 - 证据：
   - 当前线上 `https://kandian.site/llm-space-web/` 仍允许游客从 Landing 免登录进入 `#/workbench`，并运行受额度约束的服务器端 `glm-4.7-flash`。
+  - 2026-07-30 活动发布为 `20260730-095229-4c7de7687eee`，对应提交 `4c7de7687eeeb5fe8dca8f9dcd30967828821724`；systemd 服务为 active、`NRestarts=0`，Nginx 配置检查通过。
   - 本地实现将单一 `llm-space.guest.thread.v1` 数据迁移为版本化的 `llm-space.guest.workspace.v1` 工作区；新格式写入成功后才删除旧键。
   - 游客现可在左侧响应式抽屉中新建、选择、复制、导出、删除 Thread，并可通过工作台标题重命名；导入 JSON 会创建新 Thread，不覆盖已有记录。
   - 首次访问会立即持久化示例 Thread；刷新会恢复最后打开项；删除最后一项会自动创建新的示例 Thread。
@@ -27,9 +28,11 @@
   - 真实 Chromium 已完成临时服务失败后手动重试成功、额度耗尽、输入过大、短期限流和主动停止五类受控流程；只有 429/413 请求本身产生浏览器网络资源日志，没有应用主动输出的错误或堆栈。
   - 当前验收截图位于 `output/playwright/run-recovery-v1/`，包括临时失败技术详情、额度耗尽、主动停止和 768px 结果条布局。
   - `apps/web/src/host/web-host.ts` 已注入游客 Built-in/MCP 执行器与独立工具策略；浏览器虚拟文件、Custom 人工结果、同源演示 MCP、低风险自动执行和 ReAct 已可用。
+  - 部署后真实 Chromium 刷新仍恢复 Thread、Run 历史、`read`、演示 MCP 和 Custom Tool；浏览器控制台为零错误、零警告。
+  - 同一线上模型链路已完成一次真实中文 Run 和一次真实 `read` Tool Call；后续工具继续回合及最终复验遇到智谱 `1305` 峰值限流，页面正确显示可恢复错误并保留 Thread，不能据此宣称上游模型始终可用。
 - 能力边界：未登录游客可管理多个浏览器本地 Thread，编辑 Prompt、消息、变量、工具和模型参数，运行固定的服务器资助模型，完成安全工具/ReAct 闭环，查看 Run 历史和剩余额度，并通过 JSON 导入导出携带单个 Thread。Thread 与虚拟文件仍不在服务端同步或持久化。
 - 明确非目标：不宣称已经达到生产级多用户 SaaS；不暴露供应商或 Langfuse 密钥；不开放宿主 Bash、宿主文件系统、stdio MCP、Generator、原生菜单、更新器、窗口控制或系统文件选择器。
-- 可见缺口：三项本地 V1 尚未线上部署；失败结果不跨刷新持久化，也没有失败时间线或后台重试；公共远程 MCP 上线前还需腾讯云网络层出站限制；BYOK、登录激活、租户级 Thread CRUD、多标签 Workspace、移动端专项优化、分布式额度、审计监控、备份和更强滥用防护仍待开发。
+- 可见缺口：失败结果不跨刷新持久化，也没有失败时间线或后台重试；公共远程 MCP 上线前还需腾讯云网络层出站限制；智谱共享体验模型存在峰值拥塞且目前没有多模型故障转移；BYOK、登录激活、租户级 Thread CRUD、多标签 Workspace、移动端专项优化、分布式额度、审计监控、备份和更强滥用防护仍待开发。
 
 ## 游客核心迭代闭环
 
@@ -52,14 +55,14 @@
 
 ## 游客安全工具闭环
 
-- 状态：本地实现完成并通过受控浏览器验收，尚未部署
+- 状态：已部署并通过线上 API、真实 Chromium 与安全边界验收
 - 新鲜度：confirmed
 - 最后检查：2026-07-30
 - 证据：
   - `apps/web/src/host/web-host.ts` 已注入游客 `executeTool`、Built-in/MCP 列表与 `ToolExecutionPolicy`；共享桌面 Host 没有改变默认行为。
   - Built-in 对话框保留原有 File system、Web、Misc 分类，当前分别显示 10、3、3 个工具；`bash` 与 `skill` 入口保留并明确返回安全边界。
   - 浏览器虚拟工作区按 Thread ID 隔离，支持 read/write/edit/ls/tree/grep/glob/present_files，拒绝绝对路径、`..`、跨 Thread 越界和超量内容。
-  - 服务端 Guest Tool API 提供有界天气、Web Search、Web Fetch 和演示 MCP；网页读取只走固定 Jina Reader，搜索只走固定 DuckDuckGo Lite，不接受用户自定义认证头。
+  - 服务端 Guest Tool API 提供有界天气、Web Search、Web Fetch 和演示 MCP。腾讯云无法访问原固定 Jina Reader 与 DuckDuckGo Lite 后，网页读取改为“全量 DNS 私网检查、固定解析 IP、逐次重定向复验、标准端口、512 KB 响应上限”的直接读取；搜索改用腾讯云可达的固定搜索入口，仍不接受用户自定义认证头。
   - Guest API 现在接受最多 20 个有界工具 Schema，并支持 Tool Result 作为下一模型回合输入；工具调用另设每日 60 次和单游客并发 1 的内存限制。
   - Demo MCP 提供 `calculator` 与 `current_time`；Web MCP 配置保留公共 HTTPS Streamable HTTP 入口，并拒绝非 HTTPS、凭据、查询参数、片段、非 443 端口、私网/环回/元数据 DNS 结果和重定向。
   - Custom Function Tool 使用现有 JSON Schema 编辑器；自动模式遇到 Custom 时暂停，用户填写结果后可以继续 ReAct。
@@ -68,6 +71,8 @@
   - 浏览器验收时发现并修复 Guest API 基路径双斜杠导致的 MCP 404；修复后同一流程成功且刷新未产生新的应用错误。
   - 审计截图与中文验收记录位于 `audits/2026-07-30-130332-guest-safe-tool-loop-v1/`。
   - 21 个聚焦测试全部通过；全仓类型检查和零警告 lint 通过；最新游客 Web 构建与 Guest API 打包通过。
+  - 线上独立复验中 `web_fetch`、`web_search`、`weather_report` 和演示 MCP 均返回 200；私网域名、错误 Origin 和公共远程 MCP 分别返回 400、403、403；30 路并发只读请求全部返回 200。
+  - 腾讯云部署脚本使用临时目录构建、提交绑定的发布目录、原子软链接切换、服务健康轮询、HTTPS 本机回源验证和完整失败回滚；部署后临时归档与远端脚本会自动清理。
   - 全仓测试为 400 通过、1 跳过、6 失败；失败来自本轮未改动的 Windows 路径、符号链接、生成文件 CRLF 和缺少 `python3` 的既有测试，不能据此宣称全仓测试全绿。
 - 已实现边界：
   - 原有入口与图标全部保留，不通过隐藏或删除解决能力缺口；分享按钮本轮继续保持原占位行为，分享实现仍按用户此前决定延期。
@@ -76,13 +81,13 @@
   - MCP V1 提供同源演示 MCP 和可选的公共 HTTPS Streamable HTTP MCP；游客自定义远程地址必须经过独立代理、SSRF 防护、超时、大小、并发和工具数量限制。stdio、自定义密钥头和 OAuth 留待登录/BYOK 或隔离运行时。
   - 自动工具运行和 ReAct 对明确标记为低风险的工具开放；未知远程 MCP、写入类工具和人工交互工具默认停下等待确认。游客 ReAct 使用独立的低回合/工具调用上限，并按每个模型回合消耗免费额度。
 - 明确非目标：本 V1 不开放腾讯云宿主 Bash、宿主文件系统、stdio MCP、任意进程启动、任意私网 URL、自定义 MCP 认证头、OAuth、Generator、技能安装、分享发布、登录或 BYOK。
-- 可见缺口：真实智谱模型的 Tool Call 协议仍未使用当前本机安全环境中的真实 Key 完成端到端复验；本轮浏览器模型事件来自受控 Mock Guest API。公共远程 MCP 目前只有应用层 SSRF 防护，腾讯云部署前必须补网络层出站策略，否则生产只开放同源演示 MCP。工具额度当前是单进程内存计数，不适合多副本；达到 ReAct 上限的专用可恢复结果条、重复调用检测和总时长上限仍待强化。
+- 可见缺口：真实智谱模型已完成普通 Run 和 Tool Call 首回合，但工具结果后的模型继续回合受供应商峰值 429 影响，仍需在低峰期补一次完整自动 ReAct 复验或增加备用模型。公共远程 MCP 在线上明确关闭，只有同源演示 MCP 开放；网络层出站策略完成前不得打开。工具额度当前是单进程内存计数，不适合多副本；达到 ReAct 上限的专用可恢复结果条、重复调用检测和总时长上限仍待强化。
 
-## Hosted Multi-User SaaS
+## Hosted 多用户 SaaS
 
-- Status: Guest Alpha deployed; Slice 1 identity/tenant foundation remains locally verified but disconnected
-- Freshness: confirmed
-- Last checked: 2026-07-29
+- 状态：游客 Alpha 已部署；第一阶段身份与租户基础仍仅在本地验证，尚未接入游客入口
+- 新鲜度：confirmed
+- 最后检查：2026-07-30
 - Evidence:
   - The user selected the public multi-user SaaS direction on 2026-07-29.
   - The guest entry flow intentionally bypasses GitHub OAuth and Personal Tenant activation.
