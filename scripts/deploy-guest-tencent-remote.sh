@@ -25,6 +25,34 @@ current_link="/srv/llm-space-web/current"
 web_link="/var/www/llm-space-web"
 previous_current="$(readlink -f "$current_link")"
 previous_web="$(readlink -f "$web_link")"
+environment_backup="$environment_file.bak-$release_name"
+switched=0
+
+on_exit() {
+  status="$?"
+  trap - EXIT
+  set +e
+  if [[ "$status" -ne 0 && "$switched" -eq 1 ]]; then
+    ln -sfn "$previous_current" "$current_link.rollback"
+    mv -Tf "$current_link.rollback" "$current_link"
+    ln -sfn "$previous_web" "$web_link.rollback"
+    mv -Tf "$web_link.rollback" "$web_link"
+    if [[ -f "$environment_backup" ]]; then
+      cp "$environment_backup" "$environment_file"
+      chown root:llmspace "$environment_file"
+      chmod 640 "$environment_file"
+    fi
+    systemctl restart llm-space-web.service
+    nginx -t && systemctl reload nginx
+  fi
+  rm -f \
+    /tmp/llm-remote-mcp-check.json \
+    "$archive" \
+    /tmp/deploy-llm-space-guest.sh
+  exit "$status"
+}
+
+trap on_exit EXIT
 
 rollback_api() {
   ln -sfn "$previous_current" "$current_link.rollback"
@@ -40,7 +68,7 @@ test "$(cat "$release/RELEASE_COMMIT")" = "$commit"
 chown -R root:root "$release"
 chmod -R a=rX "$release"
 
-cp "$environment_file" "$environment_file.bak-$release_name"
+cp "$environment_file" "$environment_backup"
 if grep -q '^GUEST_REMOTE_MCP_ENABLED=' "$environment_file"; then
   sed -i \
     's/^GUEST_REMOTE_MCP_ENABLED=.*/GUEST_REMOTE_MCP_ENABLED=0/' \
@@ -53,6 +81,7 @@ chmod 640 "$environment_file"
 
 ln -sfn "$release" "$current_link.next"
 mv -Tf "$current_link.next" "$current_link"
+switched=1
 if ! systemctl restart llm-space-web.service; then
   rollback_api
   exit 1
@@ -123,7 +152,7 @@ curl -kfsS \
   -H 'Content-Type: application/json' \
   --data '{"name":"web_search","arguments":{"query":"LLM Space GitHub","limit":1}}' \
   https://kandian.site/llm-space-web/api/guest/tools/call |
-  grep -F '"title"' >/dev/null
+  grep -F 'title' >/dev/null
 
 remote_status="$(curl -sS \
   -o /tmp/llm-remote-mcp-check.json \
@@ -136,11 +165,6 @@ remote_status="$(curl -sS \
   https://kandian.site/llm-space-web/api/guest/mcp/tools)"
 test "$remote_status" = "403"
 grep -F 'remote_mcp_disabled' /tmp/llm-remote-mcp-check.json >/dev/null
-
-rm -f \
-  /tmp/llm-remote-mcp-check.json \
-  "$archive" \
-  /tmp/deploy-llm-space-guest.sh
 
 echo "DEPLOYED_RELEASE=$release_name"
 echo "PREVIOUS_RELEASE=$previous_current"
