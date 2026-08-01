@@ -38,7 +38,7 @@
   - 顶部设置入口和 7 篇 Web 专用中文 Markdown 使用说明已上线；真实 Chromium 已验证浅色/深色主题、演示 MCP 入口、文档新标签、390px 无横向溢出和移动端目录抽屉。
   - 线上真实检查中发现 pi SDK 会把部分上游 429 作为 `stopReason: error` 的普通事件返回；服务端已在提交 `5ad70fd` 中统一拦截并转换为脱敏的 `guest_run_error`，浏览器不再看到上游错误正文、余额信息或供应商错误码。
   - 线上 `weather_report`、`web_search`、`web_fetch` 与演示 MCP 均返回 200；伪造模型、错误 Origin、私网/元数据地址和公共远程 MCP 分别按预期被拒绝。
-  - 本轮 38 个聚焦测试、零警告 lint、全仓类型检查、默认 Web 构建、游客 Web 构建和 Guest API 打包通过；完整仓库测试仍有 1 个与本轮无关的 Windows 路径规范化断言失败。
+  - 本轮 38 个聚焦测试、零警告 lint、全仓类型检查、默认 Web 构建、游客 Web 构建和 Guest API 打包通过；完整仓库测试为 411 通过、1 跳过、6 失败，失败来自本轮未改动的 Windows 路径、符号链接和生成的 Python/清单同步基线。
   - 线上真实 Chromium 控制台为零错误、零警告；Models、Quota 和 Run 请求均返回 200。
   - 线上审计截图与中文验收记录位于 `audits/2026-08-01-guest-first-run-docs-models-online/`。
 - 能力边界：未登录游客可管理多个浏览器本地 Thread，编辑 Prompt、消息、变量、工具和模型参数，选择服务端白名单内的智谱模型，完成安全工具/ReAct 闭环，查看 Run 历史和剩余额度，并通过 JSON 导入导出携带单个 Thread。Thread 与虚拟文件仍不在服务端同步或持久化。
