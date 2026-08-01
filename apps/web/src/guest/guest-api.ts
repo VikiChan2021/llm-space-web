@@ -1,6 +1,7 @@
 import type {
   AgentEvent,
   AgentTransport,
+  ModelConfig,
   ModelProviderGroup,
 } from "@llm-space/core";
 
@@ -50,7 +51,7 @@ export class GuestRunError extends Error {
   }
 }
 
-export const GUEST_PROVIDER: ModelProviderGroup = {
+export const GUEST_FALLBACK_PROVIDER: ModelProviderGroup = {
   id: GUEST_PROVIDER_ID,
   name: "智谱 BigModel",
   builtin: true,
@@ -90,6 +91,34 @@ export const GUEST_PROVIDER: ModelProviderGroup = {
     },
   ],
 };
+
+export interface GuestModelsResponse {
+  defaultModel: ModelConfig;
+  providers: ModelProviderGroup[];
+}
+
+export async function readGuestModels(): Promise<GuestModelsResponse> {
+  const response = await fetch(_apiUrl("api/guest/models"), {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error("暂时无法读取智谱模型列表，请稍后重试。");
+  }
+  const payload = (await response.json()) as Partial<GuestModelsResponse>;
+  if (
+    !payload.defaultModel ||
+    !Array.isArray(payload.providers) ||
+    payload.providers.length === 0 ||
+    payload.providers.some(
+      (provider) =>
+        provider.id !== GUEST_PROVIDER_ID || !Array.isArray(provider.models)
+    )
+  ) {
+    throw new Error("智谱模型列表格式无效。");
+  }
+  return payload as GuestModelsResponse;
+}
 
 export async function readGuestQuota(): Promise<GuestQuota> {
   const response = await fetch(_apiUrl("api/guest/quota"), {

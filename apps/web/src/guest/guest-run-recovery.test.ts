@@ -42,6 +42,7 @@ describe("游客 Run 恢复文案", () => {
       title: "运行请求过于频繁",
       retryable: true,
     });
+    expect(presentation.description).not.toContain("切换");
   });
 
   test("输入限制不给出盲目重试", () => {
@@ -66,5 +67,20 @@ describe("游客 Run 恢复文案", () => {
         retryable: true,
       }
     );
+  });
+
+  test("模型服务错误建议切换其他智谱模型", () => {
+    const presentation = describeGuestRunFailure(
+      new GuestRunError("当前模型不可用", {
+        code: "model_service_unavailable",
+        requestId: "safe-id",
+      })
+    );
+
+    expect(presentation).toMatchObject({
+      title: "模型服务暂时不可用",
+      retryable: true,
+    });
+    expect(presentation.description).toContain("切换其他智谱模型");
   });
 });

@@ -1,10 +1,12 @@
 import {
   createDefaultThreadParserRegistry,
   normalizeThread,
+  type ModelConfig,
   type Thread,
 } from "@llm-space/core";
 
 import { GUEST_MODEL_ID, GUEST_PROVIDER_ID } from "./guest-api";
+import { GUEST_BUILTIN_TOOLS } from "./guest-tools";
 
 export const GUEST_WORKSPACE_STORAGE_KEY = "llm-space.guest.workspace.v1";
 export const LEGACY_GUEST_THREAD_STORAGE_KEY = "llm-space.guest.thread.v1";
@@ -45,17 +47,26 @@ export interface LoadGuestWorkspaceResult {
 
 const _parserRegistry = createDefaultThreadParserRegistry();
 
-export function createStarterThread(createId: () => string): Thread {
+export function createStarterThread(
+  createId: () => string,
+  defaultModel?: ModelConfig | null
+): Thread {
+  const starterTools = GUEST_BUILTIN_TOOLS.filter((tool) =>
+    ["weather_report", "web_search", "web_fetch"].includes(tool.name)
+  ).map((tool) => ({
+    ...tool,
+    parameters: structuredClone(tool.parameters),
+  }));
   return {
     title: DEFAULT_THREAD_TITLE,
     model: {
-      provider: GUEST_PROVIDER_ID,
-      id: GUEST_MODEL_ID,
+      provider: defaultModel?.provider ?? GUEST_PROVIDER_ID,
+      id: defaultModel?.id ?? GUEST_MODEL_ID,
       params: { maxTokens: 2_048, reasoning: "off", temperature: 0.7 },
     },
     context: {
       systemPrompt:
-        "你是一个严谨、友好的 AI 助手。优先给出清晰、可操作的中文回答。",
+        "你是一个严谨、友好的 AI 助手。需要实时信息时优先调用合适的工具，说明查询时间与信息来源，不要编造实时结果。优先给出清晰、可操作的中文回答。",
       messages: [
         {
           id: createId(),
@@ -63,19 +74,20 @@ export function createStarterThread(createId: () => string): Thread {
           content: [
             {
               type: "text",
-              text: "请用三点说明：一个好的 Agent 工作台应当帮助开发者解决哪些问题？",
+              text: "搜索一下广州今天的天气",
             },
           ],
         },
       ],
-      tools: [],
+      tools: starterTools,
     },
   };
 }
 
 export function loadGuestWorkspace(
   storage: GuestWorkspaceStorage,
-  factory: GuestWorkspaceFactory
+  factory: GuestWorkspaceFactory,
+  defaultModel?: ModelConfig | null
 ): LoadGuestWorkspaceResult {
   let savedWorkspaceRaw: string | null;
   let legacyThreadRaw: string | null;
@@ -84,7 +96,7 @@ export function loadGuestWorkspace(
     legacyThreadRaw = storage.getItem(LEGACY_GUEST_THREAD_STORAGE_KEY);
   } catch {
     return {
-      workspace: createGuestWorkspace(factory),
+      workspace: createGuestWorkspace(factory, undefined, defaultModel),
       storageError:
         "当前浏览器禁止访问本地存储，本次修改只能保留到页面关闭。请先导出重要 Thread。",
       migratedLegacy: false,
@@ -101,7 +113,11 @@ export function loadGuestWorkspace(
   }
 
   const legacyThread = _parseLegacyThread(legacyThreadRaw);
-  const workspace = createGuestWorkspace(factory, legacyThread ?? undefined);
+  const workspace = createGuestWorkspace(
+    factory,
+    legacyThread ?? undefined,
+    defaultModel
+  );
   const storageError = saveGuestWorkspace(storage, workspace);
 
   if (!storageError && legacyThread) {
@@ -121,9 +137,13 @@ export function loadGuestWorkspace(
 
 export function createGuestWorkspace(
   factory: GuestWorkspaceFactory,
-  thread = createStarterThread(factory.createId)
+  thread?: Thread,
+  defaultModel?: ModelConfig | null
 ): GuestWorkspace {
-  const record = createGuestThreadRecord(thread, factory);
+  const record = createGuestThreadRecord(
+    thread ?? createStarterThread(factory.createId, defaultModel),
+    factory
+  );
   return {
     version: WORKSPACE_VERSION,
     activeThreadId: record.id,
@@ -216,7 +236,8 @@ export function duplicateGuestThread(
 export function deleteGuestThread(
   workspace: GuestWorkspace,
   recordId: string,
-  factory: GuestWorkspaceFactory
+  factory: GuestWorkspaceFactory,
+  defaultModel?: ModelConfig | null
 ): GuestWorkspace {
   if (!workspace.threads.some((record) => record.id === recordId)) {
     return workspace;
@@ -225,7 +246,7 @@ export function deleteGuestThread(
     (record) => record.id !== recordId
   );
   if (remaining.length === 0) {
-    return createGuestWorkspace(factory);
+    return createGuestWorkspace(factory, undefined, defaultModel);
   }
   if (workspace.activeThreadId !== recordId) {
     return { ...workspace, threads: remaining };
@@ -244,7 +265,8 @@ export function resetGuestThread(
   workspace: GuestWorkspace,
   recordId: string,
   createId: () => string,
-  now: string
+  now: string,
+  defaultModel?: ModelConfig | null
 ): GuestWorkspace {
   const current = workspace.threads.find((record) => record.id === recordId);
   if (!current) return workspace;
@@ -252,7 +274,7 @@ export function resetGuestThread(
     workspace,
     recordId,
     {
-      ...createStarterThread(createId),
+      ...createStarterThread(createId, defaultModel),
       title: current.thread.title,
     },
     now

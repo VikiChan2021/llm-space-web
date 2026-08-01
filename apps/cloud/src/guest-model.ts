@@ -2,54 +2,27 @@ import {
   createModels,
   createProvider,
   envApiKeyAuth,
-  type Model,
 } from "@earendil-works/pi-ai";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import { streamAgent } from "@llm-space/core/server";
 import type { AgentStreamRequest } from "@llm-space/core/types";
 
-export const GUEST_PROVIDER_ID = "bigmodel";
-export const DEFAULT_GUEST_MODEL_ID = "glm-4.7-flash";
-export const BIGMODEL_BASE_URL =
-  "https://open.bigmodel.cn/api/paas/v4";
+import {
+  BIGMODEL_BASE_URL,
+  createGuestModels,
+  GUEST_PROVIDER_ID,
+  isGuestModelAllowed,
+} from "./guest-model-catalog";
 
 export function createGuestModelExecutor(options: {
   apiKey: string;
   modelId: string;
   maxOutputTokens: number;
 }) {
-  const model: Model<"openai-completions"> = {
-    id: options.modelId,
-    name: "GLM-4.7-Flash",
-    api: "openai-completions",
-    provider: GUEST_PROVIDER_ID,
-    baseUrl: BIGMODEL_BASE_URL,
-    reasoning: true,
-    thinkingLevelMap: {
-      off: "disabled",
-      minimal: "enabled",
-      low: "enabled",
-      medium: "enabled",
-      high: "enabled",
-    },
-    input: ["text"],
-    cost: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-    },
-    contextWindow: 200_000,
-    maxTokens: options.maxOutputTokens,
-    compat: {
-      supportsStore: false,
-      supportsDeveloperRole: false,
-      supportsReasoningEffort: false,
-      supportsUsageInStreaming: true,
-      maxTokensField: "max_tokens",
-      thinkingFormat: "zai",
-    },
-  };
+  if (!isGuestModelAllowed(options.modelId)) {
+    throw new Error(`GUEST_MODEL_ID is not allowed: ${options.modelId}`);
+  }
+  const models = createGuestModels(options.maxOutputTokens);
   const provider = createProvider({
     id: GUEST_PROVIDER_ID,
     name: "智谱 BigModel",
@@ -57,19 +30,26 @@ export function createGuestModelExecutor(options: {
     auth: {
       apiKey: envApiKeyAuth("Zhipu API key", ["ZHIPU_API_KEY"]),
     },
-    models: [model],
+    models,
     api: openAICompletionsApi(),
   });
-  const models = createModels();
-  models.setProvider(provider);
+  const modelRegistry = createModels();
+  modelRegistry.setProvider(provider);
 
-  return (request: AgentStreamRequest, signal: AbortSignal) =>
-    streamAgent(
+  return (request: AgentStreamRequest, signal: AbortSignal) => {
+    const selectedModel = request.model?.id ?? options.modelId;
+    if (
+      request.model?.provider !== GUEST_PROVIDER_ID ||
+      !isGuestModelAllowed(selectedModel)
+    ) {
+      throw new Error("Guest model is not allowed.");
+    }
+    return streamAgent(
       {
         ...request,
         model: {
           provider: GUEST_PROVIDER_ID,
-          id: options.modelId,
+          id: selectedModel,
         },
         config: {
           model: {
@@ -82,11 +62,12 @@ export function createGuestModelExecutor(options: {
         },
       },
       {
-        models,
+        models: modelRegistry,
         signal,
         getApiKey: () => options.apiKey,
       }
     );
+  };
 }
 
 function _safeTemperature(value: number | undefined): number {

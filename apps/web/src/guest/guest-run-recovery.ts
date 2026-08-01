@@ -62,7 +62,8 @@ export function describeGuestRunFailure(
     return {
       tone: "danger",
       title: "模型服务暂时不可用",
-      description: "Thread 已保留。你可以稍后重新运行。",
+      description:
+        "Thread 已保留。请在 Models 中切换其他智谱模型后重试，或稍后重新运行。",
       retryable: true,
       details,
     };

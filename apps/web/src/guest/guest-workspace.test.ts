@@ -72,8 +72,26 @@ describe("游客 Thread 工作区", () => {
     expect(result.workspace.threads).toHaveLength(1);
     expect(result.workspace.activeThreadId).toBe(result.workspace.threads[0].id);
     expect(result.workspace.threads[0].thread.title).toBe("游客体验工作台");
+    expect(
+      result.workspace.threads[0].thread.context?.messages?.[0].content?.[0]
+    ).toEqual({ type: "text", text: "搜索一下广州今天的天气" });
+    expect(
+      result.workspace.threads[0].thread.context?.tools?.map((tool) => tool.name)
+    ).toEqual(["web_fetch", "web_search", "weather_report"]);
     expect(storage.values.has(GUEST_WORKSPACE_STORAGE_KEY)).toBe(true);
     expect(result.storageError).toBeNull();
+  });
+
+  test("首次访问使用用户选择的新 Thread 默认模型", () => {
+    const result = loadGuestWorkspace(new MemoryStorage(), _factory(), {
+      provider: "bigmodel",
+      id: "glm-5.2",
+    });
+
+    expect(result.workspace.threads[0].thread.model).toMatchObject({
+      provider: "bigmodel",
+      id: "glm-5.2",
+    });
   });
 
   test("旧版单 Thread 只在新工作区写入成功后删除", () => {

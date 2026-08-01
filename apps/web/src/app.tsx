@@ -1,11 +1,15 @@
 import type { ThreadConnector } from "@llm-space/core";
 import { createGistConnector, GIST_CONNECTOR_ID } from "@llm-space/core/storage";
 import { ModelProvider } from "@llm-space/ui/components/model-provider";
-import { ThemeProvider } from "@llm-space/ui/components/theme-provider";
+import {
+  ThemeProvider,
+  useTheme,
+} from "@llm-space/ui/components/theme-provider";
 import { HostServicesProvider } from "@llm-space/ui/host";
 import { Toaster } from "@llm-space/ui/ui/sonner";
 import { TooltipProvider } from "@llm-space/ui/ui/tooltip";
-import { Route, Routes, useParams } from "react-router-dom";
+import { lazy, Suspense } from "react";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 
 import { GuestWorkbench } from "@/guest/guest-workbench";
 import {
@@ -17,6 +21,12 @@ import { App as Landing } from "@/landing/app";
 import { I18nProvider } from "@/landing/lib/i18n";
 import { NotFound } from "@/not-found";
 import { ThreadViewer } from "@/thread-viewer";
+
+const WebDocsPage = lazy(() =>
+  import("@/docs/web-docs-page").then((module) => ({
+    default: module.WebDocsPage,
+  }))
+);
 
 /** The connectors this site can read shared threads through, keyed by id. */
 const CONNECTORS: Record<string, ThreadConnector> = {
@@ -48,10 +58,18 @@ function SharedThreadRoute() {
 export function App() {
   return (
     <ThemeProvider>
+      <ThemedApp />
+    </ThemeProvider>
+  );
+}
+
+function ThemedApp() {
+  const { resolvedTheme } = useTheme();
+  return (
       <ModelProvider client={webModelClient}>
         <HostServicesProvider value={webHost}>
           <TooltipProvider delayDuration={800}>
-            <Toaster theme="dark" position="top-center" closeButton />
+            <Toaster theme={resolvedTheme} position="top-center" closeButton />
             <I18nProvider>
               <Routes>
                 <Route
@@ -60,14 +78,34 @@ export function App() {
                 />
                 <Route path="/shared/*" element={<NotFound />} />
                 {GUEST_WORKBENCH_ENABLED ? (
-                  <Route path="/workbench" element={<GuestWorkbench />} />
-                ) : null}
-                <Route path="*" element={<Landing />} />
+                  <>
+                    <Route path="/" element={<Navigate to="/workbench" replace />} />
+                    <Route path="/workbench" element={<GuestWorkbench />} />
+                    <Route
+                      path="/docs/:slug"
+                      element={
+                        <Suspense
+                          fallback={
+                            <div className="grid h-dvh place-items-center bg-background text-sm text-muted-foreground">
+                              正在加载使用说明…
+                            </div>
+                          }
+                        >
+                          <WebDocsPage />
+                        </Suspense>
+                      }
+                    />
+                    <Route path="/docs" element={<Navigate to="/docs/quick-start" replace />} />
+                    <Route path="/about" element={<Landing />} />
+                    <Route path="*" element={<NotFound />} />
+                  </>
+                ) : (
+                  <Route path="*" element={<Landing />} />
+                )}
               </Routes>
             </I18nProvider>
           </TooltipProvider>
         </HostServicesProvider>
       </ModelProvider>
-    </ThemeProvider>
   );
 }

@@ -16,6 +16,7 @@ export const LOCAL_STORAGE_KEYS = {
   landingLanguage: "llm-space-lang",
   experimentalTracing: "llm-space-experimental-tracing",
   experimentalReactScan: "llm-space-experimental-react-scan",
+  guestDefaultModel: "llm-space.guest.default-model.v1",
   sidebarSize: "llm-space:sidebar-size",
   openAppTabs: "llm-space:open-app-tabs",
   legacyOpenTabs: "llm-space:open-tabs",

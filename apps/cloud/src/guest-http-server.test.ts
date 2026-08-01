@@ -58,6 +58,62 @@ describe("guest HTTP API", () => {
     quotaStore.close();
   });
 
+  test("returns the server model catalog without exposing credentials", async () => {
+    const quotaStore = new GuestQuotaStore(":memory:", CONFIG.hmacSecret);
+    const handler = createGuestFetchHandler({
+      config: CONFIG,
+      quotaStore,
+      execute: _completedExecutor,
+    });
+
+    const response = await handler(
+      new Request("http://internal/api/guest/models")
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain('"id":"glm-4.7-flash"');
+    expect(body).toContain('"id":"glm-5.2"');
+    expect(body.match(/"api":"openai-completions"/g)).toHaveLength(9);
+    expect(body).not.toContain(CONFIG.apiKey);
+    quotaStore.close();
+  });
+
+  test("executes an allowed selected model and rejects forged ids before quota", async () => {
+    let selectedModel = "";
+    const execute: GuestModelExecutor = async function* (request) {
+      await Promise.resolve();
+      selectedModel = request.model.id;
+      yield { type: "agent_start" };
+    };
+    const quotaStore = new GuestQuotaStore(":memory:", CONFIG.hmacSecret);
+    const handler = createGuestFetchHandler({ config: CONFIG, quotaStore, execute });
+
+    const accepted = await handler(
+      _runRequest(GUEST_ID, CONFIG.publicUrl.origin, "hello", [], "glm-5.2")
+    );
+    await accepted.text();
+    expect(accepted.status).toBe(200);
+    expect(selectedModel).toBe("glm-5.2");
+
+    const rejected = await handler(
+      _runRequest(GUEST_ID, CONFIG.publicUrl.origin, "hello", [], "forged-model")
+    );
+    expect(rejected.status).toBe(400);
+    expect(await rejected.text()).toContain('"code":"guest_model_unavailable"');
+
+    const quota = await handler(
+      new Request("http://internal/api/guest/quota", {
+        headers: {
+          Cookie: `llm_space_guest=${GUEST_ID}`,
+          "X-Real-IP": "1.2.3.4",
+        },
+      })
+    );
+    expect(await quota.json()).toMatchObject({ browserRemaining: 1 });
+    quotaStore.close();
+  });
+
   test("streams shared agent events and decrements quota", async () => {
     const quotaStore = new GuestQuotaStore(":memory:", CONFIG.hmacSecret);
     const handler = createGuestFetchHandler({
@@ -324,7 +380,8 @@ function _runRequest(
   guestId: string,
   origin = CONFIG.publicUrl.origin,
   message = "hello",
-  tools: unknown[] = []
+  tools: unknown[] = [],
+  modelId = "glm-4.7-flash"
 ): Request {
   return new Request("http://internal/api/guest/runs", {
     method: "POST",
@@ -335,7 +392,7 @@ function _runRequest(
       "X-Real-IP": "1.2.3.4",
     },
     body: JSON.stringify({
-      model: { provider: "bigmodel", id: "glm-4.7-flash" },
+      model: { provider: "bigmodel", id: modelId },
       context: {
         systemPrompt: "",
         tools,

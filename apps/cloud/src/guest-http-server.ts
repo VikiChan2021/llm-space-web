@@ -5,6 +5,11 @@ import type { AgentStreamRequest } from "@llm-space/core/types";
 
 import { readCookie, serializeCookie } from "./cookies";
 import type { GuestCloudConfig } from "./guest-config";
+import {
+  createGuestModelProvider,
+  GUEST_PROVIDER_ID,
+  isGuestModelAllowed,
+} from "./guest-model-catalog";
 import type {
   GuestQuotaDecision,
   GuestQuotaStore,
@@ -82,6 +87,17 @@ export function createGuestFetchHandler(
           headers: identity.setCookie
             ? { "Set-Cookie": identity.setCookie }
             : undefined,
+        });
+      }
+      if (request.method === "GET" && url.pathname === "/api/guest/models") {
+        return _json({
+          defaultModel: {
+            provider: GUEST_PROVIDER_ID,
+            id: dependencies.config.modelId,
+          },
+          providers: [
+            createGuestModelProvider(dependencies.config.maxOutputTokens),
+          ],
         });
       }
       if (request.method === "GET" && url.pathname === "/api/guest/tools") {
@@ -347,6 +363,17 @@ function _validateRequest(
     throw new GuestHttpError(400, "invalid_request", "请求格式无效。");
   }
   const request = value as Partial<AgentStreamRequest>;
+  if (
+    request.model?.provider !== GUEST_PROVIDER_ID ||
+    typeof request.model.id !== "string" ||
+    !isGuestModelAllowed(request.model.id)
+  ) {
+    throw new GuestHttpError(
+      400,
+      "guest_model_unavailable",
+      "所选智谱模型不可用于游客工作台，请切换其他模型。"
+    );
+  }
   const context = request.context;
   if (
     !context ||
@@ -621,7 +648,8 @@ function _streamResponse(
               type: "guest_run_error",
               error: {
                 code: "model_service_unavailable",
-                message: "模型服务暂时不可用，请稍后重试。",
+                message:
+                  "当前模型暂不可用，请在 Models 中切换其他智谱模型后重试。",
                 requestId,
               },
             })}\n\n`

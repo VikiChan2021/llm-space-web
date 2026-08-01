@@ -2,7 +2,7 @@ import "@fontsource-variable/geist/index.css";
 import "@fontsource-variable/geist-mono/index.css";
 import {
   LOCAL_STORAGE_KEYS,
-  writeLocalStorage,
+  readLocalStorage,
 } from "@llm-space/ui/lib/local-storage";
 import "@llm-space/ui/styles/globals.css";
 import { StrictMode } from "react";
@@ -14,10 +14,14 @@ import { App } from "@/app";
 // layer on top without redefining the shared theme.
 import "@/landing/index.css";
 
-// This site is dark-only: pin the theme before React mounts so ThemeProvider
-// resolves dark and there's no light first paint. There is no theme toggle.
-writeLocalStorage(LOCAL_STORAGE_KEYS.theme, "dark");
-document.documentElement.classList.add("dark");
+// 在 React 挂载前应用已保存主题，避免浅色/深色首屏闪烁。
+const storedTheme = readLocalStorage(LOCAL_STORAGE_KEYS.theme);
+const initialDark =
+  storedTheme === "dark" ||
+  (storedTheme === "system" &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches) ||
+  (storedTheme !== "light" && storedTheme !== "system");
+document.documentElement.classList.toggle("dark", initialDark);
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

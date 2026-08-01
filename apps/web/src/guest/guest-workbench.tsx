@@ -1,10 +1,18 @@
 import type { Thread } from "@llm-space/core";
 import { ConfirmDialog } from "@llm-space/ui/components/confirm-dialog";
+import { useDefaultModel } from "@llm-space/ui/components/model-provider";
 import { ThreadPlayground } from "@llm-space/ui/components/thread-playground";
 import { Button } from "@llm-space/ui/ui/button";
-import { LibraryIcon, RotateCcwIcon } from "lucide-react";
+import {
+  CircleHelpIcon,
+  LibraryIcon,
+  RotateCcwIcon,
+  SettingsIcon,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+
+import { OPEN_GUEST_SETTINGS_EVENT } from "@/host/web-host";
 
 import {
   createGuestTransport,
@@ -14,6 +22,10 @@ import {
 import { OPEN_GUEST_MCP_SETTINGS_EVENT } from "./guest-mcp";
 import { GuestMcpSettingsDialog } from "./guest-mcp-settings-dialog";
 import { GUEST_RUN_RECOVERY } from "./guest-run-recovery";
+import {
+  GuestSettingsDialog,
+  type GuestSettingsTab,
+} from "./guest-settings-dialog";
 import { GuestThreadLibrary } from "./guest-thread-library";
 import {
   addGuestThread,
@@ -46,11 +58,13 @@ interface GuestWorkspaceState {
 }
 
 export function GuestWorkbench() {
+  const defaultModel = useDefaultModel();
   const [workspaceState, setWorkspaceState] = useState<GuestWorkspaceState>(
     () => {
       const loaded = loadGuestWorkspace(
         BROWSER_STORAGE,
-        BROWSER_WORKSPACE_FACTORY
+        BROWSER_WORKSPACE_FACTORY,
+        defaultModel
       );
       return {
         workspace: loaded.workspace,
@@ -63,6 +77,9 @@ export function GuestWorkbench() {
   const [quotaError, setQuotaError] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [mcpSettingsOpen, setMcpSettingsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] =
+    useState<GuestSettingsTab>("appearance");
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const workspaceRef = useRef(workspaceState.workspace);
@@ -94,6 +111,20 @@ export function GuestWorkbench() {
         OPEN_GUEST_MCP_SETTINGS_EVENT,
         openMcpSettings
       );
+  }, []);
+  useEffect(() => {
+    const openSettings = (event: Event) => {
+      const requested = (event as CustomEvent<{ tab?: string }>).detail?.tab;
+      setSettingsTab(
+        requested === "models" || requested === "mcp"
+          ? requested
+          : "appearance"
+      );
+      setSettingsOpen(true);
+    };
+    window.addEventListener(OPEN_GUEST_SETTINGS_EVENT, openSettings);
+    return () =>
+      window.removeEventListener(OPEN_GUEST_SETTINGS_EVENT, openSettings);
   }, []);
 
   const transport = useMemo(
@@ -164,11 +195,14 @@ export function GuestWorkbench() {
     commitWorkspace((current) =>
       addGuestThread(
         current,
-        createStarterThread(BROWSER_WORKSPACE_FACTORY.createId),
+        createStarterThread(
+          BROWSER_WORKSPACE_FACTORY.createId,
+          defaultModel
+        ),
         BROWSER_WORKSPACE_FACTORY
       )
     );
-  }, [commitWorkspace, running]);
+  }, [commitWorkspace, defaultModel, running]);
   const handleSelect = useCallback(
     (recordId: string) => {
       if (running || recordId === activeRecord.id) return;
@@ -189,11 +223,16 @@ export function GuestWorkbench() {
     (recordId: string) => {
       if (running) return;
       commitWorkspace((current) =>
-        deleteGuestThread(current, recordId, BROWSER_WORKSPACE_FACTORY)
+        deleteGuestThread(
+          current,
+          recordId,
+          BROWSER_WORKSPACE_FACTORY,
+          defaultModel
+        )
       );
       toast.success("Thread 已删除");
     },
-    [commitWorkspace, running]
+    [commitWorkspace, defaultModel, running]
   );
   const handleReset = useCallback(() => {
     if (running) return;
@@ -202,13 +241,14 @@ export function GuestWorkbench() {
         current,
         activeRecord.id,
         BROWSER_WORKSPACE_FACTORY.createId,
-        BROWSER_WORKSPACE_FACTORY.now()
+        BROWSER_WORKSPACE_FACTORY.now(),
+        defaultModel
       )
     );
     setRevision((value) => value + 1);
     setResetConfirmOpen(false);
     toast.success("已重置为示例内容");
-  }, [activeRecord.id, commitWorkspace, running]);
+  }, [activeRecord.id, commitWorkspace, defaultModel, running]);
   const handleImport = useCallback(
     async (file: File): Promise<boolean> => {
       if (running) return false;
@@ -266,12 +306,12 @@ export function GuestWorkbench() {
   );
 
   return (
-    <div className="dark flex h-dvh min-w-0 flex-col bg-background text-foreground">
+    <div className="flex h-dvh min-w-0 flex-col bg-background text-foreground">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-base font-semibold">LLM Space Web 工作台</h1>
-            <span className="rounded-full border border-violet-400/30 bg-violet-400/10 px-2 py-0.5 text-xs text-violet-200">
+            <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-xs text-violet-700 dark:text-violet-200">
               游客模式
             </span>
           </div>
@@ -293,6 +333,31 @@ export function GuestWorkbench() {
               超额后可配置自己的 API Key（即将开放）
             </div>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              window.open(
+                `${import.meta.env.BASE_URL}#/docs/quick-start`,
+                "_blank",
+                "noopener,noreferrer"
+              )
+            }
+          >
+            <CircleHelpIcon className="size-3.5" />
+            使用说明
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setSettingsTab("appearance");
+              setSettingsOpen(true);
+            }}
+          >
+            <SettingsIcon className="size-3.5" />
+            设置
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -360,6 +425,17 @@ export function GuestWorkbench() {
       <GuestMcpSettingsDialog
         open={mcpSettingsOpen}
         onOpenChange={setMcpSettingsOpen}
+      />
+
+      <GuestSettingsDialog
+        open={settingsOpen}
+        tab={settingsTab}
+        onOpenChange={setSettingsOpen}
+        onTabChange={setSettingsTab}
+        onOpenMcp={() => {
+          setSettingsOpen(false);
+          setMcpSettingsOpen(true);
+        }}
       />
 
       <ConfirmDialog

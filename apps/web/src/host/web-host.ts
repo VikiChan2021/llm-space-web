@@ -1,10 +1,20 @@
 import type { HostServices, ModelClient } from "@llm-space/ui/host";
+import {
+  LOCAL_STORAGE_KEYS,
+  readLocalStorage,
+  removeLocalStorage,
+  writeLocalStorage,
+} from "@llm-space/ui/lib/local-storage";
 
-import { GUEST_MODEL_ID, GUEST_PROVIDER } from "@/guest/guest-api";
+import {
+  GUEST_FALLBACK_PROVIDER,
+  GUEST_MODEL_ID,
+  GUEST_PROVIDER_ID,
+  readGuestModels,
+} from "@/guest/guest-api";
 import {
   listGuestMcpServers,
   listGuestMcpTools,
-  OPEN_GUEST_MCP_SETTINGS_EVENT,
 } from "@/guest/guest-mcp";
 import {
   canGuestAutoExecute,
@@ -14,6 +24,8 @@ import {
 
 export const GUEST_WORKBENCH_ENABLED =
   import.meta.env.VITE_GUEST_WORKBENCH === "1";
+
+export const OPEN_GUEST_SETTINGS_EVENT = "llm-space:guest-open-settings";
 
 /** Unavailable in the display-only viewer; never called while presentational. */
 function unavailable(): never {
@@ -74,13 +86,9 @@ export const webHost: HostServices = {
   actions: {
     openSettings: (tab) => {
       if (GUEST_WORKBENCH_ENABLED) {
-        if (tab === "mcp") {
-          window.dispatchEvent(
-            new CustomEvent(OPEN_GUEST_MCP_SETTINGS_EVENT)
-          );
-        } else {
-          window.alert("BYOK 设置即将开放。");
-        }
+        window.dispatchEvent(
+          new CustomEvent(OPEN_GUEST_SETTINGS_EVENT, { detail: { tab } })
+        );
       }
     },
     openLink: (url) => window.open(url, "_blank", "noopener,noreferrer"),
@@ -102,32 +110,63 @@ export const webHost: HostServices = {
 };
 
 export const webModelClient: ModelClient = {
-  availableModels: () =>
-    Promise.resolve(GUEST_WORKBENCH_ENABLED ? [GUEST_PROVIDER] : []),
-  builtinProviders: () =>
-    Promise.resolve(GUEST_WORKBENCH_ENABLED ? [GUEST_PROVIDER] : []),
-  getDefaultModel: () =>
-    Promise.resolve(
-      GUEST_WORKBENCH_ENABLED
-        ? { provider: GUEST_PROVIDER.id, id: GUEST_MODEL_ID }
-        : null
-    ),
-  setDefaultModel: () => Promise.resolve(null),
-  removeProvider: () =>
-    Promise.resolve(GUEST_WORKBENCH_ENABLED ? [GUEST_PROVIDER] : []),
-  addProvider: () =>
-    Promise.resolve(GUEST_WORKBENCH_ENABLED ? [GUEST_PROVIDER] : []),
-  addCustomProvider: () =>
-    Promise.resolve(GUEST_WORKBENCH_ENABLED ? [GUEST_PROVIDER] : []),
-  updateProvider: () =>
-    Promise.resolve(GUEST_WORKBENCH_ENABLED ? [GUEST_PROVIDER] : []),
-  setModelEnabled: () =>
-    Promise.resolve(GUEST_WORKBENCH_ENABLED ? [GUEST_PROVIDER] : []),
-  setAllModelsEnabled: () =>
-    Promise.resolve(GUEST_WORKBENCH_ENABLED ? [GUEST_PROVIDER] : []),
+  availableModels: _availableGuestModels,
+  builtinProviders: _availableGuestModels,
+  getDefaultModel: () => {
+    if (!GUEST_WORKBENCH_ENABLED) return Promise.resolve(null);
+    const stored = readLocalStorage(LOCAL_STORAGE_KEYS.guestDefaultModel);
+    if (stored) {
+      const separator = stored.indexOf(":");
+      if (separator > 0) {
+        return Promise.resolve({
+          provider: stored.slice(0, separator),
+          id: stored.slice(separator + 1),
+        });
+      }
+    }
+    return Promise.resolve({
+      provider: GUEST_PROVIDER_ID,
+      id: GUEST_MODEL_ID,
+    });
+  },
+  setDefaultModel: (model) => {
+    if (!GUEST_WORKBENCH_ENABLED || !model) {
+      removeLocalStorage(LOCAL_STORAGE_KEYS.guestDefaultModel);
+      return Promise.resolve(
+        GUEST_WORKBENCH_ENABLED
+          ? { provider: GUEST_PROVIDER_ID, id: GUEST_MODEL_ID }
+          : null
+      );
+    }
+    if (model.provider !== GUEST_PROVIDER_ID) {
+      return Promise.resolve({
+        provider: GUEST_PROVIDER_ID,
+        id: GUEST_MODEL_ID,
+      });
+    }
+    writeLocalStorage(
+      LOCAL_STORAGE_KEYS.guestDefaultModel,
+      `${model.provider}:${model.id}`
+    );
+    return Promise.resolve({ provider: model.provider, id: model.id });
+  },
+  removeProvider: _availableGuestModels,
+  addProvider: _availableGuestModels,
+  addCustomProvider: _availableGuestModels,
+  updateProvider: _availableGuestModels,
+  setModelEnabled: _availableGuestModels,
+  setAllModelsEnabled: _availableGuestModels,
   testModelConnection: () => Promise.resolve(),
-  removeCustomModel: () =>
-    Promise.resolve(GUEST_WORKBENCH_ENABLED ? [GUEST_PROVIDER] : []),
-  upsertCustomModel: () =>
-    Promise.resolve(GUEST_WORKBENCH_ENABLED ? [GUEST_PROVIDER] : []),
+  removeCustomModel: _availableGuestModels,
+  upsertCustomModel: _availableGuestModels,
 };
+
+async function _availableGuestModels() {
+  if (!GUEST_WORKBENCH_ENABLED) return [];
+  try {
+    return (await readGuestModels()).providers;
+  } catch (error) {
+    console.warn("无法刷新智谱模型列表，暂时使用默认模型。", error);
+    return [GUEST_FALLBACK_PROVIDER];
+  }
+}

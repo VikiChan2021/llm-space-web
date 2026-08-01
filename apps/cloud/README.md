@@ -45,35 +45,31 @@ Set `CLOUD_TEST_DATABASE_URL` to a dedicated disposable PostgreSQL database to
 run the real RLS integration test. Without it, the test is skipped and the
 database boundary is not claimed as runtime-verified.
 
-## Guest Workbench Hosted Alpha
+## 游客工作台 Hosted Alpha
 
-The public Alpha intentionally bypasses login while the GitHub OAuth and BYOK
-surfaces are deferred. It exposes one model-only endpoint, keeps Thread content
-in browser local storage, and stores only daily HMAC quota counters on the
-server.
+公开 Alpha 在 GitHub 登录和 BYOK 延期期间允许游客直接进入工作台。Thread
+内容保存在浏览器本地；服务器提供受额度约束的智谱模型调用、安全网络工具和
+演示 MCP，并只持久化经过 HMAC 处理的每日额度计数。
 
-Required server variables:
+服务端必填环境变量：
 
-- `GUEST_PUBLIC_URL` — exact public URL including the path prefix.
-- `GUEST_HMAC_SECRET` — at least 32 bytes.
-- `ZHIPU_API_KEY` — server-only BigModel key.
-- `GUEST_QUOTA_DATABASE_PATH` — JSON quota file used by the single Node
-  process.
+- `GUEST_PUBLIC_URL`：包含路径前缀的完整公开地址。
+- `GUEST_HMAC_SECRET`：至少 32 字节。
+- `ZHIPU_API_KEY`：仅供服务端使用的智谱 BigModel Key。
+- `GUEST_QUOTA_DATABASE_PATH`：单 Node 进程使用的 JSON 额度文件。
 
-The optional `GUEST_*_LIMIT` variables are validated in
-`src/guest-config.ts`. Defaults are 20 Runs per browser/day, 100 per IP/day,
-one concurrent Run, 12,000 text characters, and 2,048 output tokens.
+可选的 `GUEST_*_LIMIT` 环境变量在 `src/guest-config.ts` 中校验。默认限制为：
+每个浏览器每天 20 次 Run、每个 IP 每天 100 次 Run、同一游客同时 1 次 Run、
+输入最多 12,000 个文本字符、输出最多 2,048 个 Token。
 
-Use `mise run dev:guest-api` for the Bun development entrypoint and
-`mise run pack:guest-api` for the Node 22 deployment bundle. Build the matching
-path-based frontend with `mise run build:guest-web`.
+本地 Bun 入口使用 `mise run dev:guest-api`，Node 22 部署包使用
+`mise run pack:guest-api`。配套路径前缀前端使用 `mise run build:guest-web` 构建。
 
-Security boundary:
+安全边界：
 
-- the provider key is read from process environment only and is never returned;
-- only the fixed `glm-4.7-flash` model is accepted;
-- the browser receives an opaque `HttpOnly; Secure; SameSite=Lax` guest cookie;
-- raw IPs, prompts, and responses are not persisted by the quota service;
-- executable tools, filesystem access, stdio MCP, and Generator remain absent;
-- the JSON quota store is single-process Alpha infrastructure, not a
-  horizontally scalable abuse or billing system.
+- 供应商 Key 只从服务端进程环境读取，不会通过 Models、Run 或错误响应返回。
+- `/api/guest/models` 只下发智谱官方文本/推理模型白名单；每次 Run 都在消耗额度前校验所选模型，不接受伪造的模型 ID。
+- 浏览器只接收不透明的 `HttpOnly; Secure; SameSite=Lax` 游客 Cookie。
+- 额度服务不持久化原始 IP、Prompt 或模型响应。
+- Built-in Tools 仅开放受限网络/天气工具和浏览器虚拟文件；MCP 仅开放同源演示能力，宿主 Bash、宿主文件系统、stdio MCP 与 Generator 仍不开放。
+- JSON 额度存储是单进程 Alpha 基础设施，不具备横向扩容、正式计费或生产级滥用防护能力。
