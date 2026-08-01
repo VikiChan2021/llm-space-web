@@ -1,7 +1,7 @@
 # LLM Space 能力地图
 
 - 最后更新：2026-08-01
-- 地图状态：游客工作台 Hosted Alpha 已在线运行；“游客 Thread 资料库 V1”“Run 错误恢复 V1”“游客安全工具闭环 V1”“游客首次体验、智谱模型与 Web 文档 V1”以及“游客三模型可靠性与布局稳定 V1”均已部署到 `https://kandian.site/llm-space-web/`。根地址现直接进入游客工作台，Landing 保留在 `#/about`。GitHub 登录、BYOK、租户级持久 Thread、账单、Bash、stdio MCP、Generator，以及公共远程 MCP 的网络层出站策略仍需独立安全边界。此前的匿名会话、Personal Tenant、PostgreSQL 与强制 RLS 基础仍仅在本地验证，尚未接入游客入口。当前没有公开或动态加载的插件。
+- 地图状态：游客工作台 Hosted Alpha 已在线运行；“游客 Thread 资料库 V1”“Run 错误恢复 V1”“游客安全工具闭环 V1”“游客首次体验、智谱模型与 Web 文档 V1”“游客三模型可靠性与布局稳定 V1”以及“游客 Prompt 辅助与多模态输入 V1”均已部署到 `https://kandian.site/llm-space-web/`。根地址现直接进入游客工作台，Landing 保留在 `#/about`。GitHub 登录、BYOK、租户级持久 Thread、账单、Bash、stdio MCP、Generator，以及公共远程 MCP 的网络层出站策略仍需独立安全边界。此前的匿名会话、Personal Tenant、PostgreSQL 与强制 RLS 基础仍仅在本地验证，尚未接入游客入口。当前没有公开或动态加载的插件。
 - 证据规则：`confirmed` 表示有当前渲染产品或当前代码证据；`stale` 表示依赖旧日志或本轮未完全复查的代码路径；`unknown` 表示需要未来重新检查产品界面后才能用于决策。
 
 ## 交互式浏览器工作台
@@ -43,7 +43,7 @@
   - 线上审计截图与中文验收记录位于 `audits/2026-08-01-guest-first-run-docs-models-online/`。
 - 能力边界：未登录游客可管理多个浏览器本地 Thread，编辑 Prompt、消息、变量、工具和模型参数，选择服务端白名单内的智谱模型，完成安全工具/ReAct 闭环，查看 Run 历史和剩余额度，并通过 JSON 导入导出携带单个 Thread。Thread 与虚拟文件仍不在服务端同步或持久化。
 - 明确非目标：不宣称已经达到生产级多用户 SaaS；不暴露供应商或 Langfuse 密钥；不开放宿主 Bash、宿主文件系统、stdio MCP、Generator、原生菜单、更新器、窗口控制或系统文件选择器。
-- 可见缺口：三款可见模型的普通 Run 已全部验证，但本轮没有重新执行“模型发起天气 Tool Call—自动执行—模型整理答案”的完整天气 ReAct 闭环。失败结果不跨刷新持久化，也没有失败时间线、后台重试或静默故障转移。公共远程 MCP 上线前还需腾讯云网络层出站限制；BYOK、登录激活、租户级 Thread CRUD、多标签 Workspace、分布式额度、审计监控、备份和更强滥用防护仍待开发。
+- 可见缺口：三款可见模型普通 Run、GLM-4.6V 图片问答和“模型发起天气 Tool Call—自动执行—模型整理答案”的完整天气 ReAct 闭环均已在线验证。失败结果仍不跨刷新持久化，也没有失败时间线、后台重试或静默故障转移。公共远程 MCP 上线前还需腾讯云网络层出站限制；BYOK、登录激活、租户级 Thread CRUD、多标签 Workspace、分布式额度、审计监控、备份和更强滥用防护仍待开发。
 
 ## 游客核心迭代闭环
 
@@ -67,7 +67,7 @@
 
 ## 游客 Prompt 辅助与多模态输入
 
-- 状态：本地实现与真实浏览器验收完成，尚未提交或部署
+- 状态：已提交、推送并部署到腾讯云 Hosted Alpha，线上真实浏览器验收完成
 - 新鲜度：confirmed
 - 最后检查：2026-08-01
 - 当前证据：
@@ -83,9 +83,12 @@
   - 浏览器会把大于 700 KB 的 JPG、PNG、WebP 自动缩放并转换为 WebP；客户端限制每个 Thread 5 张，服务端继续校验 MIME、Base64、图片数量、单张 4 MB、合计 6 MB 与总请求 10 MB。
   - 31 个聚焦测试通过；零警告 lint、全仓类型检查、游客 Web 构建和 Guest API 打包通过。
   - 完整仓库测试为 417 通过、1 跳过、6 失败；6 项仍是本轮未改动的 Windows 路径/符号链接、生成文件换行同步和缺少 `python3` 的既有基线，不能据此宣称全仓测试全绿。
-  - 真实 Chromium 以受控同源模型流完成 Variables 打开、System Prompt 生成、文本模型图片提示、切换 GLM-4.6V、上传用户提供的 576 KB 图片和图片问答，目标操作为 3/3，控制台零错误、零警告。
-  - 腾讯云现有服务端密钥直连智谱 `glm-4.6v` 的 Base64 小图请求返回 HTTP 200、非空文本且无错误；密钥未写入仓库、浏览器或测试输出。
-  - 浏览器验收截图位于 `output/playwright/guest-prompt-multimodal-v1/browser-acceptance.png`。
+  - 功能提交 `f0e4c01` 对应腾讯云发布 `20260801-110957-f0e4c010964f`；systemd 服务为 active，Nginx API 请求体限制为 10 MB，Web 与 API 软链接指向同一发布目录。
+  - 本站游客 `/runs` SSE 逐一真实调用 `glm-4.5-air`、`glm-4.7` 与带 Base64 图片的 `glm-4.6v`，3/3 返回 HTTP 200、完整结束事件和非空目标文本，无流式错误。
+  - 线上真实 Chromium 完成 Variables 打开、System Prompt 真实生成、文本模型图片提示、切换 GLM-4.6V、上传用户提供的 576 KB 图片和图片问答，目标操作为 3/3，控制台零错误、零警告。
+  - 文本模型图片请求在模型调用和额度消耗前返回 `guest_model_input_unsupported`，同一游客会话的浏览器/IP 剩余额度均保持不变；1.1 MB 请求越过 Nginx 并由应用层返回结构化 JSON 错误。
+  - 线上真实 Chromium 还完成天气 ReAct 闭环：模型调用 `weather_report`、自动取得广州天气 JSON，并在第二个模型回合生成中文天气与出行建议。
+  - 密钥未写入仓库、浏览器或测试输出；线上验收截图位于 `output/playwright/guest-prompt-multimodal-v1/online-browser-acceptance.png`、`online-text-model-warning.png` 与 `online-react-weather.png`。
 - 本轮目标：System Prompt 生成、Variables 管理、`glm-4.6v` 图片问答三个目标操作首次成功率达到 3/3。
 - 安全边界：图片只允许限定 MIME、数量和解码后体积；文本、消息、工具、并发、额度、Origin 和错误脱敏限制继续生效；纯文本模型必须在模型调用前提示切换。
 - 明确非目标：本能力不是 LangGraph 项目 Generator，不开放宿主文件系统、Bash、stdio MCP、任意文件上传、视频或文档输入，也不改变登录、BYOK、团队和账单范围。
