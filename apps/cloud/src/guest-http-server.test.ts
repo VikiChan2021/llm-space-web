@@ -20,8 +20,11 @@ const CONFIG: GuestCloudConfig = {
   browserDailyLimit: 2,
   ipDailyLimit: 3,
   maxConcurrentPerGuest: 1,
-  maxRequestBytes: 128 * 1024,
+  maxRequestBytes: 10 * 1024 * 1024,
   maxTextCharacters: 12_000,
+  maxImages: 5,
+  maxImageBytes: 4 * 1024 * 1024,
+  maxTotalImageBytes: 6 * 1024 * 1024,
   maxOutputTokens: 2048,
   remoteMcpEnabled: false,
   trustProxy: true,
@@ -77,6 +80,7 @@ describe("guest HTTP API", () => {
     expect(body).toContain('"id":"glm-4.6v"');
     expect(body).not.toContain('"id":"glm-4.7-flash"');
     expect(body.match(/"api":"openai-completions"/g)).toHaveLength(3);
+    expect(body.match(/"input":\["text","image"\]/g)).toHaveLength(1);
     expect(body).not.toContain(CONFIG.apiKey);
     quotaStore.close();
   });
@@ -217,6 +221,89 @@ describe("guest HTTP API", () => {
       ])
     );
     expect(rejectedTool.status).toBe(400);
+    expect(executed).toBe(false);
+    quotaStore.close();
+  });
+
+  test("只允许 GLM-4.6V 执行有界图片请求", async () => {
+    let receivedContent: unknown = null;
+    const execute: GuestModelExecutor = async function* (request) {
+      await Promise.resolve();
+      receivedContent = request.context.messages[0]?.content;
+      yield { type: "agent_start" };
+    };
+    const quotaStore = new GuestQuotaStore(":memory:", CONFIG.hmacSecret);
+    const handler = createGuestFetchHandler({ config: CONFIG, quotaStore, execute });
+    const image = {
+      type: "image",
+      mimeType: "image/png",
+      data: Buffer.from("small-image").toString("base64"),
+    };
+
+    const unsupported = await handler(
+      _multimodalRunRequest(GUEST_ID, "glm-4.5-air", image)
+    );
+    expect(unsupported.status).toBe(400);
+    expect(await unsupported.text()).toContain(
+      '"code":"guest_model_input_unsupported"'
+    );
+    expect(receivedContent).toBeNull();
+
+    const accepted = await handler(
+      _multimodalRunRequest(GUEST_ID, "glm-4.6v", image)
+    );
+    await accepted.text();
+    expect(accepted.status).toBe(200);
+    expect(receivedContent).toEqual([
+      image,
+      { type: "text", text: "请描述图片" },
+    ]);
+    quotaStore.close();
+  });
+
+  test("在调用模型前拒绝无效类型、Base64 和超限图片", async () => {
+    let executed = false;
+    const execute: GuestModelExecutor = async function* () {
+      await Promise.resolve();
+      executed = true;
+      yield { type: "agent_start" };
+    };
+    const quotaStore = new GuestQuotaStore(":memory:", CONFIG.hmacSecret);
+    const handler = createGuestFetchHandler({
+      config: { ...CONFIG, maxImageBytes: 4, maxTotalImageBytes: 8 },
+      quotaStore,
+      execute,
+    });
+
+    const unsupportedType = await handler(
+      _multimodalRunRequest(GUEST_ID, "glm-4.6v", {
+        type: "image",
+        mimeType: "image/gif",
+        data: "aGVsbG8=",
+      })
+    );
+    expect(unsupportedType.status).toBe(415);
+    expect(await unsupportedType.text()).toContain('"code":"unsupported_image"');
+
+    const invalidBase64 = await handler(
+      _multimodalRunRequest(GUEST_ID, "glm-4.6v", {
+        type: "image",
+        mimeType: "image/png",
+        data: "not-base64!",
+      })
+    );
+    expect(invalidBase64.status).toBe(400);
+    expect(await invalidBase64.text()).toContain('"code":"invalid_image"');
+
+    const tooLarge = await handler(
+      _multimodalRunRequest(GUEST_ID, "glm-4.6v", {
+        type: "image",
+        mimeType: "image/png",
+        data: Buffer.from("12345").toString("base64"),
+      })
+    );
+    expect(tooLarge.status).toBe(413);
+    expect(await tooLarge.text()).toContain('"code":"image_size_limit"');
     expect(executed).toBe(false);
     quotaStore.close();
   });
@@ -478,5 +565,35 @@ function _toolRequest(
       "X-Real-IP": "1.2.3.4",
     },
     body: JSON.stringify(body),
+  });
+}
+
+function _multimodalRunRequest(
+  guestId: string,
+  modelId: string,
+  image: Record<string, unknown>
+): Request {
+  return new Request("http://internal/api/guest/runs", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: CONFIG.publicUrl.origin,
+      Cookie: `llm_space_guest=${guestId}`,
+      "X-Real-IP": "1.2.3.4",
+    },
+    body: JSON.stringify({
+      model: { provider: "bigmodel", id: modelId },
+      context: {
+        systemPrompt: "",
+        tools: [],
+        messages: [
+          {
+            role: "user",
+            content: [image, { type: "text", text: "请描述图片" }],
+            timestamp: Date.now(),
+          },
+        ],
+      },
+    }),
   });
 }

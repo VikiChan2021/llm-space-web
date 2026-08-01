@@ -60,6 +60,21 @@ describe("游客 Run 恢复文案", () => {
     expect(presentation.retryable).toBeUndefined();
   });
 
+  test("图片模型不匹配时明确引导切换到 GLM-4.6V", () => {
+    const presentation = describeGuestRunFailure(
+      new GuestRunError("当前模型不支持图片", {
+        code: "guest_model_input_unsupported",
+        status: 400,
+      })
+    );
+
+    expect(presentation).toMatchObject({
+      tone: "warning",
+      title: "当前模型不支持图片输入",
+      description: "请在左侧 Models 中切换到 GLM-4.6V 后重新运行。",
+    });
+  });
+
   test("网络失败保留手动重试入口", () => {
     expect(describeGuestRunFailure(new TypeError("Failed to fetch"))).toMatchObject(
       {

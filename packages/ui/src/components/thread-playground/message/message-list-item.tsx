@@ -28,10 +28,16 @@ import { ShineBorder } from "@llm-space/ui/ui/shine-border";
 import { Skeleton } from "@llm-space/ui/ui/skeleton";
 
 
+import { useModel, useResolveModelConfig } from "../../model-provider";
 import { useThreadStore, useThreadStoreActions } from "../stores";
 import { usePromptVariableExtensionForContext } from "../variable/use-prompt-variable-extension";
 
 import { ImageContentList } from "./image-content-view";
+import {
+  MAX_IMAGES_PER_THREAD,
+  modelSupportsImageInput,
+  prepareImageFile,
+} from "./image-input";
 import { MessageListItemHeader } from "./message-list-item-header";
 import { ThinkingView } from "./thinking-view";
 import { ToolCallListItem } from "./tool-call-list-item";
@@ -99,6 +105,26 @@ function _MessageListItem({
     run,
     updateMessageTextContent,
   } = useThreadStoreActions();
+  const threadModel = useThreadStore((state) => state.thread.model);
+  const threadMessages = useThreadStore(
+    (state) => state.thread.context?.messages ?? []
+  );
+  const resolvedConfig = useResolveModelConfig(threadModel);
+  const resolvedModel = useModel({
+    provider: resolvedConfig?.provider ?? "",
+    id: resolvedConfig?.id ?? "",
+  });
+  const threadImageCount = useMemo(
+    () =>
+      threadMessages.reduce(
+        (count, item) =>
+          count +
+          item.content.filter((content) => content.type === "image_data")
+            .length,
+        0
+      ),
+    [threadMessages]
+  );
   const handleRun = useCallback(async () => {
     if (readonly) {
       return;
@@ -127,25 +153,45 @@ function _MessageListItem({
         if (item.type.startsWith("image/")) {
           e.preventDefault();
           e.stopPropagation();
+          if (!modelSupportsImageInput(resolvedModel)) {
+            toast.warning("当前模型不支持图片输入", {
+              description: "请在左侧 Models 中切换到 GLM-4.6V 后再粘贴图片。",
+            });
+            return;
+          }
+          if (threadImageCount >= MAX_IMAGES_PER_THREAD) {
+            toast.warning(
+              `每个 Thread 最多添加 ${MAX_IMAGES_PER_THREAD} 张图片。`
+            );
+            return;
+          }
           const file = item.getAsFile();
           if (!file) {
             continue;
           }
-          const reader = new FileReader();
-          reader.onload = () => {
-            const dataUrl = reader.result as string;
-            const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
-            const [, mimeType, data] = match ?? [];
-            if (mimeType && data) {
+          void prepareImageFile(file)
+            .then(({ mimeType, data }) => {
               addMessageImageContent(message.id, mimeType, data);
-            }
-          };
-          reader.readAsDataURL(file);
+            })
+            .catch((error: unknown) => {
+              toast.error("图片添加失败", {
+                description:
+                  error instanceof Error
+                    ? error.message
+                    : "请换一张图片后重试。",
+              });
+            });
           return;
         }
       }
     },
-    [addMessageImageContent, message.id, message.role]
+    [
+      addMessageImageContent,
+      message.id,
+      message.role,
+      resolvedModel,
+      threadImageCount,
+    ]
   );
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {

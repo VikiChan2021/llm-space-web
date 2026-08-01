@@ -11,6 +11,7 @@ interface GuestModelCatalogEntry {
   name: string;
   contextWindow: number;
   reasoning: boolean;
+  input: readonly ("text" | "image")[];
 }
 
 /** 游客工作台仅开放已经过服务端真实调用验证的模型。 */
@@ -20,13 +21,21 @@ export const GUEST_MODEL_CATALOG: readonly GuestModelCatalogEntry[] = [
     name: "GLM-4.5-Air（推荐）",
     contextWindow: 128_000,
     reasoning: true,
+    input: ["text"],
   },
-  { id: "glm-4.7", name: "GLM-4.7", contextWindow: 200_000, reasoning: true },
+  {
+    id: "glm-4.7",
+    name: "GLM-4.7",
+    contextWindow: 200_000,
+    reasoning: true,
+    input: ["text"],
+  },
   {
     id: "glm-4.6v",
     name: "GLM-4.6V",
     contextWindow: 128_000,
     reasoning: true,
+    input: ["text", "image"],
   },
 ];
 
@@ -34,6 +43,14 @@ const GUEST_MODEL_IDS = new Set(GUEST_MODEL_CATALOG.map((model) => model.id));
 
 export function isGuestModelAllowed(modelId: string): boolean {
   return GUEST_MODEL_IDS.has(modelId);
+}
+
+export function guestModelSupportsImageInput(modelId: string): boolean {
+  return (
+    GUEST_MODEL_CATALOG.find((model) => model.id === modelId)?.input.includes(
+      "image"
+    ) ?? false
+  );
 }
 
 export function createGuestModels(
@@ -57,7 +74,7 @@ export function createGuestModels(
           } as const,
         }
       : {}),
-    input: ["text"],
+    input: [...model.input],
     cost: {
       input: 0,
       output: 0,

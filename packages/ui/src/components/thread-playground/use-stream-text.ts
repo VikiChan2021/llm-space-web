@@ -7,6 +7,7 @@ import {
   type ModelConfig,
   type ReasoningLevel,
   type ReducedMessageContent,
+  type Tool,
 } from "@llm-space/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -23,6 +24,8 @@ export interface UseStreamTextArgs {
   systemPrompt: string;
   /** Base conversation. Defaults to an empty array. */
   messages?: Message[];
+  /** Function tools available to this one-shot generation. */
+  tools?: Tool[];
   /** When set, a user message with this text is appended to `messages`. */
   userPrompt?: string;
   /** Reasoning effort for the model. Omitted from params when undefined. */
@@ -47,7 +50,7 @@ export interface UseStreamTextResult {
    * `systemPrompt`/`userPrompt`; pass `overrides` to run with different values
    * without waiting for a re-render (e.g. a prompt captured at click time).
    */
-  run: (overrides?: Partial<UseStreamTextArgs>) => Promise<void>;
+  run: (overrides?: Partial<UseStreamTextArgs>) => Promise<boolean>;
 }
 
 /**
@@ -58,6 +61,7 @@ export interface UseStreamTextResult {
 export function useStreamText({
   systemPrompt,
   messages,
+  tools,
   userPrompt,
   reasoning,
   model,
@@ -76,6 +80,7 @@ export function useStreamText({
   const argsRef = useRef({
     systemPrompt,
     messages,
+    tools,
     userPrompt,
     reasoning,
     model,
@@ -85,7 +90,14 @@ export function useStreamText({
   // inside `run` (a post-commit callback), so mutating them during render would
   // leak from a render React might replay or discard.
   useEffect(() => {
-    argsRef.current = { systemPrompt, messages, userPrompt, reasoning, model };
+    argsRef.current = {
+      systemPrompt,
+      messages,
+      tools,
+      userPrompt,
+      reasoning,
+      model,
+    };
     defaultModelRef.current = defaultModel;
     transportRef.current = transport;
   });
@@ -96,7 +108,7 @@ export function useStreamText({
   useEffect(() => () => controllerRef.current?.abort(), []);
 
   const run = useCallback(async (overrides?: Partial<UseStreamTextArgs>) => {
-    const { systemPrompt, messages, userPrompt, reasoning, model } = {
+    const { systemPrompt, messages, tools, userPrompt, reasoning, model } = {
       ...argsRef.current,
       ...overrides,
     };
@@ -104,7 +116,7 @@ export function useStreamText({
     const base = model ?? defaultModelRef.current;
     if (!base) {
       setError("No model available");
-      return;
+      return false;
     }
 
     // Supersede any in-flight run.
@@ -145,6 +157,7 @@ export function useStreamText({
               },
             ]),
       ],
+      tools: tools ?? [],
     };
     const runModel = {
       ...base,
@@ -160,7 +173,7 @@ export function useStreamText({
       setError("Text generation is not available here.");
       setStreaming(false);
       controllerRef.current = null;
-      return;
+      return false;
     }
     try {
       const response = streamThread(
@@ -176,6 +189,7 @@ export function useStreamText({
         content = reduced.content;
         preview.schedule();
       }
+      return true;
     } catch (e) {
       if (!controller.signal.aborted) {
         preview.cancel();
@@ -183,6 +197,7 @@ export function useStreamText({
           setError(e instanceof Error ? e.message : String(e));
         }
       }
+      return false;
     } finally {
       preview.cancel();
       if (controllerRef.current === controller) {

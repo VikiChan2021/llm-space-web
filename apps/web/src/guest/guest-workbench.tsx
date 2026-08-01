@@ -2,6 +2,7 @@ import type { Thread } from "@llm-space/core";
 import { ConfirmDialog } from "@llm-space/ui/components/confirm-dialog";
 import { useDefaultModel } from "@llm-space/ui/components/model-provider";
 import { ThreadPlayground } from "@llm-space/ui/components/thread-playground";
+import { HostServicesProvider } from "@llm-space/ui/host";
 import { Button } from "@llm-space/ui/ui/button";
 import {
   Popover,
@@ -21,7 +22,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { OPEN_GUEST_SETTINGS_EVENT } from "@/host/web-host";
+import { OPEN_GUEST_SETTINGS_EVENT, webHost } from "@/host/web-host";
 
 import {
   createGuestTransport,
@@ -148,6 +149,10 @@ export function GuestWorkbench() {
         else void refreshQuota();
       }),
     [refreshQuota]
+  );
+  const guestHost = useMemo(
+    () => ({ ...webHost, transport }),
+    [transport]
   );
 
   const commitWorkspace = useCallback(
@@ -320,7 +325,8 @@ export function GuestWorkbench() {
   );
 
   return (
-    <div className="flex h-dvh min-w-0 flex-col bg-background text-foreground">
+    <HostServicesProvider value={guestHost}>
+      <div className="flex h-dvh min-w-0 flex-col bg-background text-foreground">
       <header className="flex min-w-0 flex-nowrap items-center gap-3 border-b px-4 py-3">
         <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
           <h1 className="text-base font-semibold">LLM Space Web 工作台</h1>
@@ -478,7 +484,8 @@ export function GuestWorkbench() {
         confirmLabel="重置"
         onConfirm={handleReset}
       />
-    </div>
+      </div>
+    </HostServicesProvider>
   );
 }
 

@@ -14,7 +14,9 @@ interface GeneratePopoverButtonProps {
   className?: string;
   iconOnly?: boolean;
   placeholder?: string;
-  onGenerate: (prompt: string) => void;
+  onGenerate: (
+    prompt: string
+  ) => boolean | void | Promise<boolean | void>;
 }
 
 function _GeneratePopoverButton({
@@ -25,24 +27,32 @@ function _GeneratePopoverButton({
 }: GeneratePopoverButtonProps) {
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleGenerate = useCallback(() => {
+  const handleGenerate = useCallback(async () => {
     const trimmedPrompt = prompt.trim();
 
-    if (!trimmedPrompt) {
+    if (!trimmedPrompt || submitting) {
       return;
     }
 
-    onGenerate(trimmedPrompt);
-    setOpen(false);
-    setPrompt("");
-  }, [onGenerate, prompt]);
+    setSubmitting(true);
+    try {
+      const succeeded = await onGenerate(trimmedPrompt);
+      if (succeeded !== false) {
+        setOpen(false);
+        setPrompt("");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }, [onGenerate, prompt, submitting]);
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>) => {
       if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
         event.preventDefault();
-        handleGenerate();
+        void handleGenerate();
       }
     },
     [handleGenerate]
@@ -90,10 +100,11 @@ function _GeneratePopoverButton({
           <Button
             className="bg-foreground/80 text-background hover:bg-foreground rounded-lg py-4 text-sm"
             variant="default"
-            onClick={handleGenerate}
+            disabled={submitting || !prompt.trim()}
+            onClick={() => void handleGenerate()}
           >
             <SparklesIcon />
-            Generate
+            {submitting ? "Generating…" : "Generate"}
           </Button>
         </div>
       </PopoverContent>

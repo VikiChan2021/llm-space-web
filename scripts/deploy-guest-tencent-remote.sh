@@ -26,6 +26,8 @@ web_link="/var/www/llm-space-web"
 previous_current="$(readlink -f "$current_link")"
 previous_web="$(readlink -f "$web_link")"
 environment_backup="$environment_file.bak-$release_name"
+nginx_snippet="/etc/nginx/snippets/llm-space-web.conf"
+nginx_backup="$nginx_snippet.bak-$release_name"
 switched=0
 
 on_exit() {
@@ -42,11 +44,15 @@ on_exit() {
       chown root:llmspace "$environment_file"
       chmod 640 "$environment_file"
     fi
+    if [[ -f "$nginx_backup" ]]; then
+      cp "$nginx_backup" "$nginx_snippet"
+    fi
     systemctl restart llm-space-web.service
     nginx -t && systemctl reload nginx
   fi
   rm -f \
     /tmp/llm-remote-mcp-check.json \
+    "$nginx_backup" \
     "$archive" \
     /tmp/deploy-llm-space-guest.sh
   exit "$status"
@@ -69,15 +75,33 @@ chown -R root:root "$release"
 chmod -R a=rX "$release"
 
 cp "$environment_file" "$environment_backup"
-if grep -q '^GUEST_REMOTE_MCP_ENABLED=' "$environment_file"; then
-  sed -i \
-    's/^GUEST_REMOTE_MCP_ENABLED=.*/GUEST_REMOTE_MCP_ENABLED=0/' \
-    "$environment_file"
-else
-  printf '\nGUEST_REMOTE_MCP_ENABLED=0\n' >> "$environment_file"
-fi
+set_environment_value() {
+  key="$1"
+  value="$2"
+  if grep -q "^${key}=" "$environment_file"; then
+    sed -i "s/^${key}=.*/${key}=${value}/" "$environment_file"
+  else
+    printf '\n%s=%s\n' "$key" "$value" >> "$environment_file"
+  fi
+}
+set_environment_value GUEST_REMOTE_MCP_ENABLED 0
+set_environment_value GUEST_MAX_REQUEST_BYTES 10485760
+set_environment_value GUEST_MAX_IMAGES 5
+set_environment_value GUEST_MAX_IMAGE_BYTES 4194304
+set_environment_value GUEST_MAX_TOTAL_IMAGE_BYTES 6291456
 chown root:llmspace "$environment_file"
 chmod 640 "$environment_file"
+
+cp "$nginx_snippet" "$nginx_backup"
+if grep -q '^[[:space:]]*client_max_body_size ' "$nginx_snippet"; then
+  sed -i \
+    's/^[[:space:]]*client_max_body_size .*/    client_max_body_size 10m;/' \
+    "$nginx_snippet"
+else
+  sed -i \
+    '/location \^~ \/llm-space-web\/api\/ {/a\    client_max_body_size 10m;' \
+    "$nginx_snippet"
+fi
 
 ln -sfn "$release" "$current_link.next"
 mv -Tf "$current_link.next" "$current_link"

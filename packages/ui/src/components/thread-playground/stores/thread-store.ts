@@ -202,6 +202,8 @@ export function createThreadStore(
     resolveModel?: (
       saved: ModelConfig | null | undefined
     ) => ModelConfig | null;
+    /** Whether the resolved model accepts image input. */
+    supportsImageInput?: (model: ModelConfig) => boolean;
     /**
      * Whether a run should automatically execute a model turn's pending tool
      * calls (instead of waiting for the user to click "Call tools"). Read fresh
@@ -989,6 +991,34 @@ export function createThreadStore(
               });
             } else {
               toast.error("Error", { description: RUN_LAST_MESSAGE_ERROR });
+            }
+            return;
+          }
+          const hasImages = messages.some(
+            (message) =>
+              message.role === "user" &&
+              message.content.some((content) => content.type === "image_data")
+          );
+          if (
+            hasImages &&
+            options.supportsImageInput &&
+            !options.supportsImageInput(model)
+          ) {
+            const error = new Error(
+              "当前模型不支持图片输入，请在左侧 Models 中切换到支持图片的模型后重试。"
+            );
+            if (options.captureRunResults) {
+              set({
+                lastRunResult: {
+                  outcome: "failed",
+                  error,
+                  partialOutput: false,
+                },
+              });
+            } else {
+              toast.warning("当前模型不支持图片输入", {
+                description: error.message,
+              });
             }
             return;
           }

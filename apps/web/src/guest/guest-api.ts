@@ -59,7 +59,7 @@ export const GUEST_FALLBACK_PROVIDER: ModelProviderGroup = {
   models: [
     _createFallbackModel(GUEST_MODEL_ID, "GLM-4.5-Air（推荐）", 128_000),
     _createFallbackModel("glm-4.7", "GLM-4.7", 200_000),
-    _createFallbackModel("glm-4.6v", "GLM-4.6V", 128_000),
+    _createFallbackModel("glm-4.6v", "GLM-4.6V", 128_000, true),
   ],
 };
 
@@ -77,7 +77,8 @@ export function isGuestModelConfigAvailable(model: ModelConfig): boolean {
 function _createFallbackModel(
   id: string,
   name: string,
-  contextWindow: number
+  contextWindow: number,
+  supportsImages = false
 ): ModelProviderGroup["models"][number] {
   return {
     id,
@@ -93,7 +94,7 @@ function _createFallbackModel(
       medium: "enabled",
       high: "enabled",
     },
-    input: ["text"],
+    input: supportsImages ? ["text", "image"] : ["text"],
     cost: {
       input: 0,
       output: 0,

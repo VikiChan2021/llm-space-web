@@ -33,6 +33,14 @@ export function describeGuestRunFailure(
         details,
       };
     }
+    if (error.code === "guest_model_input_unsupported") {
+      return {
+        tone: "warning",
+        title: "当前模型不支持图片输入",
+        description: "请在左侧 Models 中切换到 GLM-4.6V 后重新运行。",
+        details,
+      };
+    }
     if (
       error.code === "guest_concurrency_limit" ||
       error.code === "rate_limit" ||

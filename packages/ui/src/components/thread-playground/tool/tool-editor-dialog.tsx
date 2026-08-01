@@ -65,6 +65,7 @@ export function ToolEditorDialog({
 
   const {
     text: generated,
+    error: generationError,
     streaming,
     run: generate,
   } = useStreamText({
@@ -82,6 +83,12 @@ export function ToolEditorDialog({
       setText(generated);
     }
   }, [generated]);
+
+  useEffect(() => {
+    if (generationError) {
+      toast.error("工具定义生成失败", { description: generationError });
+    }
+  }, [generationError]);
 
   const handleExampleSelect = (example: FunctionTool) => {
     setText(JSON.stringify(example, null, 2));
@@ -102,7 +109,7 @@ export function ToolEditorDialog({
           },
         ]
       : [];
-    void generate({
+    return generate({
       messages,
       userPrompt: `<user-input>\n${prompt}\n</user-input>`,
     });

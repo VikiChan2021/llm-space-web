@@ -16,6 +16,9 @@ export interface GuestCloudConfig {
   maxConcurrentPerGuest: number;
   maxRequestBytes: number;
   maxTextCharacters: number;
+  maxImages: number;
+  maxImageBytes: number;
+  maxTotalImageBytes: number;
   maxOutputTokens: number;
   remoteMcpEnabled: boolean;
   trustProxy: boolean;
@@ -82,9 +85,9 @@ export function loadGuestCloudConfig(
     maxRequestBytes: _readInteger(
       environment.GUEST_MAX_REQUEST_BYTES,
       "GUEST_MAX_REQUEST_BYTES",
-      128 * 1024,
+      10 * 1024 * 1024,
       1024,
-      1024 * 1024
+      16 * 1024 * 1024
     ),
     maxTextCharacters: _readInteger(
       environment.GUEST_MAX_TEXT_CHARACTERS,
@@ -92,6 +95,27 @@ export function loadGuestCloudConfig(
       12_000,
       100,
       200_000
+    ),
+    maxImages: _readInteger(
+      environment.GUEST_MAX_IMAGES,
+      "GUEST_MAX_IMAGES",
+      5,
+      1,
+      10
+    ),
+    maxImageBytes: _readInteger(
+      environment.GUEST_MAX_IMAGE_BYTES,
+      "GUEST_MAX_IMAGE_BYTES",
+      4 * 1024 * 1024,
+      64 * 1024,
+      8 * 1024 * 1024
+    ),
+    maxTotalImageBytes: _readInteger(
+      environment.GUEST_MAX_TOTAL_IMAGE_BYTES,
+      "GUEST_MAX_TOTAL_IMAGE_BYTES",
+      6 * 1024 * 1024,
+      64 * 1024,
+      12 * 1024 * 1024
     ),
     maxOutputTokens: _readInteger(
       environment.GUEST_MAX_OUTPUT_TOKENS,

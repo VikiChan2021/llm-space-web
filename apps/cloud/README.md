@@ -60,7 +60,10 @@ database boundary is not claimed as runtime-verified.
 
 可选的 `GUEST_*_LIMIT` 环境变量在 `src/guest-config.ts` 中校验。默认限制为：
 每个浏览器每天 20 次 Run、每个 IP 每天 100 次 Run、同一游客同时 1 次 Run、
-输入最多 12,000 个文本字符、输出最多 2,048 个 Token。
+输入最多 12,000 个文本字符、输出最多 2,048 个 Token。图片输入只对
+`glm-4.6v` 开放，允许 JPG、PNG、WebP，单次最多 5 张、单张解码后最多
+4 MB、图片合计最多 6 MB；总请求体默认上限为 10 MB。部署时反向代理的
+请求体上限必须与服务端保持一致。
 
 本地 Bun 入口使用 `mise run dev:guest-api`，Node 22 部署包使用
 `mise run pack:guest-api`。配套路径前缀前端使用 `mise run build:guest-web` 构建。
@@ -68,7 +71,7 @@ database boundary is not claimed as runtime-verified.
 安全边界：
 
 - 供应商 Key 只从服务端进程环境读取，不会通过 Models、Run 或错误响应返回。
-- `/api/guest/models` 只下发智谱官方文本/推理模型白名单；每次 Run 都在消耗额度前校验所选模型，不接受伪造的模型 ID。
+- `/api/guest/models` 只下发经过真实调用验证的智谱模型白名单；每次 Run 都在消耗额度前校验模型 ID 与输入模态，不接受伪造模型或把图片发送给纯文本模型。
 - 浏览器只接收不透明的 `HttpOnly; Secure; SameSite=Lax` 游客 Cookie。
 - 额度服务不持久化原始 IP、Prompt 或模型响应。
 - Built-in Tools 仅开放受限网络/天气工具和浏览器虚拟文件；MCP 仅开放同源演示能力，宿主 Bash、宿主文件系统、stdio MCP 与 Generator 仍不开放。

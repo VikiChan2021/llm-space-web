@@ -35,7 +35,7 @@ const server = createServer(async (request, response) => {
             code: status === 413 ? "request_too_large" : "internal_error",
             message:
               status === 413
-                ? "当前 Thread 内容过长，请缩短后重试。"
+                ? "当前 Thread 或附件过大，请缩短内容或换一张更小的图片后重试。"
                 : "请求暂时无法完成，请稍后重试。",
           },
         },
@@ -79,13 +79,18 @@ async function _toWebRequest(
     return new Request(url, { method, headers });
   }
 
+  const bodyLimit =
+    url.pathname === "/api/guest/runs"
+      ? maxRequestBytes
+      : Math.min(maxRequestBytes, 128 * 1024);
+
   const chunks: Uint8Array[] = [];
   let length = 0;
   for await (const chunk of request) {
     const bytes =
       typeof chunk === "string" ? Buffer.from(chunk) : new Uint8Array(chunk);
     length += bytes.byteLength;
-    if (length > maxRequestBytes) throw new RequestTooLargeError();
+    if (length > bodyLimit) throw new RequestTooLargeError();
     chunks.push(bytes);
   }
   const body = Buffer.concat(chunks);

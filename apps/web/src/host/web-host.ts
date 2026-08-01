@@ -23,10 +23,14 @@ import {
   GUEST_BUILTIN_TOOLS,
 } from "@/guest/guest-tools";
 
+import { createOpenVariablesBridge } from "./web-action-bridge";
+
 export const GUEST_WORKBENCH_ENABLED =
   import.meta.env.VITE_GUEST_WORKBENCH === "1";
 
 export const OPEN_GUEST_SETTINGS_EVENT = "llm-space:guest-open-settings";
+
+const openVariablesBridge = createOpenVariablesBridge();
 
 /** Unavailable in the display-only viewer; never called while presentational. */
 function unavailable(): never {
@@ -98,12 +102,9 @@ export const webHost: HostServices = {
         window.alert("游客 Thread 分享即将开放。");
       }
     },
-    openVariables: () => {
-      /* registered by the active playground */
-    },
-    registerOpenVariables: () => () => {
-      /* nothing to unregister */
-    },
+    openVariables: (variableName) => openVariablesBridge.open(variableName),
+    registerOpenVariables: (handler) =>
+      openVariablesBridge.register(handler),
     registerRunThread: () => () => {
       /* nothing to unregister */
     },

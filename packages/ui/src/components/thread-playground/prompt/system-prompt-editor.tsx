@@ -1,6 +1,7 @@
 import { uuid, type Message } from "@llm-space/core";
 import { SYSTEM_PROMPT_PLACE_KEY } from "@llm-space/core/thread";
 import { memo, useCallback, useEffect } from "react";
+import { toast } from "sonner";
 
 import { CodeEditor } from "@llm-space/ui/components/code-editor";
 import { useHostServices } from "@llm-space/ui/host";
@@ -45,6 +46,7 @@ function _SystemPromptEditor({
 
   const {
     text: generated,
+    error: generationError,
     streaming,
     run: generate,
   } = useStreamText({
@@ -64,6 +66,14 @@ function _SystemPromptEditor({
   }, [generated, updateSystemPrompt]);
 
   useEffect(() => {
+    if (generationError) {
+      toast.error("System Prompt 生成失败", {
+        description: generationError,
+      });
+    }
+  }, [generationError]);
+
+  useEffect(() => {
     onStreamingChange?.(streaming);
   }, [onStreamingChange, streaming]);
 
@@ -79,16 +89,13 @@ function _SystemPromptEditor({
   );
 
   const handleGenerate = useCallback(
-    (prompt: string) => {
+    async (prompt: string) => {
       // Feed the current prompt and tools (if any) as a prior assistant turn,
       // so the model refines them in response to the user's request.
       const trimmed = systemPrompt.trim();
       const parts: string[] = [];
       if (trimmed) {
         parts.push(`<system-prompt>\n${trimmed}\n</system-prompt>`);
-      }
-      if (tools && tools.length > 0) {
-        parts.push(`<tools>\n${JSON.stringify(tools, null, 2)}\n</tools>`);
       }
       const messages: Message[] = parts.length
         ? [
@@ -104,10 +111,15 @@ function _SystemPromptEditor({
             },
           ]
         : [];
-      void generate({
+      const succeeded = await generate({
         messages,
+        tools: tools ?? [],
         userPrompt: `<user-input>\n${prompt}\n</user-input>`,
       });
+      if (succeeded) {
+        toast.success("System Prompt 已生成");
+      }
+      return succeeded;
     },
     [generate, systemPrompt, tools]
   );

@@ -65,6 +65,31 @@
 - 明确非目标：本能力本身不新增分享、登录、BYOK、团队协作、批量数据集、自动评审器、Bash、stdio MCP、Generator 或服务端 Thread 同步；游客可执行工具改由独立的“游客安全工具闭环 V1”能力承接。
 - 可见缺口：首次工具 Run 已纳入默认新手路径，但“修改—第二次运行—检查/比较—保存评估”的进阶闭环仍缺少界面内引导；历史图标可发现性及 Run history、Compare、Inspect、Evaluate 等流程中文化仍待处理。
 
+## 游客 Prompt 辅助与多模态输入
+
+- 状态：本地实现与真实浏览器验收完成，尚未提交或部署
+- 新鲜度：confirmed
+- 最后检查：2026-08-01
+- 当前证据：
+  - System Prompt Generate 弹层能够打开，但轻量生成请求缺少游客 API 当前强制要求的工具数组；编辑器又没有展示生成错误，因此提交后表现为无反应。
+  - Variables 芯片与 Add 已渲染现有管理界面入口，但 Web Host 的打开与注册动作均为空实现，点击不会触发弹窗。
+  - Thread、UI 和核心转换器已有 `image_data` 链路；游客 API 的 128 KB 总请求限制和纯文本校验会在图片到达模型前返回 413。
+  - 当前模型目录把三款模型都声明为纯文本；智谱官方资料确认只有 `glm-4.6v` 是本目录中的视觉模型，`glm-4.5-air` 与 `glm-4.7` 不应接受图片。
+- 完成证据：
+  - Web 工作台现在用同一个游客 Transport 同时承载普通 Thread Run 与 `useStreamText`，System Prompt Generate 不再因 Host Transport 为空而静默失败；生成中按钮、成功提示和错误提示均已补齐。
+  - System Prompt 生成把当前工具作为真实模型工具传递，不再把完整工具 Schema 重复塞入文本；生成结果会流式回写编辑器。
+  - Web Variables 单槽动作桥已接通芯片、Add 与现有管理弹窗，并处理快速切换时的过期注销。
+  - 模型目录与离线回退目录仅把 `glm-4.6v` 标记为 `text + image`；上传入口、粘贴入口、Run 预检和服务端校验都会阻止纯文本模型接收图片并引导切换。
+  - 浏览器会把大于 700 KB 的 JPG、PNG、WebP 自动缩放并转换为 WebP；客户端限制每个 Thread 5 张，服务端继续校验 MIME、Base64、图片数量、单张 4 MB、合计 6 MB 与总请求 10 MB。
+  - 31 个聚焦测试通过；零警告 lint、全仓类型检查、游客 Web 构建和 Guest API 打包通过。
+  - 完整仓库测试为 417 通过、1 跳过、6 失败；6 项仍是本轮未改动的 Windows 路径/符号链接、生成文件换行同步和缺少 `python3` 的既有基线，不能据此宣称全仓测试全绿。
+  - 真实 Chromium 以受控同源模型流完成 Variables 打开、System Prompt 生成、文本模型图片提示、切换 GLM-4.6V、上传用户提供的 576 KB 图片和图片问答，目标操作为 3/3，控制台零错误、零警告。
+  - 腾讯云现有服务端密钥直连智谱 `glm-4.6v` 的 Base64 小图请求返回 HTTP 200、非空文本且无错误；密钥未写入仓库、浏览器或测试输出。
+  - 浏览器验收截图位于 `output/playwright/guest-prompt-multimodal-v1/browser-acceptance.png`。
+- 本轮目标：System Prompt 生成、Variables 管理、`glm-4.6v` 图片问答三个目标操作首次成功率达到 3/3。
+- 安全边界：图片只允许限定 MIME、数量和解码后体积；文本、消息、工具、并发、额度、Origin 和错误脱敏限制继续生效；纯文本模型必须在模型调用前提示切换。
+- 明确非目标：本能力不是 LangGraph 项目 Generator，不开放宿主文件系统、Bash、stdio MCP、任意文件上传、视频或文档输入，也不改变登录、BYOK、团队和账单范围。
+
 ## 游客安全工具闭环
 
 - 状态：已部署并通过线上 API、真实 Chromium 与安全边界验收

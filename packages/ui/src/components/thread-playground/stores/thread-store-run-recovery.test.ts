@@ -100,6 +100,48 @@ describe("Thread Run 错误恢复", () => {
     );
     expect(state.runHistory).toHaveLength(0);
   });
+
+  test("图片 Thread 在调用文本模型前给出切换提示", async () => {
+    let transportCalled = false;
+    const transport: AgentTransport = async function* () {
+      await Promise.resolve();
+      transportCalled = true;
+      yield* _completedEvents("不应执行");
+    };
+    const store = createThreadStore(
+      {
+        context: {
+          messages: [
+            {
+              id: "user-image",
+              role: "user",
+              content: [
+                { type: "image_data", mimeType: "image/png", data: "aA==" },
+                { type: "text", text: "请描述图片" },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        transport,
+        resolveModel: () => ({ provider: "test", id: "text-only" }),
+        supportsImageInput: () => false,
+        captureRunResults: true,
+      }
+    );
+
+    await store.getState().run();
+
+    expect(transportCalled).toBe(false);
+    const result = store.getState().lastRunResult;
+    expect(result?.outcome).toBe("failed");
+    expect(
+      result?.outcome === "failed" && result.error instanceof Error
+        ? result.error.message
+        : ""
+    ).toContain("当前模型不支持图片输入");
+  });
 });
 
 function _store(transport: AgentTransport) {

@@ -17,6 +17,10 @@ describe("guest cloud config", () => {
     expect(config.ipDailyLimit).toBe(100);
     expect(config.maxConcurrentPerGuest).toBe(1);
     expect(config.maxOutputTokens).toBe(2048);
+    expect(config.maxRequestBytes).toBe(10 * 1024 * 1024);
+    expect(config.maxImages).toBe(5);
+    expect(config.maxImageBytes).toBe(4 * 1024 * 1024);
+    expect(config.maxTotalImageBytes).toBe(6 * 1024 * 1024);
     expect(config.modelId).toBe("glm-4.5-air");
     expect(config.remoteMcpEnabled).toBe(false);
     expect(config.secureCookies).toBe(false);

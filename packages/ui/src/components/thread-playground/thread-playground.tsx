@@ -164,6 +164,11 @@ function _ThreadPlayground({
           saved,
           defaultModelRef.current
         ),
+      supportsImageInput: (model) =>
+        providersRef.current
+          .find((provider) => provider.id === model.provider)
+          ?.models.find((candidate) => candidate.id === model.id)
+          ?.input.includes("image") ?? false,
       getAutoRunTools,
       getReactLoop,
       runtimeId,

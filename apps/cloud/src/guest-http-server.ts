@@ -7,6 +7,7 @@ import { readCookie, serializeCookie } from "./cookies";
 import type { GuestCloudConfig } from "./guest-config";
 import {
   createGuestModelProvider,
+  guestModelSupportsImageInput,
   GUEST_PROVIDER_ID,
   isGuestModelAllowed,
 } from "./guest-model-catalog";
@@ -29,6 +30,11 @@ const MAX_MESSAGES = 80;
 const MAX_TOOLS = 20;
 const MAX_TOOL_CALLS_PER_DAY = 60;
 const MAX_ACTIVE_TOOL_CALLS = 1;
+const SUPPORTED_IMAGE_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
 
 export type GuestModelExecutor = (
   request: AgentStreamRequest,
@@ -330,7 +336,7 @@ async function _readRequest(
     throw new GuestHttpError(
       413,
       "request_too_large",
-      "当前 Thread 内容过长，请缩短后重试。"
+      "当前 Thread 或附件过大，请缩短内容或换一张更小的图片后重试。"
     );
   }
   const text = await request.text();
@@ -338,7 +344,7 @@ async function _readRequest(
     throw new GuestHttpError(
       413,
       "request_too_large",
-      "当前 Thread 内容过长，请缩短后重试。"
+      "当前 Thread 或附件过大，请缩短内容或换一张更小的图片后重试。"
     );
   }
   let value: unknown;
@@ -424,6 +430,8 @@ function _validateRequest(
     typeof context.systemPrompt === "string"
       ? context.systemPrompt.length
       : 0;
+  let imageCount = 0;
+  let totalImageBytes = 0;
   for (const message of context.messages) {
     if (
       !message ||
@@ -448,6 +456,58 @@ function _validateRequest(
       }
       if (content.type === "text" && typeof content.text === "string") {
         characters += content.text.length;
+        continue;
+      }
+      if (message.role === "user" && content.type === "image") {
+        if (!guestModelSupportsImageInput(request.model.id)) {
+          throw new GuestHttpError(
+            400,
+            "guest_model_input_unsupported",
+            "当前模型不支持图片输入，请切换到 GLM-4.6V 后重试。"
+          );
+        }
+        if (
+          typeof content.mimeType !== "string" ||
+          !SUPPORTED_IMAGE_MIME_TYPES.has(content.mimeType) ||
+          typeof content.data !== "string"
+        ) {
+          throw new GuestHttpError(
+            415,
+            "unsupported_image",
+            "仅支持 JPG、PNG 或 WebP 图片。"
+          );
+        }
+        const imageBytes = _decodedBase64ByteLength(content.data);
+        if (imageBytes === null || imageBytes === 0) {
+          throw new GuestHttpError(
+            400,
+            "invalid_image",
+            "图片内容无效，请重新上传。"
+          );
+        }
+        imageCount += 1;
+        totalImageBytes += imageBytes;
+        if (imageCount > config.maxImages) {
+          throw new GuestHttpError(
+            413,
+            "image_count_limit",
+            `游客体验单次最多支持 ${config.maxImages} 张图片。`
+          );
+        }
+        if (imageBytes > config.maxImageBytes) {
+          throw new GuestHttpError(
+            413,
+            "image_size_limit",
+            `单张图片不能超过 ${_formatMegabytes(config.maxImageBytes)} MB。`
+          );
+        }
+        if (totalImageBytes > config.maxTotalImageBytes) {
+          throw new GuestHttpError(
+            413,
+            "image_total_size_limit",
+            `图片总大小不能超过 ${_formatMegabytes(config.maxTotalImageBytes)} MB。`
+          );
+        }
         continue;
       }
       if (
@@ -488,14 +548,33 @@ function _validateRequest(
   }
 }
 
+function _decodedBase64ByteLength(value: string): number | null {
+  if (
+    value.length === 0 ||
+    value.length % 4 !== 0 ||
+    !/^[A-Za-z0-9+/]*={0,2}$/.test(value)
+  ) {
+    return null;
+  }
+  const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+  return (value.length / 4) * 3 - padding;
+}
+
+function _formatMegabytes(bytes: number): string {
+  return (bytes / (1024 * 1024)).toLocaleString("zh-CN", {
+    maximumFractionDigits: 1,
+  });
+}
+
 async function _readJsonObject(
   request: Request,
   config: GuestCloudConfig
 ): Promise<Record<string, unknown>> {
+  const maxToolRequestBytes = Math.min(config.maxRequestBytes, 128 * 1024);
   const declaredLength = Number(request.headers.get("content-length") ?? "0");
   if (
     Number.isFinite(declaredLength) &&
-    declaredLength > config.maxRequestBytes
+    declaredLength > maxToolRequestBytes
   ) {
     throw new GuestHttpError(
       413,
@@ -504,7 +583,7 @@ async function _readJsonObject(
     );
   }
   const text = await request.text();
-  if (Buffer.byteLength(text, "utf8") > config.maxRequestBytes) {
+  if (Buffer.byteLength(text, "utf8") > maxToolRequestBytes) {
     throw new GuestHttpError(
       413,
       "request_too_large",
