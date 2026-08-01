@@ -41,6 +41,7 @@ const SHOWCASE_IMAGES = [
 // Native screenshot dimensions — used to keep the carousel frame stable.
 const SHOWCASE_IMAGE_WIDTH = 2784;
 const SHOWCASE_IMAGE_HEIGHT = 1892;
+const WEB_APP_TITLE = 'LLM Space — Build, trace, and debug agents in one place';
 
 // One shared entrance: children fade up in sequence for a calm, orchestrated
 // page load rather than scattered micro-animations.
@@ -68,6 +69,7 @@ export function App() {
   // on unmount so navigating to the viewer gets the locked behavior again.
   useEffect(() => {
     const el = document.documentElement;
+    document.title = WEB_APP_TITLE;
     el.style.overscrollBehavior = 'auto';
     return () => {
       el.style.overscrollBehavior = '';

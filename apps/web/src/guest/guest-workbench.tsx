@@ -51,6 +51,7 @@ const BROWSER_WORKSPACE_FACTORY: GuestWorkspaceFactory = {
   now: () => new Date().toISOString(),
 };
 const BROWSER_STORAGE = _browserStorage();
+const WEB_APP_TITLE = "LLM Space — Build, trace, and debug agents in one place";
 
 interface GuestWorkspaceState {
   workspace: GuestWorkspace;
@@ -88,6 +89,10 @@ export function GuestWorkbench() {
     workspace.threads.find(
       (record) => record.id === workspace.activeThreadId
     ) ?? workspace.threads[0];
+
+  useEffect(() => {
+    document.title = WEB_APP_TITLE;
+  }, []);
 
   const refreshQuota = useCallback(async () => {
     try {
