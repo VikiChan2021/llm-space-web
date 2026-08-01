@@ -69,6 +69,7 @@ import { createFrameThrottle } from "@llm-space/ui/lib/frame-throttle";
 
 import { PREVIEW_THROTTLE_MS } from "../streaming-preview";
 
+import { prepareMessagesForModel } from "./model-input";
 import {
   createInitialHistory,
   recordSnapshot,
@@ -994,34 +995,8 @@ export function createThreadStore(
             }
             return;
           }
-          const hasImages = messages.some(
-            (message) =>
-              message.role === "user" &&
-              message.content.some((content) => content.type === "image_data")
-          );
-          if (
-            hasImages &&
-            options.supportsImageInput &&
-            !options.supportsImageInput(model)
-          ) {
-            const error = new Error(
-              "当前模型不支持图片输入，请在左侧 Models 中切换到支持图片的模型后重试。"
-            );
-            if (options.captureRunResults) {
-              set({
-                lastRunResult: {
-                  outcome: "failed",
-                  error,
-                  partialOutput: false,
-                },
-              });
-            } else {
-              toast.warning("当前模型不支持图片输入", {
-                description: error.message,
-              });
-            }
-            return;
-          }
+          const supportsImageInput =
+            options.supportsImageInput?.(model) ?? true;
           const retryFromMessageId =
             messages.at(-1)?.role === "user"
               ? messages.at(-1)?.id
@@ -1031,7 +1006,13 @@ export function createThreadStore(
           let preparedContext: ThreadContext | null = null;
           try {
             const rendered = await renderThreadPromptVariables({
-              context: { ...get().thread.context, messages },
+              context: {
+                ...get().thread.context,
+                messages: prepareMessagesForModel(
+                  messages,
+                  supportsImageInput
+                ),
+              },
               loadSkills: options.loadSkills ?? _noSkills,
               loadFile: options.loadFile ?? _noFile,
               fileExists: options.fileExists ?? _noFileExists,
@@ -1216,7 +1197,10 @@ export function createThreadStore(
                     await renderThreadPromptVariables({
                       context: {
                         ...get().thread.context,
-                        messages,
+                        messages: prepareMessagesForModel(
+                          messages,
+                          supportsImageInput
+                        ),
                         snapshot: promptSnapshot,
                       },
                       loadSkills: options.loadSkills ?? _noSkills,

@@ -5,6 +5,7 @@ import {
   callGuestBuiltinTool,
   callGuestMcpTool,
   GuestToolError,
+  listBuiltinGuestMcpTools,
   listDemoMcpTools,
 } from "./guest-tool-service";
 
@@ -13,6 +14,8 @@ describe("guest tool service", () => {
     expect(listDemoMcpTools().map((tool) => tool.name)).toEqual([
       "calculator",
       "current_time",
+      "json_formatter",
+      "text_statistics",
     ]);
     const result = await callGuestMcpTool({
       serverId: "guest-demo-mcp",
@@ -21,6 +24,43 @@ describe("guest tool service", () => {
     });
     expect(result.isError).toBe(false);
     expect(result.contentText).toContain('"result":5');
+  });
+
+  test("executes utility and web-research MCP tools through real handlers", async () => {
+    expect(
+      listBuiltinGuestMcpTools("guest-web-research-mcp").map(
+        (tool) => tool.name
+      )
+    ).toEqual(["web_fetch", "web_search", "weather_report"]);
+
+    const formatted = await callGuestMcpTool({
+      serverId: "guest-demo-mcp",
+      toolName: "json_formatter",
+      arguments: { json: '{"ok":true}', indent: 2 },
+    });
+    expect(JSON.parse(formatted.contentText)).toEqual({
+      valid: true,
+      formatted: '{\n  "ok": true\n}',
+    });
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (() =>
+      Promise.resolve(
+        new Response(`
+          <h2 class=""><a href="https://example.com/">Research Result</a></h2>
+          <div class="b_caption"><p>Verified result.</p></div>
+        `)
+      )) as unknown as typeof fetch;
+    try {
+      const research = await callGuestMcpTool({
+        serverId: "guest-web-research-mcp",
+        toolName: "web_search",
+        arguments: { query: "mcp", limit: 1 },
+      });
+      expect(research.contentText).toContain("Research Result");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   test("rejects localhost, private IPs, credentials and URL secrets", async () => {

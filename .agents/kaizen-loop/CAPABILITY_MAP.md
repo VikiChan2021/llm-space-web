@@ -1,7 +1,7 @@
 # LLM Space 能力地图
 
 - 最后更新：2026-08-01
-- 地图状态：游客工作台 Hosted Alpha 已在线运行；“游客 Thread 资料库 V1”“Run 错误恢复 V1”“游客安全工具闭环 V1”“游客首次体验、智谱模型与 Web 文档 V1”“游客三模型可靠性与布局稳定 V1”以及“游客 Prompt 辅助与多模态输入 V1”均已部署到 `https://kandian.site/llm-space-web/`。根地址现直接进入游客工作台，Landing 保留在 `#/about`。GitHub 登录、BYOK、租户级持久 Thread、账单、Bash、stdio MCP、Generator，以及公共远程 MCP 的网络层出站策略仍需独立安全边界。此前的匿名会话、Personal Tenant、PostgreSQL 与强制 RLS 基础仍仅在本地验证，尚未接入游客入口。当前没有公开或动态加载的插件。
+- 地图状态：游客工作台 Hosted Alpha 已在线运行；“游客 Thread 资料库 V1”“Run 错误恢复 V1”“游客安全工具闭环 V1”“游客首次体验、智谱模型与 Web 文档 V1”“游客三模型可靠性与布局稳定 V1”以及“游客 Prompt 辅助与多模态输入 V1”均已部署到 `https://kandian.site/llm-space-web/`。“游客能力资源真实化与模型切换无阻塞 V1”已完成本地实现和构建验证，待本轮提交、部署与线上验收。根地址现直接进入游客工作台，Landing 保留在 `#/about`。GitHub 登录、BYOK、租户级持久 Thread、账单、Bash、stdio MCP、Generator，以及公共远程 MCP 的网络层出站策略仍需独立安全边界。此前的匿名会话、Personal Tenant、PostgreSQL 与强制 RLS 基础仍仅在本地验证，尚未接入游客入口。当前没有公开或动态加载的插件。
 - 证据规则：`confirmed` 表示有当前渲染产品或当前代码证据；`stale` 表示依赖旧日志或本轮未完全复查的代码路径；`unknown` 表示需要未来重新检查产品界面后才能用于决策。
 
 ## 交互式浏览器工作台
@@ -79,19 +79,42 @@
   - Web 工作台现在用同一个游客 Transport 同时承载普通 Thread Run 与 `useStreamText`，System Prompt Generate 不再因 Host Transport 为空而静默失败；生成中按钮、成功提示和错误提示均已补齐。
   - System Prompt 生成把当前工具作为真实模型工具传递，不再把完整工具 Schema 重复塞入文本；生成结果会流式回写编辑器。
   - Web Variables 单槽动作桥已接通芯片、Add 与现有管理弹窗，并处理快速切换时的过期注销。
-  - 模型目录与离线回退目录仅把 `glm-4.6v` 标记为 `text + image`；上传入口、粘贴入口、Run 预检和服务端校验都会阻止纯文本模型接收图片并引导切换。
+  - 模型目录与离线回退目录仅把 `glm-4.6v` 标记为 `text + image`；图片仍保存在 Thread 中。后续无阻塞改造取消了上传、粘贴和 Run 前的模型能力拦截：切换到纯文本模型后，浏览器只从当次模型请求副本中剔除图片并附加中文说明，不修改或丢失原 Thread 图片。
   - 浏览器会把大于 700 KB 的 JPG、PNG、WebP 自动缩放并转换为 WebP；客户端限制每个 Thread 5 张，服务端继续校验 MIME、Base64、图片数量、单张 4 MB、合计 6 MB 与总请求 10 MB。
   - 31 个聚焦测试通过；零警告 lint、全仓类型检查、游客 Web 构建和 Guest API 打包通过。
   - 完整仓库测试为 417 通过、1 跳过、6 失败；6 项仍是本轮未改动的 Windows 路径/符号链接、生成文件换行同步和缺少 `python3` 的既有基线，不能据此宣称全仓测试全绿。
   - 功能提交 `f0e4c01` 对应腾讯云发布 `20260801-110957-f0e4c010964f`；systemd 服务为 active，Nginx API 请求体限制为 10 MB，Web 与 API 软链接指向同一发布目录。
   - 本站游客 `/runs` SSE 逐一真实调用 `glm-4.5-air`、`glm-4.7` 与带 Base64 图片的 `glm-4.6v`，3/3 返回 HTTP 200、完整结束事件和非空目标文本，无流式错误。
   - 线上真实 Chromium 完成 Variables 打开、System Prompt 真实生成、文本模型图片提示、切换 GLM-4.6V、上传用户提供的 576 KB 图片和图片问答，目标操作为 3/3，控制台零错误、零警告。
-  - 文本模型图片请求在模型调用和额度消耗前返回 `guest_model_input_unsupported`，同一游客会话的浏览器/IP 剩余额度均保持不变；1.1 MB 请求越过 Nginx 并由应用层返回结构化 JSON 错误。
+  - 服务端仍会拒绝绕过正常浏览器链路直接向纯文本模型发送二进制图片的异常请求；正常 Web 工作台不会再把图片载荷发送给纯文本模型，因此不会阻断随后的普通文本交流。
   - 线上真实 Chromium 还完成天气 ReAct 闭环：模型调用 `weather_report`、自动取得广州天气 JSON，并在第二个模型回合生成中文天气与出行建议。
   - 密钥未写入仓库、浏览器或测试输出；线上验收截图位于 `output/playwright/guest-prompt-multimodal-v1/online-browser-acceptance.png`、`online-text-model-warning.png` 与 `online-react-weather.png`。
 - 本轮目标：System Prompt 生成、Variables 管理、`glm-4.6v` 图片问答三个目标操作首次成功率达到 3/3。
-- 安全边界：图片只允许限定 MIME、数量和解码后体积；文本、消息、工具、并发、额度、Origin 和错误脱敏限制继续生效；纯文本模型必须在模型调用前提示切换。
+- 安全边界：图片只允许限定 MIME、数量和解码后体积；文本、消息、工具、并发、额度、Origin 和错误脱敏限制继续生效；纯文本模型只接收去除图片后的请求副本，原 Thread 数据继续保留。
 - 明确非目标：本能力不是 LangGraph 项目 Generator，不开放宿主文件系统、Bash、stdio MCP、任意文件上传、视频或文档输入，也不改变登录、BYOK、团队和账单范围。
+
+## 游客能力资源真实化与模型切换无阻塞
+
+- 状态：本地实现、专项测试、类型检查、零警告 lint、游客 Web 构建与 Guest API 打包已完成；待本轮线上验收
+- 新鲜度：confirmed
+- 最后检查：2026-08-01
+- 当前证据：
+  - 旧 Run 预检扫描整个 Thread，只要历史消息中残留图片，纯文本模型即使收到新的纯文本消息也会被整体阻断。
+  - Web Skills 列表此前为空，`skill` Built-in 只返回“尚未开放”的占位结果；游客无法发现、读取或注入真实技能说明。
+  - 游客 MCP 仅有包含 `calculator` 与 `current_time` 的演示服务器，设置和文档也将其描述为模拟入口。
+  - System Prompt 生成元提示词把默认输出语言写死为英文，中文需求只能影响角色内容，不能约束最终 Prompt 的语言。
+- 完成证据：
+  - 模型请求新增非破坏式输入适配：视觉模型接收原消息；纯文本模型只接收移除所有 `image_data` 的请求副本，并在相应用户文本后附加“图片未发送”的模型可见说明。原 Thread 图片不被修改，切回视觉模型后仍可继续使用。
+  - 上传与粘贴入口不再按当前模型阻止用户操作；普通文本消息也不再被历史图片误伤。服务端仍保留对异常直传图片载荷的最后一道校验。
+  - 内置 Skills 提供 `deep-research`、`code-review`、`data-analysis`、`prompt-engineering` 四份可直接读取和注入的中文工作流；设置页新增固定高度 Skills Tab，`available_skills` 变量和 `skill` Built-in 读取同一真实目录。
+  - 内置实用工具 MCP 提供 `calculator`、`current_time`、`json_formatter`、`text_statistics`；内置 Web 研究 MCP 提供 `web_search`、`web_fetch`、`weather_report`。七个工具均有真实调用实现，不再返回模拟结果。
+  - System Prompt 生成会检测用户输入中的中文、日文、韩文和西里尔文字，并把明确的同语言输出约束与原始需求分区发送给模型；元提示词不再默认英文。
+  - 33 个本轮相关聚焦测试通过；全仓类型检查、零警告 lint、游客 Web 构建和 Guest API 打包通过。
+  - 完整仓库测试为 426 通过、1 跳过、6 失败；6 项仍来自本轮未改动的 Windows 路径/符号链接、生成文件换行同步和缺少 `python3` 的既有基线，不能据此宣称全仓测试全绿。
+- 北极星指标：四个目标操作首次成功率由 0/4 提升到本地 4/4，目标是在同一线上发布中保持 4/4：视觉 Thread 切换文本模型后文本 Run、中文生成中文 Prompt、发现并读取 Skills、发现并调用两个内置 MCP。
+- 安全边界：不把任意第三方 Skill 代码、远程 MCP、认证头或用户密钥直接引入游客运行时；内置资源为项目自有、可审计的有界实现，所有 Web 工具继续经过现有 SSRF、响应大小、超时、额度和 Origin 防护。
+- 明确非目标：本轮不开放任意远程 MCP、stdio MCP、Skill 安装/上传、Skill 脚本执行、OAuth、宿主文件系统或 Bash；Context7 等第三方远程 MCP 只作为市场参照，不直接接入游客后端。
+- 可见缺口：内置 Skills 当前是四份静态、版本随发布更新的工作流，没有市场安装、版本锁定或用户自定义；MCP 仍只暴露 Tools，不含 Resources、Prompts、Sampling 或富媒体结果；公共远程 MCP 仍需腾讯云网络层出站限制和独立凭据边界。
 
 ## 游客安全工具闭环
 
@@ -100,11 +123,11 @@
 - 最后检查：2026-07-30
 - 证据：
   - `apps/web/src/host/web-host.ts` 已注入游客 `executeTool`、Built-in/MCP 列表与 `ToolExecutionPolicy`；共享桌面 Host 没有改变默认行为。
-  - Built-in 对话框保留原有 File system、Web、Misc 分类，当前分别显示 10、3、3 个工具；`bash` 与 `skill` 入口保留并明确返回安全边界。
+  - Built-in 对话框保留原有 File system、Web、Misc 分类，当前分别显示 10、3、3 个工具；`bash` 入口继续明确返回安全边界，`skill` 已接通四份可读取的内置中文工作流。
   - 浏览器虚拟工作区按 Thread ID 隔离，支持 read/write/edit/ls/tree/grep/glob/present_files，拒绝绝对路径、`..`、跨 Thread 越界和超量内容。
   - 服务端 Guest Tool API 提供有界天气、Web Search、Web Fetch 和演示 MCP。腾讯云无法访问原固定 Jina Reader 与 DuckDuckGo Lite 后，网页读取改为“全量 DNS 私网检查、固定解析 IP、逐次重定向复验、标准端口、512 KB 响应上限”的直接读取；搜索改用腾讯云可达的固定搜索入口，仍不接受用户自定义认证头。
   - Guest API 现在接受最多 20 个有界工具 Schema，并支持 Tool Result 作为下一模型回合输入；工具调用另设每日 60 次和单游客并发 1 的内存限制。
-  - Demo MCP 提供 `calculator` 与 `current_time`；Web MCP 配置保留公共 HTTPS Streamable HTTP 入口，并拒绝非 HTTPS、凭据、查询参数、片段、非 443 端口、私网/环回/元数据 DNS 结果和重定向。
+  - 原 Demo MCP 已升级为内置实用工具 MCP，提供 `calculator`、`current_time`、`json_formatter`、`text_statistics`；新增内置 Web 研究 MCP，复用受保护的 `web_search`、`web_fetch`、`weather_report`。公共 HTTPS Streamable HTTP 入口继续默认关闭并保留严格地址校验。
   - Custom Function Tool 使用现有 JSON Schema 编辑器；自动模式遇到 Custom 时暂停，用户填写结果后可以继续 ReAct。
   - Web Host 将游客 ReAct 限为最多 6 个模型回合、8 次自动工具调用；低风险读取、搜索、天气和演示 MCP 可自动运行，写入、人工问题和未知远程 MCP 必须确认。
   - 真实 Chromium 已完成 Built-in 列表、虚拟 `read` 自动执行、两回合 ReAct、Demo MCP 计算 `9-4=5`、Custom 人工结果、继续 Run、Run history 与刷新恢复；历史图标和分享占位入口未改。

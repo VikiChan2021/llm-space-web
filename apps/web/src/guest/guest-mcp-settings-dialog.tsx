@@ -14,8 +14,8 @@ import { toast } from "sonner";
 
 import {
   addGuestMcpServer,
-  GUEST_DEMO_MCP_ID,
   GUEST_REMOTE_MCP_ENABLED,
+  isGuestBuiltinMcpServer,
   listGuestMcpServers,
   removeGuestMcpServer,
 } from "./guest-mcp";
@@ -73,7 +73,7 @@ export function GuestMcpSettingsDialog({
           <DialogHeader>
             <DialogTitle>游客 MCP 设置</DialogTitle>
             <DialogDescription>
-              演示 MCP 开箱即用。公共 HTTPS Streamable HTTP MCP
+              两组内置 MCP 都会执行真实工具调用。公共 HTTPS Streamable HTTP MCP
               入口会保留，但需完成独立网络出口隔离后才会开放。
             </DialogDescription>
           </DialogHeader>
@@ -88,12 +88,14 @@ export function GuestMcpSettingsDialog({
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium">{server.name}</div>
                   <div className="truncate text-xs text-muted-foreground">
-                    {server.id === GUEST_DEMO_MCP_ID
-                      ? "同源演示 · calculator / current_time"
+                    {isGuestBuiltinMcpServer(server.id)
+                      ? `同源内置 · ${server.readiness?.tools
+                          ?.map((tool) => tool.toolName)
+                          .join(" / ")}`
                       : server.url}
                   </div>
                 </div>
-                {server.id !== GUEST_DEMO_MCP_ID ? (
+                {!isGuestBuiltinMcpServer(server.id) ? (
                   <Button
                     size="icon"
                     variant="ghost"
@@ -141,7 +143,7 @@ export function GuestMcpSettingsDialog({
             </Button>
             {!GUEST_REMOTE_MCP_ENABLED ? (
               <p className="text-xs text-muted-foreground">
-                当前线上仅开放同源演示 MCP，公共远程 MCP 等待网络层出站策略。
+                当前线上开放两组同源内置 MCP；公共远程 MCP 等待网络层出站策略。
               </p>
             ) : null}
           </div>

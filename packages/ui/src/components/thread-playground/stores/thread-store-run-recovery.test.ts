@@ -101,12 +101,14 @@ describe("Thread Run 错误恢复", () => {
     expect(state.runHistory).toHaveLength(0);
   });
 
-  test("图片 Thread 在调用文本模型前给出切换提示", async () => {
+  test("图片历史不会阻断文本模型的后续纯文本消息", async () => {
     let transportCalled = false;
-    const transport: AgentTransport = async function* () {
+    let sentRequest = "";
+    const transport: AgentTransport = async function* (request) {
       await Promise.resolve();
       transportCalled = true;
-      yield* _completedEvents("不应执行");
+      sentRequest = JSON.stringify(request);
+      yield* _completedEvents("可以继续交流");
     };
     const store = createThreadStore(
       {
@@ -119,6 +121,16 @@ describe("Thread Run 错误恢复", () => {
                 { type: "image_data", mimeType: "image/png", data: "aA==" },
                 { type: "text", text: "请描述图片" },
               ],
+            },
+            {
+              id: "assistant-image",
+              role: "assistant",
+              content: [{ type: "text", text: "图片回答" }],
+            },
+            {
+              id: "user-text",
+              role: "user",
+              content: [{ type: "text", text: "你是谁？" }],
             },
           ],
         },
@@ -133,14 +145,15 @@ describe("Thread Run 错误恢复", () => {
 
     await store.getState().run();
 
-    expect(transportCalled).toBe(false);
-    const result = store.getState().lastRunResult;
-    expect(result?.outcome).toBe("failed");
-    expect(
-      result?.outcome === "failed" && result.error instanceof Error
-        ? result.error.message
-        : ""
-    ).toContain("当前模型不支持图片输入");
+    expect(transportCalled).toBe(true);
+    expect(sentRequest).not.toContain("image_data");
+    expect(sentRequest).not.toContain("\"type\":\"image\"");
+    expect(sentRequest).toContain("图片未发送");
+    expect(sentRequest).toContain("你是谁？");
+    expect(store.getState().lastRunResult).toBeNull();
+    expect(store.getState().thread.context?.messages?.[0]?.content[0]?.type).toBe(
+      "image_data"
+    );
   });
 });
 

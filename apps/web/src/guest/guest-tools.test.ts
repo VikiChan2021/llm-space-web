@@ -83,8 +83,16 @@ describe("guest browser tools", () => {
     );
     expect(canGuestAutoExecute(byName.get("read")!)).toBe(true);
     expect(canGuestAutoExecute(byName.get("weather_report")!)).toBe(true);
+    expect(canGuestAutoExecute(byName.get("skill")!)).toBe(true);
     expect(canGuestAutoExecute(byName.get("write")!)).toBe(false);
     expect(canGuestAutoExecute(byName.get("bash")!)).toBe(false);
+  });
+
+  test("loads a real built-in skill workflow", async () => {
+    const skill = GUEST_BUILTIN_TOOLS.find((tool) => tool.name === "skill")!;
+    const result = await executeGuestTool(skill, { name: "code-review" });
+    expect(result.contentText).toContain("代码审查");
+    expect(result.contentText).toContain("严重程度");
   });
 });
 

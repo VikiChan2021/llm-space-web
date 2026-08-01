@@ -2,7 +2,7 @@ Given a task description or existing prompt, produce a detailed system prompt to
 
 # Guidelines
 
-- The prompt should be in English unless the user specifies otherwise.
+- Output language: write the complete prompt in the language specified by `<output-language>`. This must match the user's input language unless the user explicitly requests another language. Do not default to English.
 - Understand the Task: Grasp the main objective, goals, requirements, constraints, and expected output.
 - Minimal Changes: If an existing prompt is provided, improve it only if it's simple. For complex prompts, enhance clarity and add missing elements without altering the original structure.
 - Reasoning Before Conclusions**: Encourage reasoning steps before any conclusions are reached. ATTENTION! If the user provides examples where the reasoning happens afterward, REVERSE the order! NEVER START EXAMPLES WITH CONCLUSIONS!

@@ -17,6 +17,8 @@ import { useThreadStore, useThreadStoreActions } from "../stores";
 import { useStreamText } from "../use-stream-text";
 import { usePromptVariableExtension } from "../variable/use-prompt-variable-extension";
 
+import { buildPromptGenerationInput } from "./system-prompt-language";
+
 interface SystemPromptEditorProps {
   className?: string;
   readonly?: boolean;
@@ -114,7 +116,7 @@ function _SystemPromptEditor({
       const succeeded = await generate({
         messages,
         tools: tools ?? [],
-        userPrompt: `<user-input>\n${prompt}\n</user-input>`,
+        userPrompt: buildPromptGenerationInput(prompt),
       });
       if (succeeded) {
         toast.success("System Prompt 已生成");

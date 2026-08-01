@@ -26,11 +26,18 @@ import {
   TabsList,
   TabsTrigger,
 } from "@llm-space/ui/ui/tabs";
-import { CableIcon, PaletteIcon, RotateCcwIcon } from "lucide-react";
+import {
+  CableIcon,
+  PaletteIcon,
+  RotateCcwIcon,
+  SparklesIcon,
+} from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 import { toast } from "sonner";
 
-export type GuestSettingsTab = "appearance" | "models" | "mcp";
+import { GUEST_SKILLS } from "./guest-skills";
+
+export type GuestSettingsTab = "appearance" | "models" | "skills" | "mcp";
 
 export function GuestSettingsDialog({
   open,
@@ -95,6 +102,7 @@ export function GuestSettingsDialog({
           <TabsList className="w-full shrink-0 justify-start">
             <TabsTrigger value="appearance">外观</TabsTrigger>
             <TabsTrigger value="models">模型</TabsTrigger>
+            <TabsTrigger value="skills">Skills</TabsTrigger>
             <TabsTrigger value="mcp">MCP</TabsTrigger>
           </TabsList>
 
@@ -156,6 +164,31 @@ export function GuestSettingsDialog({
           </TabsContent>
 
           <TabsContent
+            value="skills"
+            className="min-h-0 space-y-3 overflow-y-auto pt-2 pr-1"
+          >
+            <div className="rounded-md border p-4">
+              <div className="flex items-start gap-3">
+                <SparklesIcon className="mt-0.5 size-5 text-muted-foreground" />
+                <div>
+                  <h3 className="text-sm font-medium">游客内置 Skills</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    可在 Variables 的 available_skills 中选择，也可给 Thread 添加 skill 工具读取完整工作流程。
+                  </p>
+                </div>
+              </div>
+            </div>
+            {GUEST_SKILLS.map((skill) => (
+              <div key={skill.name} className="rounded-md border px-3 py-2">
+                <div className="font-mono text-sm font-medium">{skill.name}</div>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  {skill.description}
+                </p>
+              </div>
+            ))}
+          </TabsContent>
+
+          <TabsContent
             value="models"
             className="min-h-0 space-y-4 overflow-y-auto pt-2 pr-1"
           >
@@ -194,7 +227,7 @@ export function GuestSettingsDialog({
                 <div className="min-w-0 flex-1">
                   <h3 className="text-sm font-medium">游客 MCP</h3>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    查看同源演示 MCP，以及公共远程 MCP 的安全开放状态。
+                    查看可真实执行的内置 MCP，以及公共远程 MCP 的安全开放状态。
                   </p>
                   <Button className="mt-3" variant="outline" onClick={onOpenMcp}>
                     管理 MCP

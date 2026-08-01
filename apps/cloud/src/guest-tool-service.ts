@@ -12,6 +12,7 @@ const MAX_WEB_REDIRECTS = 3;
 const MAX_REMOTE_TOOLS = 32;
 const MCP_TIMEOUT_MS = 10_000;
 const DEMO_MCP_SERVER_ID = "guest-demo-mcp";
+const WEB_RESEARCH_MCP_SERVER_ID = "guest-web-research-mcp";
 
 export class GuestToolError extends Error {
   constructor(
@@ -114,10 +115,51 @@ const DEMO_MCP_TOOLS = [
       additionalProperties: false,
     },
   },
+  {
+    name: "json_formatter",
+    description: "Validate and format a JSON string with bounded indentation.",
+    inputSchema: {
+      type: "object",
+      required: ["json"],
+      properties: {
+        json: { type: "string", description: "JSON text to validate." },
+        indent: {
+          type: "number",
+          description: "Indent size from 0 to 4. Defaults to 2.",
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "text_statistics",
+    description: "Count characters, non-whitespace characters, words and lines.",
+    inputSchema: {
+      type: "object",
+      required: ["text"],
+      properties: {
+        text: { type: "string", description: "Text to analyze." },
+      },
+      additionalProperties: false,
+    },
+  },
 ] as const;
+
+const WEB_RESEARCH_MCP_TOOLS = GUEST_BUILTIN_TOOLS.map((tool) => ({
+  name: tool.name,
+  description: tool.description,
+  inputSchema: tool.parameters,
+}));
 
 export function isDemoMcpServer(serverId: string): boolean {
   return serverId === DEMO_MCP_SERVER_ID;
+}
+
+export function isBuiltinGuestMcpServer(serverId: string): boolean {
+  return (
+    serverId === DEMO_MCP_SERVER_ID ||
+    serverId === WEB_RESEARCH_MCP_SERVER_ID
+  );
 }
 
 export function getDemoMcpServerId(): string {
@@ -130,6 +172,14 @@ export function listDemoMcpTools() {
     description: tool.description,
     inputSchema: tool.inputSchema,
   }));
+}
+
+export function listBuiltinGuestMcpTools(serverId: string) {
+  if (serverId === DEMO_MCP_SERVER_ID) return listDemoMcpTools();
+  if (serverId === WEB_RESEARCH_MCP_SERVER_ID) {
+    return WEB_RESEARCH_MCP_TOOLS.map((tool) => ({ ...tool }));
+  }
+  throw new GuestToolError(404, "mcp_server_not_found", "内置 MCP 不存在。");
 }
 
 export async function callGuestBuiltinTool(
@@ -175,9 +225,18 @@ export async function callGuestMcpTool(input: {
   arguments: Record<string, unknown>;
 }): Promise<{ contentText: string; isError: boolean }> {
   _assertArguments(input.arguments);
-  if (isDemoMcpServer(input.serverId)) {
+  if (input.serverId === DEMO_MCP_SERVER_ID) {
     return {
       contentText: _callDemoMcpTool(input.toolName, input.arguments),
+      isError: false,
+    };
+  }
+  if (input.serverId === WEB_RESEARCH_MCP_SERVER_ID) {
+    return {
+      contentText: await callGuestBuiltinTool(
+        input.toolName,
+        input.arguments
+      ),
       isError: false,
     };
   }
@@ -578,6 +637,44 @@ function _callDemoMcpTool(
       );
     }
     return JSON.stringify({ timezone, time: formatted });
+  }
+  if (name === "json_formatter") {
+    const json = _requireString(args, "json");
+    if (json.length > 12_000) {
+      throw new GuestToolError(
+        413,
+        "invalid_tool_arguments",
+        "json 不能超过 12000 个字符。"
+      );
+    }
+    let value: unknown;
+    try {
+      value = JSON.parse(json);
+    } catch {
+      throw new GuestToolError(
+        400,
+        "invalid_tool_arguments",
+        "json 不是有效的 JSON 文本。"
+      );
+    }
+    const indent = _boundedInteger(args.indent, 2, 0, 4);
+    return JSON.stringify({ valid: true, formatted: JSON.stringify(value, null, indent) });
+  }
+  if (name === "text_statistics") {
+    const text = _requireString(args, "text");
+    if (text.length > 12_000) {
+      throw new GuestToolError(
+        413,
+        "invalid_tool_arguments",
+        "text 不能超过 12000 个字符。"
+      );
+    }
+    return JSON.stringify({
+      characters: [...text].length,
+      nonWhitespaceCharacters: [...text].filter((character) => !/\s/u.test(character)).length,
+      words: text.trim() ? text.trim().split(/\s+/u).length : 0,
+      lines: text ? text.split(/\r?\n/u).length : 0,
+    });
   }
   throw new GuestToolError(
     400,

@@ -14,7 +14,6 @@ import {
 } from "@llm-space/ui/ui/dropdown-menu";
 
 
-import { useModel, useResolveModelConfig } from "../../model-provider";
 import {
   useThreadStore,
   useThreadStoreActions,
@@ -22,7 +21,6 @@ import {
 
 import {
   MAX_IMAGES_PER_THREAD,
-  modelSupportsImageInput,
   prepareImageFile,
   SUPPORTED_IMAGE_MIME_TYPES,
 } from "./image-input";
@@ -36,15 +34,9 @@ export function AddImagesMenu({
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { addMessageImageContent } = useThreadStoreActions();
-  const threadModel = useThreadStore((state) => state.thread.model);
   const messages = useThreadStore(
     (state) => state.thread.context?.messages ?? []
   );
-  const resolvedConfig = useResolveModelConfig(threadModel);
-  const resolvedModel = useModel({
-    provider: resolvedConfig?.provider ?? "",
-    id: resolvedConfig?.id ?? "",
-  });
   const imageCount = useMemo(
     () =>
       messages.reduce(
@@ -58,18 +50,12 @@ export function AddImagesMenu({
   );
 
   const ensureAvailable = useCallback(() => {
-    if (!modelSupportsImageInput(resolvedModel)) {
-      toast.warning("当前模型不支持图片输入", {
-        description: "请在左侧 Models 中切换到 GLM-4.6V 后再上传图片。",
-      });
-      return false;
-    }
     if (imageCount >= MAX_IMAGES_PER_THREAD) {
       toast.warning(`每个 Thread 最多添加 ${MAX_IMAGES_PER_THREAD} 张图片。`);
       return false;
     }
     return true;
-  }, [imageCount, resolvedModel]);
+  }, [imageCount]);
 
   const addImage = useCallback(
     ({ mimeType, data }: { mimeType: string; data: string }) => {

@@ -5,7 +5,11 @@ import {
   callGuestMcpApi,
   type GuestToolCallResult,
 } from "./guest-api";
-import { findGuestMcpServer } from "./guest-mcp";
+import {
+  findGuestMcpServer,
+  isGuestBuiltinMcpServer,
+} from "./guest-mcp";
+import { readGuestSkill } from "./guest-skills";
 
 const VIRTUAL_WORKSPACE_KEY = "llm-space.guest.virtual-workspace.v1";
 const MAX_FILE_CHARS = 100_000;
@@ -116,7 +120,7 @@ const FILE_SYSTEM_TOOLS: BuiltinTool[] = [
     name: "skill",
     icon: "sparkles",
     description:
-      "入口保留：游客 Hosted V1 尚未开放技能安装或宿主技能目录。",
+      "读取一个游客内置 Skill 的完整工作流程说明。",
     parameters: _objectParameters(["name"], {
       name: { type: "string", description: "技能名称。" },
     }),
@@ -239,6 +243,7 @@ const AUTO_EXECUTABLE_BUILTINS = new Set([
   "web_fetch",
   "web_search",
   "weather_report",
+  "skill",
   "todo_write",
   "sleep",
 ]);
@@ -247,7 +252,7 @@ export function canGuestAutoExecute(
   tool: McpTool | BuiltinTool
 ): boolean {
   if (tool.type === "mcp") {
-    return tool.serverId === "guest-demo-mcp";
+    return isGuestBuiltinMcpServer(tool.serverId);
   }
   return AUTO_EXECUTABLE_BUILTINS.has(tool.name);
 }
@@ -382,9 +387,7 @@ async function _executeLocalBuiltin(
         "游客 Hosted V1 不会在腾讯云宿主执行 Bash；该入口等待独立隔离沙箱。"
       );
     case "skill":
-      throw new Error(
-        "游客 Hosted V1 尚未开放技能安装或宿主技能目录。"
-      );
+      return readGuestSkill(args.name);
     default:
       throw new Error(`游客环境不支持执行 ${name}。`);
   }

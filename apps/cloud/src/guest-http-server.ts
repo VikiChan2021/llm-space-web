@@ -20,8 +20,8 @@ import {
   callGuestMcpTool,
   GUEST_BUILTIN_TOOLS,
   GuestToolError,
-  isDemoMcpServer,
-  listDemoMcpTools,
+  isBuiltinGuestMcpServer,
+  listBuiltinGuestMcpTools,
   listRemoteMcpTools,
 } from "./guest-tool-service";
 
@@ -153,8 +153,8 @@ export function createGuestFetchHandler(
           serverId,
           dependencies.config.remoteMcpEnabled
         );
-        const tools = isDemoMcpServer(serverId)
-          ? listDemoMcpTools()
+        const tools = isBuiltinGuestMcpServer(serverId)
+          ? listBuiltinGuestMcpTools(serverId)
           : await listRemoteMcpTools(
               _readBoundedString(body.url, "url", 2_000)
             );
@@ -201,7 +201,7 @@ export function createGuestFetchHandler(
               serverId,
               toolName,
               arguments: args,
-              ...(isDemoMcpServer(serverId)
+              ...(isBuiltinGuestMcpServer(serverId)
                 ? {}
                 : {
                     url: _readBoundedString(body.url, "url", 2_000),
@@ -679,11 +679,11 @@ function _assertRemoteMcpEnabled(
   serverId: string,
   remoteMcpEnabled: boolean
 ): void {
-  if (!isDemoMcpServer(serverId) && !remoteMcpEnabled) {
+  if (!isBuiltinGuestMcpServer(serverId) && !remoteMcpEnabled) {
     throw new GuestToolError(
       403,
       "remote_mcp_disabled",
-      "公共远程 MCP 需先配置独立网络出口隔离；当前线上仅开放演示 MCP。"
+      "公共远程 MCP 需先配置独立网络出口隔离；当前线上仅开放内置 MCP。"
     );
   }
 }

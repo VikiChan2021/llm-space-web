@@ -9,6 +9,7 @@ import {
 import { listGuestMcpToolsApi } from "./guest-api";
 
 export const GUEST_DEMO_MCP_ID = "guest-demo-mcp";
+export const GUEST_RESEARCH_MCP_ID = "guest-web-research-mcp";
 export const OPEN_GUEST_MCP_SETTINGS_EVENT =
   "llm-space:open-guest-mcp-settings";
 export const GUEST_MCP_CHANGED_EVENT = "llm-space:guest-mcp-changed";
@@ -53,6 +54,90 @@ const DEMO_TOOL_SUMMARIES = [
     topLevelProperties: ["timezone"],
     available: true,
   },
+  {
+    toolName: "json_formatter",
+    normalizedToolName: "json_formatter",
+    directName: "mcp__utilities__json_formatter",
+    description: "Validate and format a JSON string with bounded indentation.",
+    inputSchema: {
+      type: "object",
+      required: ["json"],
+      properties: {
+        json: { type: "string" },
+        indent: { type: "number" },
+      },
+      additionalProperties: false,
+    },
+    requiredFields: ["json"],
+    topLevelProperties: ["json", "indent"],
+    available: true,
+  },
+  {
+    toolName: "text_statistics",
+    normalizedToolName: "text_statistics",
+    directName: "mcp__utilities__text_statistics",
+    description: "Count characters, words and lines in text.",
+    inputSchema: {
+      type: "object",
+      required: ["text"],
+      properties: { text: { type: "string" } },
+      additionalProperties: false,
+    },
+    requiredFields: ["text"],
+    topLevelProperties: ["text"],
+    available: true,
+  },
+] as const;
+
+const RESEARCH_TOOL_SUMMARIES = [
+  {
+    toolName: "web_search",
+    normalizedToolName: "web_search",
+    directName: "mcp__web_research__web_search",
+    description: "搜索公开网页并返回最多 8 条结果。",
+    inputSchema: {
+      type: "object",
+      required: ["query"],
+      properties: {
+        query: { type: "string" },
+        limit: { type: "number" },
+      },
+      additionalProperties: false,
+    },
+    requiredFields: ["query"],
+    topLevelProperties: ["query", "limit"],
+    available: true,
+  },
+  {
+    toolName: "web_fetch",
+    normalizedToolName: "web_fetch",
+    directName: "mcp__web_research__web_fetch",
+    description: "读取公开网页并返回适合模型阅读的 Markdown。",
+    inputSchema: {
+      type: "object",
+      required: ["url"],
+      properties: { url: { type: "string" } },
+      additionalProperties: false,
+    },
+    requiredFields: ["url"],
+    topLevelProperties: ["url"],
+    available: true,
+  },
+  {
+    toolName: "weather_report",
+    normalizedToolName: "weather_report",
+    directName: "mcp__web_research__weather_report",
+    description: "获取一个地点今天的天气。",
+    inputSchema: {
+      type: "object",
+      required: ["location"],
+      properties: { location: { type: "string" } },
+      additionalProperties: false,
+    },
+    requiredFields: ["location"],
+    topLevelProperties: ["location"],
+    available: true,
+  },
 ] as const;
 
 export interface GuestMcpServer {
@@ -72,6 +157,7 @@ interface GuestMcpStorage {
 export function listGuestMcpServers(): McpServerView[] {
   return [
     _demoServerView(),
+    _researchServerView(),
     ...(GUEST_REMOTE_MCP_ENABLED
       ? _loadRemoteServers().map((server) => _serverView(server))
       : []),
@@ -84,8 +170,17 @@ export function findGuestMcpServer(
   if (serverId === GUEST_DEMO_MCP_ID) {
     return {
       id: GUEST_DEMO_MCP_ID,
-      name: "LLM Space 演示 MCP",
-      serverName: "demo",
+      name: "内置实用工具 MCP",
+      serverName: "utilities",
+      createdAt: 0,
+      updatedAt: 0,
+    };
+  }
+  if (serverId === GUEST_RESEARCH_MCP_ID) {
+    return {
+      id: GUEST_RESEARCH_MCP_ID,
+      name: "内置 Web 研究 MCP",
+      serverName: "web_research",
       createdAt: 0,
       updatedAt: 0,
     };
@@ -176,11 +271,11 @@ function _demoServerView(): McpServerView {
     transport: "streamableHttp",
     url: `${location.origin}${import.meta.env.BASE_URL}api/guest/mcp/demo`,
     connected: true,
-    toolCount: 2,
+    toolCount: DEMO_TOOL_SUMMARIES.length,
     readiness: {
       status: "ready",
       testedAt: Date.now(),
-      toolCount: 2,
+      toolCount: DEMO_TOOL_SUMMARIES.length,
       tools: DEMO_TOOL_SUMMARIES.map((tool) => ({
         ...tool,
         inputSchema: { ...tool.inputSchema },
@@ -189,6 +284,34 @@ function _demoServerView(): McpServerView {
       })),
     },
   };
+}
+
+function _researchServerView(): McpServerView {
+  const server = findGuestMcpServer(GUEST_RESEARCH_MCP_ID)!;
+  return {
+    ...server,
+    transport: "streamableHttp",
+    url: `${location.origin}${import.meta.env.BASE_URL}api/guest/mcp/research`,
+    connected: true,
+    toolCount: RESEARCH_TOOL_SUMMARIES.length,
+    readiness: {
+      status: "ready",
+      testedAt: Date.now(),
+      toolCount: RESEARCH_TOOL_SUMMARIES.length,
+      tools: RESEARCH_TOOL_SUMMARIES.map((tool) => ({
+        ...tool,
+        inputSchema: { ...tool.inputSchema },
+        requiredFields: [...tool.requiredFields],
+        topLevelProperties: [...tool.topLevelProperties],
+      })),
+    },
+  };
+}
+
+export function isGuestBuiltinMcpServer(serverId: string): boolean {
+  return (
+    serverId === GUEST_DEMO_MCP_ID || serverId === GUEST_RESEARCH_MCP_ID
+  );
 }
 
 function _serverView(

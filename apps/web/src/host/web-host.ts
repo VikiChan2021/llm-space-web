@@ -18,6 +18,10 @@ import {
   listGuestMcpTools,
 } from "@/guest/guest-mcp";
 import {
+  GUEST_SKILLS_PATH,
+  listGuestSkills,
+} from "@/guest/guest-skills";
+import {
   canGuestAutoExecute,
   executeGuestTool,
   GUEST_BUILTIN_TOOLS,
@@ -59,8 +63,12 @@ export const webHost: HostServices = {
       }
     : undefined,
   skills: {
-    getSettings: () => Promise.resolve({ discoveryPaths: [] }),
-    listSkills: () => Promise.resolve([]),
+    getSettings: () =>
+      Promise.resolve({
+        discoveryPaths: [{ path: GUEST_SKILLS_PATH, hiddenSkills: [] }],
+      }),
+    listSkills: (path) =>
+      Promise.resolve(GUEST_WORKBENCH_ENABLED ? listGuestSkills(path) : []),
   },
   mcp: {
     listServers: () =>

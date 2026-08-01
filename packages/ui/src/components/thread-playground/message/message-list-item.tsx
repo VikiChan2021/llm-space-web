@@ -28,14 +28,12 @@ import { ShineBorder } from "@llm-space/ui/ui/shine-border";
 import { Skeleton } from "@llm-space/ui/ui/skeleton";
 
 
-import { useModel, useResolveModelConfig } from "../../model-provider";
 import { useThreadStore, useThreadStoreActions } from "../stores";
 import { usePromptVariableExtensionForContext } from "../variable/use-prompt-variable-extension";
 
 import { ImageContentList } from "./image-content-view";
 import {
   MAX_IMAGES_PER_THREAD,
-  modelSupportsImageInput,
   prepareImageFile,
 } from "./image-input";
 import { MessageListItemHeader } from "./message-list-item-header";
@@ -105,15 +103,9 @@ function _MessageListItem({
     run,
     updateMessageTextContent,
   } = useThreadStoreActions();
-  const threadModel = useThreadStore((state) => state.thread.model);
   const threadMessages = useThreadStore(
     (state) => state.thread.context?.messages ?? []
   );
-  const resolvedConfig = useResolveModelConfig(threadModel);
-  const resolvedModel = useModel({
-    provider: resolvedConfig?.provider ?? "",
-    id: resolvedConfig?.id ?? "",
-  });
   const threadImageCount = useMemo(
     () =>
       threadMessages.reduce(
@@ -153,12 +145,6 @@ function _MessageListItem({
         if (item.type.startsWith("image/")) {
           e.preventDefault();
           e.stopPropagation();
-          if (!modelSupportsImageInput(resolvedModel)) {
-            toast.warning("当前模型不支持图片输入", {
-              description: "请在左侧 Models 中切换到 GLM-4.6V 后再粘贴图片。",
-            });
-            return;
-          }
           if (threadImageCount >= MAX_IMAGES_PER_THREAD) {
             toast.warning(
               `每个 Thread 最多添加 ${MAX_IMAGES_PER_THREAD} 张图片。`
@@ -189,7 +175,6 @@ function _MessageListItem({
       addMessageImageContent,
       message.id,
       message.role,
-      resolvedModel,
       threadImageCount,
     ]
   );

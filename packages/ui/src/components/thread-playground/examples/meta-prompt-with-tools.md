@@ -2,7 +2,7 @@ Given a task description or existing prompt, produce a detailed system prompt wi
 
 # Guidelines
 
-- The prompt should be in English unless the user explicitly requests otherwise.
+- Output language: write the complete prompt in the language specified by `<output-language>`. This must match the user's input language unless the user explicitly requests another language. Do not default to English.
 - Understand the Task: Grasp the main objective, goals, requirements, constraints, and expected output.
 - Minimal Changes: If an existing prompt and tools are provided, improve it only if it's simple. For complex prompts, enhance clarity and add missing elements without altering the original structure.
 - Tools: Analyze the task requirements to determine whether specific tools or resources are necessary for effective completion. If tools are required, generate them first, ensuring they align with the task's goals. Then, the system prompt should incorporate the tools and guides the language model in completing the task effectively.

@@ -21,7 +21,16 @@ Custom Tool 用 JSON Schema 告诉模型“存在这样一个函数”，但 Web
 
 ## MCP
 
-点击 Tools 的 **Add MCP Tools** 可导入“LLM Space 演示 MCP”的 `calculator` 和 `current_time`。顶部 **设置 → MCP** 可以查看连接状态。
+点击 Tools 的 **Add MCP Tools** 可导入两组同源内置 MCP：
+
+- **内置实用工具 MCP**：`calculator`、`current_time`、`json_formatter`、`text_statistics`。
+- **内置 Web 研究 MCP**：`web_search`、`web_fetch`、`weather_report`。
+
+这些工具会执行真实计算、文本处理或受限网络请求，不是只用于展示的模拟结果。顶部 **设置 → MCP** 可以查看连接状态和完整工具清单。
+
+## Skills
+
+游客版预装 `deep-research`、`code-review`、`data-analysis` 和 `prompt-engineering`。点击 Variables 的 `available_skills` 可选择要注入 Prompt 的 Skill；给 Thread 添加 `skill` Built-in Tool 后，模型还可以按名称读取完整工作流程。
 
 公共远程 MCP 涉及服务器出站网络、私网访问和认证信息。当前线上只有完成安全隔离的能力才会开放；stdio MCP 不适用于浏览器游客环境。
 

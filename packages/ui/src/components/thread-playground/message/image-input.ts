@@ -14,12 +14,6 @@ export interface PreparedImage {
   data: string;
 }
 
-export function modelSupportsImageInput(
-  model: { input: readonly string[] } | null | undefined
-): boolean {
-  return model?.input.includes("image") ?? false;
-}
-
 export async function prepareImageFile(file: File): Promise<PreparedImage> {
   if (
     !SUPPORTED_IMAGE_MIME_TYPES.includes(

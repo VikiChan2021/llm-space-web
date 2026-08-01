@@ -131,7 +131,7 @@ export function GuestWorkbench() {
     const openSettings = (event: Event) => {
       const requested = (event as CustomEvent<{ tab?: string }>).detail?.tab;
       setSettingsTab(
-        requested === "models" || requested === "mcp"
+        requested === "models" || requested === "mcp" || requested === "skills"
           ? requested
           : "appearance"
       );
