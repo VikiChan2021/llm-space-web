@@ -368,6 +368,61 @@ describe("guest HTTP API", () => {
     expect(body).not.toContain(CONFIG.apiKey);
     quotaStore.close();
   });
+
+  test("redacts provider failures encoded as normal agent events", async () => {
+    const execute: GuestModelExecutor = async function* () {
+      await Promise.resolve();
+      yield { type: "agent_start" };
+      yield {
+        type: "message_start",
+        message: {
+          role: "assistant",
+          content: [],
+          api: "openai-completions",
+          provider: "bigmodel",
+          model: "glm-5.2",
+          usage: {
+            input: 0,
+            output: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: 0,
+            cost: {
+              input: 0,
+              output: 0,
+              cacheRead: 0,
+              cacheWrite: 0,
+              total: 0,
+            },
+          },
+          stopReason: "error",
+          timestamp: Date.now(),
+          errorMessage: `upstream leaked ${CONFIG.apiKey}`,
+        },
+      };
+      yield { type: "agent_end", messages: [] };
+    };
+    const quotaStore = new GuestQuotaStore(":memory:", CONFIG.hmacSecret);
+    const handler = createGuestFetchHandler({
+      config: CONFIG,
+      quotaStore,
+      execute,
+    });
+
+    const response = await handler(
+      _runRequest(GUEST_ID, CONFIG.publicUrl.origin, "hello", [], "glm-5.2")
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain('"type":"guest_run_error"');
+    expect(body).toContain('"code":"model_service_unavailable"');
+    expect(body).toContain("请在 Models 中切换其他智谱模型");
+    expect(body).toContain("data: [DONE]");
+    expect(body).not.toContain("upstream leaked");
+    expect(body).not.toContain(CONFIG.apiKey);
+    quotaStore.close();
+  });
 });
 
 async function* _completedExecutor(): AsyncIterable<AgentEvent> {

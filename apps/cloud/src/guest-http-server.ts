@@ -629,6 +629,13 @@ function _streamResponse(
       try {
         controller.enqueue(encoder.encode("data: [START]\n\n"));
         for await (const event of events) {
+          if (_isModelFailureEvent(event)) {
+            console.error("Guest model returned an error event.", requestId);
+            _enqueueModelUnavailable(controller, encoder, requestId);
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            controller.close();
+            return;
+          }
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
           );
@@ -642,19 +649,7 @@ function _streamResponse(
           requestId,
           error instanceof Error ? error.name : "UnknownError"
         );
-        controller.enqueue(
-          encoder.encode(
-            `data: ${JSON.stringify({
-              type: "guest_run_error",
-              error: {
-                code: "model_service_unavailable",
-                message:
-                  "当前模型暂不可用，请在 Models 中切换其他智谱模型后重试。",
-                requestId,
-              },
-            })}\n\n`
-          )
-        );
+        _enqueueModelUnavailable(controller, encoder, requestId);
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.close();
       } finally {
@@ -673,6 +668,49 @@ function _streamResponse(
   headers.set("X-Request-Id", requestId);
   _setQuotaHeaders(headers, quota, config);
   return new Response(body, { headers });
+}
+
+function _isModelFailureEvent(event: AgentEvent): boolean {
+  switch (event.type) {
+    case "message_start":
+    case "message_update":
+    case "message_end":
+    case "turn_end":
+      return _isFailedAssistantMessage(event.message);
+    case "agent_end":
+      return event.messages.some(_isFailedAssistantMessage);
+    default:
+      return false;
+  }
+}
+
+function _isFailedAssistantMessage(
+  message: Extract<AgentEvent, { type: "message_end" }>["message"]
+): boolean {
+  return (
+    message.role === "assistant" &&
+    (message.stopReason === "error" || Boolean(message.errorMessage))
+  );
+}
+
+function _enqueueModelUnavailable(
+  controller: ReadableStreamDefaultController<Uint8Array>,
+  encoder: TextEncoder,
+  requestId: string
+): void {
+  controller.enqueue(
+    encoder.encode(
+      `data: ${JSON.stringify({
+        type: "guest_run_error",
+        error: {
+          code: "model_service_unavailable",
+          message:
+            "当前模型暂不可用，请在 Models 中切换其他智谱模型后重试。",
+          requestId,
+        },
+      })}\n\n`
+    )
+  );
 }
 
 function _guestIdentity(
