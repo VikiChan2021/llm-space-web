@@ -1,17 +1,17 @@
 # LLM Space 能力地图
 
 - 最后更新：2026-08-01
-- 地图状态：游客工作台 Hosted Alpha 已在线运行；“游客 Thread 资料库 V1”“Run 错误恢复 V1”“游客安全工具闭环 V1”以及“游客首次体验、智谱模型与 Web 文档 V1”均已部署到 `https://kandian.site/llm-space-web/`。根地址现直接进入游客工作台，Landing 保留在 `#/about`。GitHub 登录、BYOK、租户级持久 Thread、账单、Bash、stdio MCP、Generator，以及公共远程 MCP 的网络层出站策略仍需独立安全边界。此前的匿名会话、Personal Tenant、PostgreSQL 与强制 RLS 基础仍仅在本地验证，尚未接入游客入口。当前没有公开或动态加载的插件。
+- 地图状态：游客工作台 Hosted Alpha 已在线运行；“游客 Thread 资料库 V1”“Run 错误恢复 V1”“游客安全工具闭环 V1”“游客首次体验、智谱模型与 Web 文档 V1”以及“游客三模型可靠性与布局稳定 V1”均已部署到 `https://kandian.site/llm-space-web/`。根地址现直接进入游客工作台，Landing 保留在 `#/about`。GitHub 登录、BYOK、租户级持久 Thread、账单、Bash、stdio MCP、Generator，以及公共远程 MCP 的网络层出站策略仍需独立安全边界。此前的匿名会话、Personal Tenant、PostgreSQL 与强制 RLS 基础仍仅在本地验证，尚未接入游客入口。当前没有公开或动态加载的插件。
 - 证据规则：`confirmed` 表示有当前渲染产品或当前代码证据；`stale` 表示依赖旧日志或本轮未完全复查的代码路径；`unknown` 表示需要未来重新检查产品界面后才能用于决策。
 
 ## 交互式浏览器工作台
 
-- 状态：线上 Hosted Alpha 可用；工作台优先入口、多智谱模型、Web 设置和中文使用说明已部署并完成线上验收
+- 状态：线上 Hosted Alpha 可用；三款资源包对齐模型、单行顶部、固定高度设置、工作台优先入口和中文使用说明已部署并完成线上验收
 - 新鲜度：confirmed
 - 最后检查：2026-08-01
 - 证据：
   - 当前线上 `https://kandian.site/llm-space-web/` 会直接重定向到 `#/workbench`；介绍页保留在 `#/about`，两个路由均恢复正确的浏览器标题。
-  - 2026-08-01 活动发布为 `20260801-073807-f8ba28cfd320`，对应提交 `f8ba28cfd3205becf5823fc40350081eb39531fe`；systemd 服务为 active、`NRestarts=0`，Nginx 配置检查通过。
+  - 2026-08-01 功能发布为 `20260801-083709-a49c04be1c64`，对应提交 `a49c04be1c6488bd77e5fed16940b9e2516c6f72`；systemd 服务为 active，Nginx 配置与本机 API 检查通过。
   - 本地实现将单一 `llm-space.guest.thread.v1` 数据迁移为版本化的 `llm-space.guest.workspace.v1` 工作区；新格式写入成功后才删除旧键。
   - 游客现可在左侧响应式抽屉中新建、选择、复制、导出、删除 Thread，并可通过工作台标题重命名；导入 JSON 会创建新 Thread，不覆盖已有记录。
   - 首次访问会立即持久化示例 Thread；刷新会恢复最后打开项；删除最后一项会自动创建新的示例 Thread。
@@ -29,18 +29,21 @@
   - 当前验收截图位于 `output/playwright/run-recovery-v1/`，包括临时失败技术详情、额度耗尽、主动停止和 768px 结果条布局。
   - `apps/web/src/host/web-host.ts` 已注入游客 Built-in/MCP 执行器与独立工具策略；浏览器虚拟文件、Custom 人工结果、同源演示 MCP、低风险自动执行和 ReAct 已可用。
   - 部署后真实 Chromium 刷新仍恢复 Thread、Run 历史、`read`、演示 MCP 和 Custom Tool；浏览器控制台为零错误、零警告。
-  - 同一线上模型链路已完成一次真实中文 Run 和一次真实 `read` Tool Call；后续工具继续回合及最终复验遇到智谱 `1305` 峰值限流，页面正确显示可恢复错误并保留 Thread，不能据此宣称上游模型始终可用。
-  - 线上 Models API 暴露 9 个智谱文本/推理模型的服务端白名单，并在额度消费前拒绝伪造模型；默认模型为 `glm-4.7-flash`。
+  - 线上 Models API 只暴露当前资源包已验证的 `glm-4.5-air`、`glm-4.7`、`glm-4.6v`，默认模型为 `glm-4.5-air`；旧浏览器默认值和旧服务端环境变量会安全迁移到新默认模型。
+  - 部署前腾讯云主机直连智谱、部署后本站游客 `/runs` SSE 均逐一验证三款模型：3/3 返回 HTTP 200、完整结束事件和非空“线上测试成功”，无流式错误。
+  - 真实 Chromium 默认模型 Run 在 573ms 返回“浏览器测试成功”，额度由 20/20 正常变为 19/20，Run history 记录为 `bigmodel/glm-4.5-air`。
   - 新 Thread 默认使用“搜索一下广州今天的天气”及 `weather_report`、`web_search`、`web_fetch`，同时保留已有 Thread；模型错误会保留 Thread 并建议切换其他智谱模型。
-  - 顶部设置入口和 7 篇 Web 专用中文 Markdown 使用说明已上线；真实 Chromium 已验证浅色/深色主题、默认模型列表、演示 MCP 入口、文档新标签、390px 无横向溢出和移动端目录抽屉。
+  - 顶部常驻说明已收进可点击信息图标；真实 Chromium 在 768px 与 1920px 下测得顶部高度均为 49px、左右内容同处一行且无横向溢出。
+  - 设置弹窗固定为 640px 大高度；外观、模型、MCP 三个 Tab 实测高度完全一致，模型 Tab 只显示上述三款模型。
+  - 顶部设置入口和 7 篇 Web 专用中文 Markdown 使用说明已上线；真实 Chromium 已验证浅色/深色主题、演示 MCP 入口、文档新标签、390px 无横向溢出和移动端目录抽屉。
   - 线上真实检查中发现 pi SDK 会把部分上游 429 作为 `stopReason: error` 的普通事件返回；服务端已在提交 `5ad70fd` 中统一拦截并转换为脱敏的 `guest_run_error`，浏览器不再看到上游错误正文、余额信息或供应商错误码。
-  - 当前服务器 Key 可完成 `glm-4.7-flash` 与 `glm-4-flash-250414` 的真实模型响应；`glm-5.2` 因当前账号余额或套餐权限不可用，页面会显示可恢复的切换模型提示。不能据此宣称白名单中的 9 个模型都被当前 Key 授权。
   - 线上 `weather_report`、`web_search`、`web_fetch` 与演示 MCP 均返回 200；伪造模型、错误 Origin、私网/元数据地址和公共远程 MCP 分别按预期被拒绝。
-  - 26 个聚焦测试、零警告 lint、全仓类型检查、默认 Web 构建和游客 Web 构建通过；全仓测试仍有 6 个与本轮无关的 Windows/Python 基线失败。
+  - 本轮 38 个聚焦测试、零警告 lint、全仓类型检查、默认 Web 构建、游客 Web 构建和 Guest API 打包通过；完整仓库测试仍有 1 个与本轮无关的 Windows 路径规范化断言失败。
+  - 线上真实 Chromium 控制台为零错误、零警告；Models、Quota 和 Run 请求均返回 200。
   - 线上审计截图与中文验收记录位于 `audits/2026-08-01-guest-first-run-docs-models-online/`。
 - 能力边界：未登录游客可管理多个浏览器本地 Thread，编辑 Prompt、消息、变量、工具和模型参数，选择服务端白名单内的智谱模型，完成安全工具/ReAct 闭环，查看 Run 历史和剩余额度，并通过 JSON 导入导出携带单个 Thread。Thread 与虚拟文件仍不在服务端同步或持久化。
 - 明确非目标：不宣称已经达到生产级多用户 SaaS；不暴露供应商或 Langfuse 密钥；不开放宿主 Bash、宿主文件系统、stdio MCP、Generator、原生菜单、更新器、窗口控制或系统文件选择器。
-- 可见缺口：安全天气工具 API 已在线可用，但本轮真实浏览器未完成“模型发起天气 Tool Call—自动执行—模型整理答案”的完整闭环：`glm-4.7-flash` 遇到上游服务错误，`glm-4-flash-250414` 返回了语义无关的通用问候。失败结果不跨刷新持久化，也没有失败时间线、后台重试或静默故障转移；当前服务器 Key 不具备全部 9 个模型的余额/套餐权限。公共远程 MCP 上线前还需腾讯云网络层出站限制；BYOK、登录激活、租户级 Thread CRUD、多标签 Workspace、分布式额度、审计监控、备份和更强滥用防护仍待开发。
+- 可见缺口：三款可见模型的普通 Run 已全部验证，但本轮没有重新执行“模型发起天气 Tool Call—自动执行—模型整理答案”的完整天气 ReAct 闭环。失败结果不跨刷新持久化，也没有失败时间线、后台重试或静默故障转移。公共远程 MCP 上线前还需腾讯云网络层出站限制；BYOK、登录激活、租户级 Thread CRUD、多标签 Workspace、分布式额度、审计监控、备份和更强滥用防护仍待开发。
 
 ## 游客核心迭代闭环
 
@@ -97,7 +100,7 @@
 - 状态：游客 Alpha 已部署；第一阶段身份与租户基础仍仅在本地验证，尚未接入游客入口
 - 新鲜度：confirmed
 - 最后检查：2026-07-30
-- Evidence:
+- 证据：
   - The user selected the public multi-user SaaS direction on 2026-07-29.
   - The guest entry flow intentionally bypasses GitHub OAuth and Personal Tenant activation.
   - `apps/server/src/runtime-factory.ts` writes `process.env.LLM_SPACE_HOME`, while `packages/core/src/server/paths.ts` and runtime managers resolve one global settings root.
@@ -110,7 +113,7 @@
   - Cloud startup rejects PostgreSQL `SUPERUSER`/`BYPASSRLS` roles and verifies every tenant table has both RLS and forced RLS.
   - Focused tests cover config, OAuth sealing/tampering/expiry, GitHub protocol, session/cookie/Origin behavior, and client tenant-header spoofing.
   - A current disposable PostgreSQL 16 container test applied the migration from an empty database, rejected a superuser runtime, verified idempotent identity provisioning and session restoration, and proved Tenant A cannot select Tenant B's Workspace.
-  - The Guest Alpha adds a same-origin model-only API, opaque guest cookie, HMAC browser/IP daily counters, bounded input/output/concurrency, and a fixed server-side `glm-4.7-flash` provider.
+  - Guest Alpha 提供同源模型 API、不透明游客 Cookie、浏览器/IP 的 HMAC 日额度、输入输出和并发限制，并只开放服务器端已验证的三款智谱模型。
   - Tencent Cloud deployment uses the existing `kandian.site` TLS virtual host, isolated `/llm-space-web/` static/API locations, a hardened systemd service under the `llmspace` account, and a `root:llmspace` mode-640 environment file.
   - Direct production SSE and real-browser model Runs succeeded; the deployed frontend was scanned against the configured secret and was clean.
 - Boundary: the public guest deployment is a single-instance Hosted Alpha with browser-local Threads and a platform-funded quota. The PostgreSQL/RLS identity foundation is not yet connected to this surface.
