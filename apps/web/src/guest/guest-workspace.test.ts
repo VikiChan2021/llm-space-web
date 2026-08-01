@@ -85,12 +85,12 @@ describe("游客 Thread 工作区", () => {
   test("首次访问使用用户选择的新 Thread 默认模型", () => {
     const result = loadGuestWorkspace(new MemoryStorage(), _factory(), {
       provider: "bigmodel",
-      id: "glm-5.2",
+      id: "glm-4.7",
     });
 
     expect(result.workspace.threads[0].thread.model).toMatchObject({
       provider: "bigmodel",
-      id: "glm-5.2",
+      id: "glm-4.7",
     });
   });
 

@@ -2,7 +2,7 @@ import type { Model } from "@earendil-works/pi-ai";
 import type { ModelProviderGroup } from "@llm-space/core";
 
 export const GUEST_PROVIDER_ID = "bigmodel";
-export const DEFAULT_GUEST_MODEL_ID = "glm-4.7-flash";
+export const DEFAULT_GUEST_MODEL_ID = "glm-4.5-air";
 export const BIGMODEL_BASE_URL =
   "https://open.bigmodel.cn/api/paas/v4";
 
@@ -13,36 +13,21 @@ interface GuestModelCatalogEntry {
   reasoning: boolean;
 }
 
-/**
- * Models documented by Zhipu as text/chat models on 2026-08-01. Vision,
- * image, video, embedding and audio models intentionally stay out of the
- * text-only guest Thread runtime.
- */
+/** 游客工作台仅开放已经过服务端真实调用验证的模型。 */
 export const GUEST_MODEL_CATALOG: readonly GuestModelCatalogEntry[] = [
   {
     id: DEFAULT_GUEST_MODEL_ID,
-    name: "GLM-4.7-Flash（推荐）",
-    contextWindow: 200_000,
-    reasoning: true,
-  },
-  {
-    id: "glm-4-flash-250414",
-    name: "GLM-4-Flash-250414（免费）",
+    name: "GLM-4.5-Air（推荐）",
     contextWindow: 128_000,
-    reasoning: false,
-  },
-  { id: "glm-4.5", name: "GLM-4.5", contextWindow: 128_000, reasoning: true },
-  { id: "glm-4.6", name: "GLM-4.6", contextWindow: 200_000, reasoning: true },
-  { id: "glm-4.7", name: "GLM-4.7", contextWindow: 200_000, reasoning: true },
-  { id: "glm-5", name: "GLM-5", contextWindow: 200_000, reasoning: true },
-  {
-    id: "glm-5-turbo",
-    name: "GLM-5-Turbo",
-    contextWindow: 200_000,
     reasoning: true,
   },
-  { id: "glm-5.1", name: "GLM-5.1", contextWindow: 200_000, reasoning: true },
-  { id: "glm-5.2", name: "GLM-5.2", contextWindow: 200_000, reasoning: true },
+  { id: "glm-4.7", name: "GLM-4.7", contextWindow: 200_000, reasoning: true },
+  {
+    id: "glm-4.6v",
+    name: "GLM-4.6V",
+    contextWindow: 128_000,
+    reasoning: true,
+  },
 ];
 
 const GUEST_MODEL_IDS = new Set(GUEST_MODEL_CATALOG.map((model) => model.id));

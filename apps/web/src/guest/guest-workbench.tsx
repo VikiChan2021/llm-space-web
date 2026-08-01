@@ -4,7 +4,16 @@ import { useDefaultModel } from "@llm-space/ui/components/model-provider";
 import { ThreadPlayground } from "@llm-space/ui/components/thread-playground";
 import { Button } from "@llm-space/ui/ui/button";
 import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@llm-space/ui/ui/popover";
+import {
   CircleHelpIcon,
+  InfoIcon,
   LibraryIcon,
   RotateCcwIcon,
   SettingsIcon,
@@ -312,35 +321,48 @@ export function GuestWorkbench() {
 
   return (
     <div className="flex h-dvh min-w-0 flex-col bg-background text-foreground">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-base font-semibold">LLM Space Web 工作台</h1>
-            <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-xs text-violet-700 dark:text-violet-200">
-              游客模式
-            </span>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Thread 与虚拟文件保存在当前浏览器。安全 Built-in、Custom
-            Tool、MCP 和 ReAct 可体验；Bash 与 Generator 等待隔离沙箱。
-          </p>
+      <header className="flex min-w-0 flex-nowrap items-center gap-3 border-b px-4 py-3">
+        <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
+          <h1 className="text-base font-semibold">LLM Space Web 工作台</h1>
+          <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-xs text-violet-700 dark:text-violet-200">
+            游客模式
+          </span>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="查看游客工作台说明"
+              >
+                <InfoIcon className="size-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-80">
+              <PopoverHeader>
+                <PopoverTitle>游客工作台说明</PopoverTitle>
+                <PopoverDescription>
+                  Thread 与虚拟文件保存在当前浏览器。安全 Built-in、Custom
+                  Tool、MCP 和 ReAct 可体验；Bash 与 Generator 等待隔离沙箱。
+                </PopoverDescription>
+                <PopoverDescription>
+                  免费额度用完后可配置自己的 API Key（即将开放）。
+                </PopoverDescription>
+              </PopoverHeader>
+            </PopoverContent>
+          </Popover>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
-          <div className="text-right text-xs">
-            <div className="font-medium">
-              {quota
-                ? `今日免费 Run：${quota.browserRemaining}/${quota.browserDailyLimit}`
-                : quotaError
-                  ? "额度状态暂不可用"
-                  : "正在读取额度…"}
-            </div>
-            <div className="text-muted-foreground">
-              超额后可配置自己的 API Key（即将开放）
-            </div>
+        <div className="ml-auto flex min-w-0 flex-nowrap items-center justify-end gap-2">
+          <div className="shrink-0 whitespace-nowrap text-right text-xs font-medium">
+            {quota
+              ? `今日免费 Run：${quota.browserRemaining}/${quota.browserDailyLimit}`
+              : quotaError
+                ? "额度状态暂不可用"
+                : "正在读取额度…"}
           </div>
           <Button
             variant="outline"
             size="sm"
+            aria-label="打开使用说明"
             onClick={() =>
               window.open(
                 `${import.meta.env.BASE_URL}#/docs/quick-start`,
@@ -350,35 +372,39 @@ export function GuestWorkbench() {
             }
           >
             <CircleHelpIcon className="size-3.5" />
-            使用说明
+            <span className="hidden xl:inline">使用说明</span>
           </Button>
           <Button
             variant="outline"
             size="sm"
+            aria-label="打开工作台设置"
             onClick={() => {
               setSettingsTab("appearance");
               setSettingsOpen(true);
             }}
           >
             <SettingsIcon className="size-3.5" />
-            设置
+            <span className="hidden xl:inline">设置</span>
           </Button>
           <Button
             variant="outline"
             size="sm"
+            aria-label={`打开 Thread 列表，共 ${workspace.threads.length} 个`}
             onClick={() => setLibraryOpen(true)}
           >
             <LibraryIcon className="size-3.5" />
-            Threads {workspace.threads.length}
+            <span className="hidden xl:inline">Threads</span>
+            {workspace.threads.length}
           </Button>
           <Button
             variant="outline"
             size="sm"
+            aria-label="重置当前示例"
             disabled={running}
             onClick={() => setResetConfirmOpen(true)}
           >
             <RotateCcwIcon className="size-3.5" />
-            重置示例
+            <span className="hidden xl:inline">重置示例</span>
           </Button>
         </div>
       </header>

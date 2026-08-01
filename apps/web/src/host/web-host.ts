@@ -10,6 +10,7 @@ import {
   GUEST_FALLBACK_PROVIDER,
   GUEST_MODEL_ID,
   GUEST_PROVIDER_ID,
+  isGuestModelConfigAvailable,
   readGuestModels,
 } from "@/guest/guest-api";
 import {
@@ -118,10 +119,14 @@ export const webModelClient: ModelClient = {
     if (stored) {
       const separator = stored.indexOf(":");
       if (separator > 0) {
-        return Promise.resolve({
+        const storedModel = {
           provider: stored.slice(0, separator),
           id: stored.slice(separator + 1),
-        });
+        };
+        if (isGuestModelConfigAvailable(storedModel)) {
+          return Promise.resolve(storedModel);
+        }
+        removeLocalStorage(LOCAL_STORAGE_KEYS.guestDefaultModel);
       }
     }
     return Promise.resolve({
@@ -138,7 +143,8 @@ export const webModelClient: ModelClient = {
           : null
       );
     }
-    if (model.provider !== GUEST_PROVIDER_ID) {
+    if (!isGuestModelConfigAvailable(model)) {
+      removeLocalStorage(LOCAL_STORAGE_KEYS.guestDefaultModel);
       return Promise.resolve({
         provider: GUEST_PROVIDER_ID,
         id: GUEST_MODEL_ID,

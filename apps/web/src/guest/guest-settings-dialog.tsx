@@ -79,8 +79,8 @@ export function GuestSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="flex h-[min(40rem,85dvh)] max-w-2xl flex-col overflow-hidden sm:max-w-2xl">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Web 工作台设置</DialogTitle>
           <DialogDescription>
             这些设置保存在当前浏览器，只展示 Web 游客工作台可用的配置。
@@ -90,14 +90,18 @@ export function GuestSettingsDialog({
         <Tabs
           value={tab}
           onValueChange={(value) => onTabChange(value as GuestSettingsTab)}
+          className="min-h-0 flex-1"
         >
-          <TabsList className="w-full justify-start">
+          <TabsList className="w-full shrink-0 justify-start">
             <TabsTrigger value="appearance">外观</TabsTrigger>
             <TabsTrigger value="models">模型</TabsTrigger>
             <TabsTrigger value="mcp">MCP</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="appearance" className="space-y-5 pt-2">
+          <TabsContent
+            value="appearance"
+            className="min-h-0 space-y-5 overflow-y-auto pt-2 pr-1"
+          >
             <SettingSection title="主题" description="可跟随操作系统，也可固定浅色或深色。">
               <ChoiceButtons
                 value={theme}
@@ -151,7 +155,10 @@ export function GuestSettingsDialog({
             </SettingSection>
           </TabsContent>
 
-          <TabsContent value="models" className="space-y-4 pt-2">
+          <TabsContent
+            value="models"
+            className="min-h-0 space-y-4 overflow-y-auto pt-2 pr-1"
+          >
             <SettingSection
               title="新 Thread 默认模型"
               description="当前 Thread 仍可在左侧 Models 中单独切换。每个模型回合都会消耗一次游客 Run。"
@@ -177,7 +184,10 @@ export function GuestSettingsDialog({
             </div>
           </TabsContent>
 
-          <TabsContent value="mcp" className="space-y-4 pt-2">
+          <TabsContent
+            value="mcp"
+            className="min-h-0 space-y-4 overflow-y-auto pt-2 pr-1"
+          >
             <div className="rounded-md border p-4">
               <div className="flex items-start gap-3">
                 <CableIcon className="mt-0.5 size-5 text-muted-foreground" />

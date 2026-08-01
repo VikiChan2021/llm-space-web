@@ -6,7 +6,7 @@ import type {
 } from "@llm-space/core";
 
 export const GUEST_PROVIDER_ID = "bigmodel";
-export const GUEST_MODEL_ID = "glm-4.7-flash";
+export const GUEST_MODEL_ID = "glm-4.5-air";
 
 export interface GuestQuota {
   model: string;
@@ -57,40 +57,61 @@ export const GUEST_FALLBACK_PROVIDER: ModelProviderGroup = {
   builtin: true,
   apiKeyDetected: true,
   models: [
-    {
-      id: GUEST_MODEL_ID,
-      name: "GLM-4.7-Flash（游客体验）",
-      api: "openai-completions",
-      provider: GUEST_PROVIDER_ID,
-      baseUrl: "https://open.bigmodel.cn/api/paas/v4",
-      reasoning: true,
-      thinkingLevelMap: {
-        off: "disabled",
-        minimal: "enabled",
-        low: "enabled",
-        medium: "enabled",
-        high: "enabled",
-      },
-      input: ["text"],
-      cost: {
-        input: 0,
-        output: 0,
-        cacheRead: 0,
-        cacheWrite: 0,
-      },
-      contextWindow: 200_000,
-      maxTokens: 2_048,
-      compat: {
-        supportsStore: false,
-        supportsDeveloperRole: false,
-        supportsReasoningEffort: false,
-        supportsUsageInStreaming: true,
-        maxTokensField: "max_tokens",
-        thinkingFormat: "zai",
-      },
-    },
+    _createFallbackModel(GUEST_MODEL_ID, "GLM-4.5-Air（推荐）", 128_000),
+    _createFallbackModel("glm-4.7", "GLM-4.7", 200_000),
+    _createFallbackModel("glm-4.6v", "GLM-4.6V", 128_000),
   ],
 };
+
+const GUEST_FALLBACK_MODEL_IDS = new Set(
+  GUEST_FALLBACK_PROVIDER.models.map((model) => model.id)
+);
+
+export function isGuestModelConfigAvailable(model: ModelConfig): boolean {
+  return (
+    model.provider === GUEST_PROVIDER_ID &&
+    GUEST_FALLBACK_MODEL_IDS.has(model.id)
+  );
+}
+
+function _createFallbackModel(
+  id: string,
+  name: string,
+  contextWindow: number
+): ModelProviderGroup["models"][number] {
+  return {
+    id,
+    name,
+    api: "openai-completions",
+    provider: GUEST_PROVIDER_ID,
+    baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+    reasoning: true,
+    thinkingLevelMap: {
+      off: "disabled",
+      minimal: "enabled",
+      low: "enabled",
+      medium: "enabled",
+      high: "enabled",
+    },
+    input: ["text"],
+    cost: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+    },
+    contextWindow,
+    maxTokens: 2_048,
+    compat: {
+      supportsStore: false,
+      supportsDeveloperRole: false,
+      supportsReasoningEffort: false,
+      supportsUsageInStreaming: true,
+      maxTokensField: "max_tokens",
+      thinkingFormat: "zai",
+    },
+  };
+}
 
 export interface GuestModelsResponse {
   defaultModel: ModelConfig;

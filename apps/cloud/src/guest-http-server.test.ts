@@ -14,7 +14,7 @@ const CONFIG: GuestCloudConfig = {
   port: 8791,
   publicUrl: new URL("http://127.0.0.1:5175/llm-space-web/"),
   apiKey: "never-return-this-key",
-  modelId: "glm-4.7-flash",
+  modelId: "glm-4.5-air",
   quotaDatabasePath: ":memory:",
   hmacSecret: "h".repeat(32),
   browserDailyLimit: 2,
@@ -49,7 +49,7 @@ describe("guest HTTP API", () => {
       "llm_space_guest="
     );
     expect(body).toMatchObject({
-      model: "glm-4.7-flash",
+      model: "glm-4.5-air",
       browserDailyLimit: 2,
       browserRemaining: 2,
       byokAvailable: false,
@@ -72,9 +72,11 @@ describe("guest HTTP API", () => {
     const body = await response.text();
 
     expect(response.status).toBe(200);
-    expect(body).toContain('"id":"glm-4.7-flash"');
-    expect(body).toContain('"id":"glm-5.2"');
-    expect(body.match(/"api":"openai-completions"/g)).toHaveLength(9);
+    expect(body).toContain('"id":"glm-4.5-air"');
+    expect(body).toContain('"id":"glm-4.7"');
+    expect(body).toContain('"id":"glm-4.6v"');
+    expect(body).not.toContain('"id":"glm-4.7-flash"');
+    expect(body.match(/"api":"openai-completions"/g)).toHaveLength(3);
     expect(body).not.toContain(CONFIG.apiKey);
     quotaStore.close();
   });
@@ -90,11 +92,11 @@ describe("guest HTTP API", () => {
     const handler = createGuestFetchHandler({ config: CONFIG, quotaStore, execute });
 
     const accepted = await handler(
-      _runRequest(GUEST_ID, CONFIG.publicUrl.origin, "hello", [], "glm-5.2")
+      _runRequest(GUEST_ID, CONFIG.publicUrl.origin, "hello", [], "glm-4.6v")
     );
     await accepted.text();
     expect(accepted.status).toBe(200);
-    expect(selectedModel).toBe("glm-5.2");
+    expect(selectedModel).toBe("glm-4.6v");
 
     const rejected = await handler(
       _runRequest(GUEST_ID, CONFIG.publicUrl.origin, "hello", [], "forged-model")
@@ -297,7 +299,7 @@ describe("guest HTTP API", () => {
           "X-Real-IP": "1.2.3.4",
         },
         body: JSON.stringify({
-          model: { provider: "bigmodel", id: "glm-4.7-flash" },
+          model: { provider: "bigmodel", id: "glm-4.5-air" },
           context: {
             systemPrompt: "",
             tools: [
@@ -380,7 +382,7 @@ describe("guest HTTP API", () => {
           content: [],
           api: "openai-completions",
           provider: "bigmodel",
-          model: "glm-5.2",
+          model: "glm-4.7",
           usage: {
             input: 0,
             output: 0,
@@ -410,7 +412,7 @@ describe("guest HTTP API", () => {
     });
 
     const response = await handler(
-      _runRequest(GUEST_ID, CONFIG.publicUrl.origin, "hello", [], "glm-5.2")
+      _runRequest(GUEST_ID, CONFIG.publicUrl.origin, "hello", [], "glm-4.7")
     );
     const body = await response.text();
 
@@ -436,7 +438,7 @@ function _runRequest(
   origin = CONFIG.publicUrl.origin,
   message = "hello",
   tools: unknown[] = [],
-  modelId = "glm-4.7-flash"
+  modelId = "glm-4.5-air"
 ): Request {
   return new Request("http://internal/api/guest/runs", {
     method: "POST",

@@ -11,7 +11,7 @@ describe("游客 Run 恢复文案", () => {
         status: 429,
         requestId: "safe-id",
         quota: {
-          model: "glm-4.7-flash",
+          model: "glm-4.5-air",
           browserDailyLimit: 20,
           browserRemaining: 0,
           ipRemaining: 0,

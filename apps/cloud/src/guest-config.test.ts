@@ -17,9 +17,25 @@ describe("guest cloud config", () => {
     expect(config.ipDailyLimit).toBe(100);
     expect(config.maxConcurrentPerGuest).toBe(1);
     expect(config.maxOutputTokens).toBe(2048);
+    expect(config.modelId).toBe("glm-4.5-air");
     expect(config.remoteMcpEnabled).toBe(false);
     expect(config.secureCookies).toBe(false);
     expect(config.apiKey).toBe("test-only-key");
+  });
+
+  test("旧版或无效模型环境变量会迁移到新默认模型", () => {
+    expect(
+      loadGuestCloudConfig({
+        ...BASE_ENV,
+        GUEST_MODEL_ID: "glm-4.7-flash",
+      }).modelId
+    ).toBe("glm-4.5-air");
+  });
+
+  test("允许在三款已验证模型中配置服务端默认值", () => {
+    expect(
+      loadGuestCloudConfig({ ...BASE_ENV, GUEST_MODEL_ID: "glm-4.7" }).modelId
+    ).toBe("glm-4.7");
   });
 
   test("only enables public remote MCP through an explicit production flag", () => {

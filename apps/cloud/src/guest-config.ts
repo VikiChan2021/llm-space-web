@@ -1,3 +1,8 @@
+import {
+  DEFAULT_GUEST_MODEL_ID,
+  isGuestModelAllowed,
+} from "./guest-model-catalog";
+
 export interface GuestCloudConfig {
   host: string;
   port: number;
@@ -31,6 +36,11 @@ export function loadGuestCloudConfig(
   if (Buffer.byteLength(hmacSecret, "utf8") < 32) {
     throw new Error("GUEST_HMAC_SECRET must be at least 32 bytes.");
   }
+  const requestedModelId = environment.GUEST_MODEL_ID?.trim();
+  const modelId =
+    requestedModelId && isGuestModelAllowed(requestedModelId)
+      ? requestedModelId
+      : DEFAULT_GUEST_MODEL_ID;
 
   return {
     host: environment.GUEST_HOST?.trim() || "127.0.0.1",
@@ -43,7 +53,7 @@ export function loadGuestCloudConfig(
     ),
     publicUrl,
     apiKey: _required(environment.ZHIPU_API_KEY, "ZHIPU_API_KEY"),
-    modelId: environment.GUEST_MODEL_ID?.trim() || "glm-4.7-flash",
+    modelId,
     quotaDatabasePath:
       environment.GUEST_QUOTA_DATABASE_PATH?.trim() ||
       "./data/guest-quota.sqlite",
