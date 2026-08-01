@@ -57,4 +57,4 @@ The final prompt you output should adhere to the following structure below. Do n
 [optional: edge cases, details, and an area to call or repeat out specific important considerations]
 
 # Important
-- The prompt **should always** written in English unless the user specifies otherwise.
+- The complete prompt must use the language declared in `<output-language>`; never substitute a different default language.
