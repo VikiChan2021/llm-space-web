@@ -15,7 +15,22 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "src"),
     },
-    dedupe: ["react", "react-dom"],
+    // The UI package lazy-loads CodeMirror while the Web app imports editor
+    // extensions from the same workspace source. Vite 8 can otherwise place a
+    // second CodeMirror core instance in the lazy chunk, and extensions created
+    // by one instance are rejected by the other at runtime.
+    dedupe: [
+      "react",
+      "react-dom",
+      "@codemirror/autocomplete",
+      "@codemirror/commands",
+      "@codemirror/language",
+      "@codemirror/state",
+      "@codemirror/view",
+      "@lezer/common",
+      "@lezer/highlight",
+      "@lezer/lr",
+    ],
   },
   build: {
     outDir: "dist",
