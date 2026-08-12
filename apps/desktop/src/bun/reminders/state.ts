@@ -1,7 +1,12 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 
-import { getSettingsDir } from "@llm-space/core/server";
+import {
+  atomicWriteJsonFile,
+  getSettingsDir,
+  readJsonFile,
+} from "@llm-space/core/server";
+import { z } from "zod";
 
 import type { FeatureReminder } from "../../shared/feature-reminders";
 import { FEATURE_REMINDERS } from "../../shared/feature-reminders";
@@ -20,6 +25,11 @@ interface GithubStarReminder {
   lastShownDate?: number;
   // How many times the reminder has been shown; capped at MAX_SHOWN_COUNT.
   shownCount?: number;
+  // Id and decision for the latest real app launch. Renderer effects may ask
+  // more than once (for example under React Strict Mode); repeated requests
+  // for the same launch must return the same answer without bumping counters.
+  lastResolvedLaunchId?: string;
+  lastResolvedShow?: boolean;
   // Retired for good — set when the user clicks through to GitHub, or once the
   // nag cap is reached. Never shown again after this.
   dismissedForever?: boolean;
@@ -32,33 +42,61 @@ interface RemindersState {
   featureRemindersSeen?: string[];
 }
 
-const STATE_PATH = join(getSettingsDir(), "reminders.json");
+const RemindersStateSchema: z.ZodType<RemindersState> = z.object({
+  githubStar: z
+    .object({
+      openCount: z.number().optional(),
+      lastShownDate: z.number().optional(),
+      shownCount: z.number().optional(),
+      lastResolvedLaunchId: z.string().optional(),
+      lastResolvedShow: z.boolean().optional(),
+      dismissedForever: z.boolean().optional(),
+    })
+    .optional(),
+  featureRemindersSeen: z.array(z.string()).optional(),
+});
+let stateQueue: Promise<unknown> = Promise.resolve();
 
 /** Show the star nudge at most once every 2 days. */
 const REMINDER_INTERVAL_MS = 2 * 24 * 60 * 60 * 1000;
 /** Give up (retire the reminder) after this many shows, click or no click. */
 const MAX_SHOWN_COUNT = 3;
+/** Stable for this Bun process; a real app restart receives a new id. */
+const REMINDER_LAUNCH_ID = randomUUID();
 
 async function _load(): Promise<RemindersState> {
-  try {
-    return JSON.parse(await readFile(STATE_PATH, "utf8")) as RemindersState;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
-    throw error;
-  }
+  return (
+    await readJsonFile(join(getSettingsDir(), "reminders.json"), {
+      schema: RemindersStateSchema,
+      recovery: "best-effort",
+      fallback: () => ({}),
+      seedMissing: false,
+    })
+  ).value;
 }
 
-/** Merge a patch over the top-level state and persist it. */
-async function _patchState(patch: Partial<RemindersState>): Promise<void> {
-  const state = await _load();
-  const next: RemindersState = { ...state, ...patch };
-  await mkdir(getSettingsDir(), { recursive: true });
-  await writeFile(STATE_PATH, JSON.stringify(next, null, 2));
+function _update<T>(
+  mutate: (state: RemindersState) => { state: RemindersState; result: T }
+): Promise<T> {
+  const operation = stateQueue
+    .catch(() => undefined)
+    .then(async () => {
+      const update = mutate(await _load());
+      await atomicWriteJsonFile(
+        join(getSettingsDir(), "reminders.json"),
+        update.state
+      );
+      return update.result;
+    });
+  stateQueue = operation;
+  return operation;
 }
 
 async function _saveGithubStar(patch: GithubStarReminder): Promise<void> {
-  const state = await _load();
-  await _patchState({ githubStar: { ...state.githubStar, ...patch } });
+  await _update((state) => ({
+    state: { ...state, githubStar: { ...state.githubStar, ...patch } },
+    result: undefined,
+  }));
 }
 
 /** Whether the reminder should appear on this open (pure; no side effects). */
@@ -85,24 +123,40 @@ function _shouldShow(
  * - Later appearances are throttled to once every 2 days since the last show.
  * - Retire permanently once the user clicks through, or after 3 shows.
  */
-export async function resolveGithubStarReminder(): Promise<{ show: boolean }> {
-  const star = (await _load()).githubStar ?? {};
-  const now = Date.now();
-  const openCount = (star.openCount ?? 0) + 1;
-  const show = _shouldShow(star, openCount, now);
+export async function resolveGithubStarReminder(
+  launchId: string = REMINDER_LAUNCH_ID
+): Promise<{ show: boolean }> {
+  return _update((state) => {
+    const star = state.githubStar ?? {};
+    if (star.lastResolvedLaunchId === launchId) {
+      return {
+        state,
+        result: { show: star.lastResolvedShow ?? false },
+      };
+    }
 
-  await _saveGithubStar(
-    show
+    const now = Date.now();
+    const openCount = (star.openCount ?? 0) + 1;
+    const show = _shouldShow(star, openCount, now);
+    const patch = show
       ? {
           openCount,
           lastShownDate: now,
           shownCount: (star.shownCount ?? 0) + 1,
+          lastResolvedLaunchId: launchId,
+          lastResolvedShow: show,
           dismissedForever: (star.shownCount ?? 0) + 1 >= MAX_SHOWN_COUNT,
         }
-      : { openCount }
-  );
-
-  return { show };
+      : {
+          openCount,
+          lastResolvedLaunchId: launchId,
+          lastResolvedShow: show,
+        };
+    return {
+      state: { ...state, githubStar: { ...star, ...patch } },
+      result: { show },
+    };
+  });
 }
 
 /** Retire the star reminder for good (the user clicked through to GitHub). */
@@ -124,8 +178,12 @@ export async function getNextFeatureReminder(): Promise<FeatureReminder | null> 
 
 /** Record a feature reminder as seen so it never appears again. */
 export async function markFeatureReminderSeen(id: string): Promise<void> {
-  const seen = new Set((await _load()).featureRemindersSeen ?? []);
-  if (seen.has(id)) return;
-  seen.add(id);
-  await _patchState({ featureRemindersSeen: [...seen] });
+  await _update((state) => {
+    const seen = new Set(state.featureRemindersSeen ?? []);
+    seen.add(id);
+    return {
+      state: { ...state, featureRemindersSeen: [...seen] },
+      result: undefined,
+    };
+  });
 }

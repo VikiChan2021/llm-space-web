@@ -2,13 +2,13 @@
 import {
   AssistantMessage,
   getMessageText,
+  getToolDisplayName,
+  getToolKey,
   isDangerousBashCommand,
   isExecutableTool,
-  isRunnableConversation,
   Message,
   normalizeThread,
   reduceMessages,
-  RUN_LAST_MESSAGE_ERROR,
   streamThread,
   Tool as ToolSchema,
   uuid,
@@ -16,6 +16,7 @@ import {
   type AgentEvent,
   type BuiltinTool,
   type McpTool,
+  type PluginTool,
   type MessageContent,
   type ModelConfig,
   type ModelConfigParams,
@@ -23,11 +24,14 @@ import {
   type SkillInfo,
   type Thread,
   type ThreadContext,
+  type ThreadRunReference,
+  type ThreadSnapshot,
   type ThreadVariable,
   type ThreadVariableVariants,
   type ThreadVariables,
   type Tool,
   type ToolCall,
+  type ToolCallOutput,
   type UserMessage,
 } from "@llm-space/core";
 import {
@@ -36,6 +40,8 @@ import {
   createToolResultPromptVariablePlaceKey,
   DEFAULT_VARIABLE_VARIANT_NAME,
   ensureThreadVariableState,
+  getToolCallOutputText,
+  getToolResultText,
   normalizeEvaluationRubrics,
   normalizeEvaluations,
   normalizePromptVariableState,
@@ -45,6 +51,7 @@ import {
   removePromptVariableSnapshotNames,
   removePromptVariableSnapshotPlaces,
   renderThreadPromptVariables,
+  resolveThreadPromptVariableValues,
   replaceThreadPromptVariableReferences,
   SYSTEM_PROMPT_PLACE_KEY,
   upsertEvaluation,
@@ -56,6 +63,8 @@ import {
   type EvaluationRubricRecord,
   type EvaluationRubricSnapshot,
   type EvaluationRunScores,
+  isRunSnapshot,
+  type RunHistoryEntry,
   type RunSnapshot,
 } from "@llm-space/core/thread";
 import { createContext, useContext } from "react";
@@ -69,7 +78,8 @@ import { createFrameThrottle } from "@llm-space/ui/lib/frame-throttle";
 
 import { PREVIEW_THROTTLE_MS } from "../streaming-preview";
 
-import { prepareMessagesForModel } from "./model-input";
+import { getRunValidationIssue } from "./run-validation";
+import type { RunValidationIssue } from "./run-validation-issue";
 import {
   createInitialHistory,
   recordSnapshot,
@@ -95,7 +105,7 @@ const _noFileExists = (): Promise<boolean> => Promise.resolve(false);
  */
 const MAX_AUTO_TOOL_TURNS = 50;
 
-export type ThreadStoreStatus = "idle" | "running";
+export type ThreadStoreStatus = "idle" | "preparing" | "running";
 export type ThreadRunResult =
   | {
       outcome: "failed";
@@ -108,7 +118,6 @@ export type ThreadRunResult =
       partialOutput: boolean;
       retryFromMessageId?: string;
     };
-
 export interface ThreadState {
   thread: Thread;
   runtimeId?: string;
@@ -116,9 +125,12 @@ export interface ThreadState {
   status: ThreadStoreStatus;
   abortController: AbortController | null;
   activeRunId: string | null;
+  /** Auto-executing tool calls for in-flight UI feedback; never persisted. */
+  executingToolCallIds: string[];
   /** Latest recoverable non-success result; page-session only, never serialized. */
   lastRunResult: ThreadRunResult | null;
   collapsedMessageIds: string[];
+  runValidationIssue: RunValidationIssue | null;
   /**
    * Id of the message whose editor should grab focus on mount — set only by
    * append/insert. Every other editor mounts with autoFocus off so opening a
@@ -128,7 +140,7 @@ export interface ThreadState {
   autoFocusMessageId: string | null;
   changeHistory: ChangeHistory;
   /** Thread snapshot + completion time after each run; most recent last. */
-  runHistory: RunSnapshot[];
+  runHistory: RunHistoryEntry[];
   /** Manual verdicts comparing durable run snapshots. */
   evaluations: EvaluationRecord[];
   /** Reusable manual evaluation rubrics owned by this thread. */
@@ -136,10 +148,12 @@ export interface ThreadState {
 
   run(fromMessageId?: string): Promise<void>;
   dismissRunResult(): void;
+  resolveRunValidationIssue(): void;
   undo(): void;
   redo(): void;
   restoreThread(thread: Thread): void;
-  removeRun(run: RunSnapshot): void;
+  loadRunSnapshot(run: RunHistoryEntry): Promise<RunSnapshot>;
+  removeRun(run: RunHistoryEntry): void;
   saveEvaluation(input: {
     leftRunId: string;
     rightRunId: string;
@@ -172,10 +186,18 @@ export interface ThreadState {
   updateMessageTextContent(id: string, text: string): void;
   addMessageImageContent(id: string, mimeType: string, data: string): void;
   removeMessageImageContent(id: string, contentIndex: number): void;
+  /** Replace editable tool-result text while retaining structured images. */
   updateToolCallOutputTextContent(
     messageId: string,
     toolCallId: string,
     text: string,
+    isError?: boolean
+  ): void;
+  /** Replace the complete model-facing output produced by a tool execution. */
+  updateToolCallOutputContent(
+    messageId: string,
+    toolCallId: string,
+    content: ToolCallOutput["content"],
     isError?: boolean
   ): void;
   addTool(tool: Tool): boolean;
@@ -203,8 +225,8 @@ export function createThreadStore(
     resolveModel?: (
       saved: ModelConfig | null | undefined
     ) => ModelConfig | null;
-    /** Whether the resolved model accepts image input. */
-    supportsImageInput?: (model: ModelConfig) => boolean;
+    /** Resolve the current tab's ephemeral connection choice for a provider. */
+    getProfileId?: (providerId: string) => string | undefined;
     /**
      * Whether a run should automatically execute a model turn's pending tool
      * calls (instead of waiting for the user to click "Call tools"). Read fresh
@@ -219,16 +241,28 @@ export function createThreadStore(
      */
     getReactLoop?: () => boolean;
     /**
-     * Execute an MCP or built-in tool call, returning its textual result. Only
-     * used by the auto-run-tools path; manual tool runs go through the UI's own
-     * runner. Injected so the store stays decoupled from the RPC layer.
+     * Execute an MCP or built-in tool call, returning structured model-facing
+     * content. Only used by the auto-run-tools path; manual tool runs go through
+     * the UI's own runner. Injected so the store stays decoupled from the RPC
+     * layer.
      */
     executeTool?: (
-      tool: McpTool | BuiltinTool,
-      args: Record<string, unknown>
-    ) => Promise<{ contentText: string; isError: boolean }>;
+      tool: McpTool | BuiltinTool | PluginTool,
+      args: Record<string, unknown>,
+      context: {
+        thread: Thread;
+        variables: Awaited<
+          ReturnType<typeof resolveThreadPromptVariableValues>
+        >;
+      }
+    ) => Promise<{
+      content: ToolCallOutput["content"];
+      isError: boolean;
+    }>;
     /** Host policy for whether a tool may run without an explicit user click. */
-    canAutoExecuteTool?: (tool: McpTool | BuiltinTool) => boolean;
+    canAutoExecuteTool?: (
+      tool: McpTool | BuiltinTool | PluginTool
+    ) => boolean;
     /** Host-specific ReAct model-turn limit; defaults to 50. */
     maxAutoToolTurns?: number;
     /** Host-specific automatic tool-call limit; defaults to unbounded. */
@@ -248,10 +282,11 @@ export function createThreadStore(
     fileExists?: (path: string) => Promise<boolean>;
     /** Monotonic clock used for client-observed model timing. */
     now?: () => number;
-    /**
-     * Capture failed/aborted results for a host-rendered recovery surface.
-     * Disabled by default so existing desktop toast behavior stays unchanged.
-     */
+    /** Archive a completed run outside the main thread document. */
+    archiveRunSnapshot?: (run: RunSnapshot) => Promise<ThreadRunReference>;
+    /** Load a complete run snapshot from an opaque persisted reference. */
+    readRunSnapshot?: (snapshotRef: string) => Promise<ThreadSnapshot>;
+    /** Capture failed/aborted results for a host-rendered recovery surface. */
     captureRunResults?: boolean;
   } = {}
 ): ThreadStore {
@@ -259,7 +294,8 @@ export function createThreadStore(
     normalizeThread(initialThread)
   );
   const initialRunHistory = normalizeRunHistory(
-    normalizedInputThread.runHistory
+    normalizedInputThread.runHistory,
+    normalizedInputThread.runHistoryIndex
   );
   const initialEvaluations = normalizeEvaluations(
     normalizedInputThread.evaluations,
@@ -279,6 +315,18 @@ export function createThreadStore(
       // --- internal helpers ---------------------------------------------------
 
       let stopActiveRun: (() => void) | null = null;
+      let autoToolCallsUsed = 0;
+      const loadedRuns = new Map<string, RunSnapshot>();
+
+      const cacheLoadedRun = (run: RunSnapshot) => {
+        loadedRuns.delete(run.id);
+        loadedRuns.set(run.id, run);
+        const oldest = loadedRuns.keys().next().value;
+        if (loadedRuns.size > 2 && typeof oldest === "string") {
+          loadedRuns.delete(oldest);
+        }
+        return run;
+      };
 
       const patchThread = (partial: Partial<Thread>) => {
         const next = { ...get().thread, ...partial };
@@ -368,8 +416,23 @@ export function createThreadStore(
         });
       };
 
+      const reconcileRunValidationIssue = (messages: Message[]) => {
+        const current = get().runValidationIssue;
+        if (!current) {
+          return;
+        }
+        const next = getRunValidationIssue(messages);
+        if (
+          next?.messageId !== current.messageId ||
+          next?.code !== current.code
+        ) {
+          set({ runValidationIssue: null });
+        }
+      };
+
       const setMessages = (messages: Message[]) => {
         patchContext({ messages });
+        reconcileRunValidationIssue(messages);
       };
 
       /** Replace the messages array; skips the update if nothing changed. */
@@ -404,6 +467,56 @@ export function createThreadStore(
         });
       };
 
+      /**
+       * Replace one tool result while preserving copy-on-write message updates
+       * and invalidating only the rendered text snapshot affected by the edit.
+       */
+      const setToolCallOutput = (
+        messageId: string,
+        toolCallId: string,
+        createOutput: (toolCall: ToolCall) => ToolCallOutput | undefined
+      ) => {
+        const context = get().thread.context ?? {};
+        const messages = context.messages ?? [];
+        let changed = false;
+        let textChanged = false;
+        const nextMessages = messages.map((message) => {
+          if (message.id !== messageId || message.role !== "assistant") {
+            return message;
+          }
+          let messageChanged = false;
+          const toolCalls = message.toolCalls?.map((toolCall) => {
+            if (toolCall.id !== toolCallId) {
+              return toolCall;
+            }
+            const output = createOutput(toolCall);
+            if (!output) {
+              return toolCall;
+            }
+            changed = true;
+            messageChanged = true;
+            textChanged ||=
+              getToolCallOutputText(toolCall) !==
+              getToolResultText(output.content);
+            return { ...toolCall, output };
+          });
+          return messageChanged ? { ...message, toolCalls } : message;
+        });
+        if (!changed) {
+          return;
+        }
+        patchContext({
+          messages: nextMessages,
+          ...(textChanged
+            ? {
+                snapshot: removePromptVariableSnapshotPlaces(context.snapshot, [
+                  createToolResultPromptVariablePlaceKey(messageId, toolCallId),
+                ]),
+              }
+            : {}),
+        });
+      };
+
       const createUserMessage = (): UserMessage => ({
         id: uuid(),
         role: "user",
@@ -425,14 +538,15 @@ export function createThreadStore(
 
       /** Keep image contents before any other content, preserving order. */
       const partitionImagesFirst = (content: UserMessage["content"]) => [
-        ...content.filter((c) => c.type === "image_data"),
-        ...content.filter((c) => c.type !== "image_data"),
+        ...content.filter((c) => c.type === "image"),
+        ...content.filter((c) => c.type !== "image"),
       ];
 
       const hasContent = (message: AssistantMessage): boolean =>
         Boolean(message.thinking) ||
         message.content.length > 0 ||
-        (message.toolCalls?.length ?? 0) > 0;
+        (message.toolCalls?.length ?? 0) > 0 ||
+        (message.providerHostedToolActivities?.length ?? 0) > 0;
 
       /**
        * Auto-call the pending tool calls on the last message so a run can loop
@@ -446,7 +560,7 @@ export function createThreadStore(
       const executePendingToolCalls = async (
         messages: Message[],
         signal: AbortSignal,
-        autoToolCallsUsed: number
+        runId: string
       ): Promise<Message[] | null> => {
         const execute = options.executeTool;
         if (!execute) {
@@ -461,27 +575,20 @@ export function createThreadStore(
           return null;
         }
         const toolsByName = new Map(
-          (get().thread.context?.tools ?? []).map((tool) => [tool.name, tool])
+          (get().thread.context?.tools ?? [])
+            .filter(isExecutableTool)
+            .map((tool) => [tool.name, tool])
         );
-        // Every tool call must map to an executable (MCP/built-in) tool; a
+        // Every tool call must map to an executable tool; a
         // single `function` stub means the turn needs a hand-written result, so
         // we bail and let the user fill it in.
         const executable: {
           toolCall: ToolCall;
-          tool: McpTool | BuiltinTool;
+          tool: McpTool | BuiltinTool | PluginTool;
         }[] = [];
         for (const toolCall of toolCalls) {
           const tool = toolsByName.get(toolCall.input.name);
           if (!tool || !isExecutableTool(tool)) {
-            return null;
-          }
-          if (
-            options.canAutoExecuteTool &&
-            !options.canAutoExecuteTool(tool)
-          ) {
-            toast.info("Auto-run paused for review", {
-              description: `${tool.name} requires a manual tool call in this host.`,
-            });
             return null;
           }
           // A destructive `bash` command must never be auto-executed, even under
@@ -502,66 +609,113 @@ export function createThreadStore(
               return null;
             }
           }
+          if (
+            options.canAutoExecuteTool &&
+            !options.canAutoExecuteTool(tool)
+          ) {
+            toast.warning("Auto-run paused for review", {
+              description:
+                "This tool requires an explicit user action before it can run.",
+            });
+            return null;
+          }
           executable.push({ toolCall, tool });
         }
         const maxAutoToolCalls =
           options.maxAutoToolCalls ?? Number.POSITIVE_INFINITY;
         if (autoToolCallsUsed + executable.length > maxAutoToolCalls) {
           toast.warning("Auto-run tool limit reached", {
-            description:
-              "The pending tool calls were left for manual review.",
+            description: "The pending tool calls were left for manual review.",
           });
           return null;
         }
-        const results = await Promise.all(
-          executable.map(async ({ toolCall, tool }) => {
-            try {
-              const { contentText, isError } = await execute(
-                tool,
-                toolCall.input.arguments
-              );
-              return { id: toolCall.id, text: contentText, isError };
-            } catch (error) {
-              const text =
-                error instanceof Error ? error.message : "Tool call failed";
-              return { id: toolCall.id, text, isError: true };
-            }
-          })
-        );
-        // An abort could have landed while tools were in flight; drop the
-        // results and let the run's abort handling take over.
-        if (signal.aborted) {
+        autoToolCallsUsed += executable.length;
+        if (get().activeRunId !== runId) {
           return null;
         }
-        const resultById = new Map(results.map((r) => [r.id, r]));
-        const nextLast: AssistantMessage = {
-          ...last,
-          toolCalls: toolCalls.map((toolCall) => {
-            const result = resultById.get(toolCall.id)!;
-            return {
-              ...toolCall,
-              output: {
-                content: [{ type: "text", text: result.text }],
-                isError: result.isError,
-              },
-            };
-          }),
-        };
-        const next = [...messages.slice(0, -1), nextLast];
-        setMessages(next);
-        return next;
+        const owningThread = structuredClone(get().thread);
+        const variables = executable.some(({ tool }) => tool.type === "plugin")
+          ? await resolveThreadPromptVariableValues({
+              context: owningThread.context,
+              loadSkills: options.loadSkills ?? _noSkills,
+              loadFile: options.loadFile ?? _noFile,
+              fileExists: options.fileExists ?? _noFileExists,
+            })
+          : {};
+        const invocationContext = { thread: owningThread, variables };
+        if (signal.aborted || get().activeRunId !== runId) {
+          return null;
+        }
+        set({
+          executingToolCallIds: executable.map(({ toolCall }) => toolCall.id),
+        });
+        try {
+          const results = await Promise.all(
+            executable.map(async ({ toolCall, tool }) => {
+              try {
+                const { content, isError } = await execute(
+                  tool,
+                  toolCall.input.arguments,
+                  invocationContext
+                );
+                return {
+                  id: toolCall.id,
+                  content,
+                  isError,
+                };
+              } catch (error) {
+                const text =
+                  error instanceof Error ? error.message : "Tool call failed";
+                return {
+                  id: toolCall.id,
+                  content: [{ type: "text" as const, text }],
+                  isError: true,
+                };
+              }
+            })
+          );
+          // An abort could have landed while tools were in flight; drop the
+          // results and let the run's abort handling take over.
+          if (signal.aborted) {
+            return null;
+          }
+          const resultById = new Map(results.map((r) => [r.id, r]));
+          const nextLast: AssistantMessage = {
+            ...last,
+            toolCalls: toolCalls.map((toolCall) => {
+              const result = resultById.get(toolCall.id)!;
+              return {
+                ...toolCall,
+                output: {
+                  content: result.content,
+                  isError: result.isError,
+                },
+              };
+            }),
+          };
+          const next = [...messages.slice(0, -1), nextLast];
+          setMessages(next);
+          return next;
+        } finally {
+          if (get().activeRunId === runId) {
+            set({ executingToolCallIds: [] });
+          }
+        }
       };
 
       // --- store --------------------------------------------------------------
 
       return {
         thread: normalizedInitialThread,
+        runtimeId: options.runtimeId,
         streamingMessage: null,
         status: "idle",
         abortController: null,
         activeRunId: null,
+        executingToolCallIds: [],
         lastRunResult: null,
         collapsedMessageIds: [],
+        runValidationIssue: null,
         autoFocusMessageId: null,
         changeHistory: createInitialHistory(normalizedInitialThread),
         runHistory: initialRunHistory,
@@ -573,6 +727,15 @@ export function createThreadStore(
           updateMessages((messages) => [...messages, message]);
           set({ autoFocusMessageId: message.id });
           return message.id;
+        },
+        resolveRunValidationIssue() {
+          const resolution = get().runValidationIssue?.resolution;
+          if (resolution?.type === "appendUserMessage") {
+            get().appendMessage();
+          }
+        },
+        dismissRunResult() {
+          set({ lastRunResult: null });
         },
         insertMessageBefore(beforeMessageId: string) {
           const messages = get().thread.context?.messages ?? [];
@@ -816,7 +979,7 @@ export function createThreadStore(
               ...user,
               content: partitionImagesFirst([
                 ...user.content,
-                { type: "image_data", mimeType, data },
+                { type: "image", mimeType, data },
               ]),
             };
           });
@@ -826,7 +989,7 @@ export function createThreadStore(
           if (message?.role !== "user") {
             return;
           }
-          if (message.content[contentIndex]?.type !== "image_data") {
+          if (message.content[contentIndex]?.type !== "image") {
             return;
           }
           updateMessage(id, (m) => {
@@ -841,9 +1004,10 @@ export function createThreadStore(
         },
         addTool(tool) {
           const { thread } = get();
-          if (thread.context?.tools?.some((t) => t.name === tool.name)) {
+          const toolKey = getToolKey(tool);
+          if (thread.context?.tools?.some((t) => getToolKey(t) === toolKey)) {
             toast.error("Error", {
-              description: `Tool "${tool.name}" already exists`,
+              description: `Tool "${getToolDisplayName(tool)}" already exists`,
             });
             return false;
           }
@@ -855,16 +1019,20 @@ export function createThreadStore(
         },
         updateTool(name, tool) {
           const tools = get().thread.context?.tools ?? [];
-          const index = tools.findIndex((t) => t.name === name);
+          const index = tools.findIndex((t) => getToolKey(t) === name);
           if (index === -1) {
             return false;
           }
           if (!validateTool(tool)) {
             return false;
           }
-          if (tool.name !== name && tools.some((t) => t.name === tool.name)) {
+          const nextKey = getToolKey(tool);
+          if (
+            nextKey !== name &&
+            tools.some((t) => getToolKey(t) === nextKey)
+          ) {
             toast.error("Error", {
-              description: `Tool "${tool.name}" already exists`,
+              description: `Tool "${getToolDisplayName(tool)}" already exists`,
             });
             return false;
           }
@@ -875,67 +1043,42 @@ export function createThreadStore(
         },
         removeTool(name) {
           patchContext({
-            tools: get().thread.context?.tools?.filter((t) => t.name !== name),
+            tools: get().thread.context?.tools?.filter(
+              (tool) => getToolKey(tool) !== name
+            ),
           });
         },
         updateToolCallOutputTextContent(messageId, toolCallId, text, isError) {
-          const context = get().thread.context ?? {};
-          const messages = context.messages ?? [];
-          let changed = false;
-          let textChanged = false;
-          const nextMessages = messages.map((message) => {
-            if (message.id !== messageId || message.role !== "assistant") {
-              return message;
+          setToolCallOutput(messageId, toolCallId, (toolCall) => {
+            const currentText = getToolCallOutputText(toolCall);
+            const nextIsError = isError ?? toolCall.output?.isError;
+            if (
+              currentText === text &&
+              toolCall.output?.isError === nextIsError
+            ) {
+              return undefined;
             }
-            let toolCallChanged = false;
-            const toolCalls = message.toolCalls?.map((toolCall) => {
-              if (toolCall.id !== toolCallId) {
-                return toolCall;
-              }
-              const currentText =
-                toolCall.output?.content.map((item) => item.text).join("\n") ??
-                "";
-              const nextIsError = isError ?? toolCall.output?.isError;
-              if (
-                currentText === text &&
-                toolCall.output?.isError === nextIsError
-              ) {
-                return toolCall;
-              }
-              toolCallChanged = true;
-              textChanged ||= currentText !== text;
-              return {
-                ...toolCall,
-                output: {
-                  content: [{ type: "text" as const, text }],
-                  isError: nextIsError,
-                },
-              };
-            });
-            if (!toolCallChanged) {
-              return message;
-            }
-            changed = true;
-            return { ...message, toolCalls };
+            return {
+              content: [
+                { type: "text", text },
+                ...(toolCall.output?.content.filter(
+                  (item) => item.type === "image"
+                ) ?? []),
+              ],
+              isError: nextIsError,
+            };
           });
-          if (!changed) {
-            return;
-          }
-          patchContext({
-            messages: nextMessages,
-            ...(textChanged
-              ? {
-                  snapshot: removePromptVariableSnapshotPlaces(
-                    context.snapshot,
-                    [
-                      createToolResultPromptVariablePlaceKey(
-                        messageId,
-                        toolCallId
-                      ),
-                    ]
-                  ),
-                }
-              : {}),
+        },
+        updateToolCallOutputContent(messageId, toolCallId, content, isError) {
+          setToolCallOutput(messageId, toolCallId, (toolCall) => {
+            const nextIsError = isError ?? toolCall.output?.isError;
+            if (
+              toolCall.output?.content === content &&
+              toolCall.output?.isError === nextIsError
+            ) {
+              return undefined;
+            }
+            return { content, isError: nextIsError };
           });
         },
         toggleMessageRole(id: string) {
@@ -957,15 +1100,44 @@ export function createThreadStore(
           });
         },
         async run(fromMessageId?: string) {
-          if (get().status === "running") {
+          if (get().status !== "idle") {
             throw new Error("Thread is already running");
           }
+          const runId = uuid();
+          const isPreparingRun = () =>
+            get().status === "preparing" && get().activeRunId === runId;
+          const finishPreparingRun = () => {
+            if (isPreparingRun()) {
+              set({ status: "idle", activeRunId: null });
+            }
+          };
+          // Claim the run lifecycle before any async prompt-variable work. A
+          // host can now prevent the pane from being torn down while preflight
+          // is still awaiting skills/files and before a transport exists.
+          autoToolCallsUsed = 0;
+          set({
+            status: "preparing",
+            activeRunId: runId,
+            lastRunResult: null,
+          });
+          if (!isPreparingRun()) return;
           // Resolve the model to run with: the thread's own when available,
           // else the default/first available. A thread with no resolvable model
           // cannot run.
-          const model = options.resolveModel?.(get().thread.model) ?? null;
+          let model: ModelConfig | null = null;
+          try {
+            model = options.resolveModel?.(get().thread.model) ?? null;
+          } catch (error) {
+            toast.error("Unable to resolve a model", {
+              description:
+                error instanceof Error ? error.message : "Please try again.",
+            });
+            finishPreparingRun();
+            return;
+          }
           if (!model) {
             toast.error("Select a model to run");
+            finishPreparingRun();
             return;
           }
           // Pre-flight: resolve the message list the run would use (including
@@ -981,22 +1153,27 @@ export function createThreadStore(
               truncated = true;
             }
           }
-          if (!isRunnableConversation(messages)) {
-            if (options.captureRunResults) {
+          const runValidationIssue = getRunValidationIssue(messages);
+          if (runValidationIssue) {
+            if (isPreparingRun()) {
               set({
-                lastRunResult: {
-                  outcome: "failed",
-                  error: new Error(RUN_LAST_MESSAGE_ERROR),
-                  partialOutput: false,
-                },
+                runValidationIssue,
+                status: "idle",
+                activeRunId: null,
+                ...(options.captureRunResults
+                  ? {
+                      lastRunResult: {
+                        outcome: "failed" as const,
+                        error: new Error(runValidationIssue.message),
+                        partialOutput: false,
+                      },
+                    }
+                  : {}),
               });
-            } else {
-              toast.error("Error", { description: RUN_LAST_MESSAGE_ERROR });
             }
             return;
           }
-          const supportsImageInput =
-            options.supportsImageInput?.(model) ?? true;
+          set({ runValidationIssue: null });
           const retryFromMessageId =
             messages.at(-1)?.role === "user"
               ? messages.at(-1)?.id
@@ -1006,13 +1183,7 @@ export function createThreadStore(
           let preparedContext: ThreadContext | null = null;
           try {
             const rendered = await renderThreadPromptVariables({
-              context: {
-                ...get().thread.context,
-                messages: prepareMessagesForModel(
-                  messages,
-                  supportsImageInput
-                ),
-              },
+              context: { ...get().thread.context, messages },
               loadSkills: options.loadSkills ?? _noSkills,
               loadFile: options.loadFile ?? _noFile,
               fileExists: options.fileExists ?? _noFileExists,
@@ -1020,6 +1191,7 @@ export function createThreadStore(
             preparedContext = rendered.context;
             promptSnapshot = rendered.snapshot;
           } catch (error) {
+            if (!isPreparingRun()) return;
             if (options.captureRunResults) {
               set({
                 lastRunResult: {
@@ -1037,17 +1209,20 @@ export function createThreadStore(
                     : "Please check the system prompt variables.",
               });
             }
+            finishPreparingRun();
             return;
           }
+          if (!isPreparingRun()) return;
           const abortController = new AbortController();
-          const runId = uuid();
-          const isActiveRun = () => get().activeRunId === runId;
+          let finalizing = false;
+          const isActiveRun = () =>
+            !finalizing && get().activeRunId === runId;
           set({
             status: "running",
             abortController,
             activeRunId: runId,
             streamingMessage: null,
-            lastRunResult: null,
+            executingToolCallIds: [],
           });
 
           // Commit the truncation while running so it folds into the run's
@@ -1080,8 +1255,6 @@ export function createThreadStore(
           // `sawEvent` alone can't tell a failed run from a successful one.
           // A failed run is never recorded in the run history.
           let failed = false;
-          // An explicitly stopped run may retain partial output, but is not a
-          // successful snapshot and must not enter Run history.
           let aborted = false;
 
           // Throttle live-preview updates (frame-aligned, at most one per
@@ -1095,61 +1268,91 @@ export function createThreadStore(
               }
             }, PREVIEW_THROTTLE_MS);
 
-          const finalizeActiveRun = () => {
+          let finalizePromise: Promise<void> | null = null;
+          const finalizeActiveRun = (): Promise<void> => {
+            if (finalizePromise) {
+              return finalizePromise;
+            }
             if (!isActiveRun()) {
-              return;
+              return Promise.resolve();
             }
             // Drop any pending frame before the terminal clear so a late flush
             // can't resurrect a stale streamingMessage after we reset to null.
+            finalizing = true;
             cancelPreview();
-            set({
-              streamingMessage: null,
-              status: "idle",
-              abortController: null,
-              activeRunId: null,
-            });
-            stopActiveRun = null;
-
-            // Fold the whole run (truncation + generated messages) into one
-            // undo step, and record a run snapshot. No-op for undo if the
-            // thread is unchanged.
-            const finalThread = get().thread;
-            if (sawEvent && !failed && !aborted) {
-              const threadWithSnapshot = withPromptVariableSnapshot(
-                finalThread,
-                promptSnapshot
-              );
-              const runUsage = aggregateMessageUsage(
-                (threadWithSnapshot.context?.messages ?? []).slice(
-                  runStartMessageCount
-                )
-              );
-              const runHistory = recordRun(
-                get().runHistory,
-                threadWithSnapshot,
-                Date.now(),
-                { usage: runUsage }
-              );
-              const evaluations = normalizeEvaluations(
-                get().evaluations,
-                runHistory
-              );
-              const thread = withRunMetadata(threadWithSnapshot, {
-                runHistory,
-                evaluations,
-                evaluationRubrics: get().evaluationRubrics,
-              });
+            finalizePromise = (async () => {
+              // Fold the whole run (truncation + generated messages) into one
+              // undo step, and record a run snapshot. No-op for undo if the
+              // thread is unchanged.
+              const finalThread = get().thread;
+              if (sawEvent && !failed && !aborted) {
+                const threadWithSnapshot = withPromptVariableSnapshot(
+                  finalThread,
+                  promptSnapshot
+                );
+                const runUsage = aggregateMessageUsage(
+                  (threadWithSnapshot.context?.messages ?? []).slice(
+                    runStartMessageCount
+                  )
+                );
+                let runHistory = recordRun(
+                  get().runHistory,
+                  threadWithSnapshot,
+                  Date.now(),
+                  { usage: runUsage }
+                );
+                const newestRun = runHistory[runHistory.length - 1];
+                if (
+                  newestRun &&
+                  isRunSnapshot(newestRun) &&
+                  options.archiveRunSnapshot
+                ) {
+                  try {
+                    const reference =
+                      await options.archiveRunSnapshot(newestRun);
+                    runHistory = [...runHistory.slice(0, -1), reference];
+                  } catch (error) {
+                    toast.error("Failed to archive run snapshot", {
+                      description:
+                        error instanceof Error
+                          ? error.message
+                          : "The snapshot will be archived on the next save.",
+                    });
+                  }
+                }
+                const evaluations = normalizeEvaluations(
+                  get().evaluations,
+                  runHistory
+                );
+                const thread = withRunMetadata(threadWithSnapshot, {
+                  runHistory,
+                  evaluations,
+                  evaluationRubrics: get().evaluationRubrics,
+                });
+                set({
+                  thread,
+                  changeHistory: recordSnapshot(get().changeHistory, thread),
+                  runHistory,
+                  evaluations,
+                });
+              } else {
+                set({
+                  changeHistory: recordSnapshot(
+                    get().changeHistory,
+                    finalThread
+                  ),
+                });
+              }
               set({
-                thread,
-                changeHistory: recordSnapshot(get().changeHistory, thread),
-                runHistory,
-                evaluations,
+                streamingMessage: null,
+                status: "idle",
+                abortController: null,
+                activeRunId: null,
+                executingToolCallIds: [],
               });
-            } else {
-              set({
-                changeHistory: recordSnapshot(get().changeHistory, finalThread),
-              });
-            }
+              stopActiveRun = null;
+            })();
+            return finalizePromise;
           };
 
           stopActiveRun = () => {
@@ -1157,28 +1360,26 @@ export function createThreadStore(
               return;
             }
             try {
-              aborted = true;
               abortController.abort();
             } catch {
               // Ignored
             }
-            const partialOutput = Boolean(
-              streamingMessage && hasContent(streamingMessage)
-            );
-            if (partialOutput && streamingMessage) {
+            if (streamingMessage && hasContent(streamingMessage)) {
               commit(streamingMessage);
               streamingMessage = null;
             }
-            finalizeActiveRun();
+            aborted = true;
             if (options.captureRunResults) {
               set({
                 lastRunResult: {
                   outcome: "aborted",
-                  partialOutput,
+                  partialOutput:
+                    sawEvent || messages.length > runStartMessageCount,
                   ...(retryFromMessageId ? { retryFromMessageId } : {}),
                 },
               });
             }
+            void finalizeActiveRun();
           };
 
           // Stream a single model turn into `messages`. Returns whether it
@@ -1197,10 +1398,7 @@ export function createThreadStore(
                     await renderThreadPromptVariables({
                       context: {
                         ...get().thread.context,
-                        messages: prepareMessagesForModel(
-                          messages,
-                          supportsImageInput
-                        ),
+                        messages,
                         snapshot: promptSnapshot,
                       },
                       loadSkills: options.loadSkills ?? _noSkills,
@@ -1212,6 +1410,7 @@ export function createThreadStore(
               promptSnapshot = context.snapshot;
               const now = options.now ?? (() => performance.now());
               const turnStartedAt = now();
+              const profileId = options.getProfileId?.(model.provider);
               const response = streamThread(
                 {
                   context,
@@ -1220,6 +1419,10 @@ export function createThreadStore(
                 {
                   signal: abortController.signal,
                   transport: options.transport,
+                  connection: {
+                    providerId: model.provider,
+                    ...(profileId ? { profileId } : {}),
+                  },
                 }
               );
               for await (const chunk of response) {
@@ -1227,10 +1430,7 @@ export function createThreadStore(
                   return "aborted";
                 }
                 const receivedAt = now();
-                if (
-                  firstTokenAt === null &&
-                  _isNonEmptyAssistantDelta(chunk)
-                ) {
+                if (firstTokenAt === null && _isNonEmptyAssistantDelta(chunk)) {
                   firstTokenAt = receivedAt;
                 }
                 sawEvent = true;
@@ -1289,6 +1489,7 @@ export function createThreadStore(
               return "completed";
             } catch (error) {
               if (abortController.signal.aborted) {
+                aborted = true;
                 if (
                   isActiveRun() &&
                   streamingMessage &&
@@ -1302,10 +1503,8 @@ export function createThreadStore(
                 return "aborted";
               }
               failed = true;
-              const partialOutput = Boolean(
-                streamingMessage && hasContent(streamingMessage)
-              );
-              if (partialOutput && streamingMessage) {
+              console.error(error);
+              if (streamingMessage && hasContent(streamingMessage)) {
                 commit(streamingMessage);
                 streamingMessage = null;
               }
@@ -1314,15 +1513,13 @@ export function createThreadStore(
                   lastRunResult: {
                     outcome: "failed",
                     error,
-                    partialOutput,
+                    partialOutput:
+                      sawEvent || messages.length > runStartMessageCount,
                     ...(retryFromMessageId ? { retryFromMessageId } : {}),
                   },
                 });
-              } else {
-                console.error(error);
-                if (error instanceof Error) {
-                  toast.error("Error", { description: error.message });
-                }
+              } else if (error instanceof Error) {
+                toast.error("Error", { description: error.message });
               }
               return "failed";
             }
@@ -1337,14 +1534,8 @@ export function createThreadStore(
             //  - only the ReAct loop continues to the next turn; plain auto-run
             //    executes tools once and stops, staying step-by-step.
             // Capped so a model that calls tools forever can't spin forever.
-            const maxAutoToolTurns = Math.max(
-              1,
-              Math.min(
-                MAX_AUTO_TOOL_TURNS,
-                options.maxAutoToolTurns ?? MAX_AUTO_TOOL_TURNS
-              )
-            );
-            let autoToolCallsUsed = 0;
+            const maxAutoToolTurns =
+              options.maxAutoToolTurns ?? MAX_AUTO_TOOL_TURNS;
             for (let turn = 0; turn < maxAutoToolTurns; turn++) {
               const outcome = await streamTurn();
               if (outcome !== "completed") {
@@ -1359,7 +1550,7 @@ export function createThreadStore(
               const withResults = await executePendingToolCalls(
                 messages,
                 abortController.signal,
-                autoToolCallsUsed
+                runId
               );
               if (!isActiveRun()) {
                 break;
@@ -1367,23 +1558,17 @@ export function createThreadStore(
               if (!withResults) {
                 break;
               }
-              const lastWithResults = withResults.at(-1);
-              const executedCount =
-                lastWithResults?.role === "assistant"
-                  ? (lastWithResults.toolCalls?.length ?? 0)
-                  : 0;
-              autoToolCallsUsed += executedCount;
               messages = withResults;
               if (!reactLoop) {
                 break;
               }
             }
           } finally {
-            finalizeActiveRun();
+            await finalizeActiveRun();
           }
         },
         undo() {
-          if (get().status === "running") {
+          if (get().status !== "idle") {
             return;
           }
           const result = undoHistory(get().changeHistory);
@@ -1397,6 +1582,7 @@ export function createThreadStore(
           });
           set({
             thread,
+            runValidationIssue: null,
             changeHistory: {
               ...result.history,
               snapshots: result.history.snapshots.map((snapshot, index) =>
@@ -1406,7 +1592,7 @@ export function createThreadStore(
           });
         },
         redo() {
-          if (get().status === "running") {
+          if (get().status !== "idle") {
             return;
           }
           const result = redoHistory(get().changeHistory);
@@ -1420,6 +1606,7 @@ export function createThreadStore(
           });
           set({
             thread,
+            runValidationIssue: null,
             changeHistory: {
               ...result.history,
               snapshots: result.history.snapshots.map((snapshot, index) =>
@@ -1429,7 +1616,7 @@ export function createThreadStore(
           });
         },
         restoreThread(thread: Thread) {
-          if (get().status === "running") {
+          if (get().status !== "idle") {
             return;
           }
           const next = withRunMetadata(thread, {
@@ -1443,11 +1630,31 @@ export function createThreadStore(
           // Replace the whole thread; recorded as a single undoable step.
           set({
             thread: next,
+            runValidationIssue: null,
             changeHistory: recordSnapshot(get().changeHistory, next),
           });
         },
-        removeRun(run: RunSnapshot) {
-          if (get().status === "running") {
+        async loadRunSnapshot(run: RunHistoryEntry) {
+          if (isRunSnapshot(run)) {
+            return run;
+          }
+          const cached = loadedRuns.get(run.id);
+          if (cached) {
+            return cacheLoadedRun(cached);
+          }
+          if (!options.readRunSnapshot) {
+            throw new Error("Run snapshot storage is unavailable.");
+          }
+          const thread = await options.readRunSnapshot(run.snapshotRef);
+          return cacheLoadedRun({
+            id: run.id,
+            timestamp: run.timestamp,
+            thread,
+            ...(run.usage ? { usage: run.usage } : {}),
+          });
+        },
+        removeRun(run: RunHistoryEntry) {
+          if (get().status !== "idle") {
             return;
           }
           const current = get().runHistory;
@@ -1455,6 +1662,7 @@ export function createThreadStore(
           if (runHistory.length === current.length) {
             return;
           }
+          loadedRuns.delete(run.id);
           const evaluations = normalizeEvaluations(
             get().evaluations,
             runHistory
@@ -1481,7 +1689,7 @@ export function createThreadStore(
           });
         },
         saveEvaluation(input) {
-          if (get().status === "running") {
+          if (get().status !== "idle") {
             return false;
           }
           const evaluations = upsertEvaluation(
@@ -1513,7 +1721,7 @@ export function createThreadStore(
           return true;
         },
         removeEvaluation(evaluation: EvaluationRecord) {
-          if (get().status === "running") {
+          if (get().status !== "idle") {
             return;
           }
           const current = get().evaluations;
@@ -1542,7 +1750,7 @@ export function createThreadStore(
           });
         },
         saveEvaluationRubric(input) {
-          if (get().status === "running") {
+          if (get().status !== "idle") {
             return null;
           }
           const result = upsertEvaluationRubric(get().evaluationRubrics, input);
@@ -1568,7 +1776,7 @@ export function createThreadStore(
           return result.rubric;
         },
         removeEvaluationRubric(id) {
-          if (get().status === "running") {
+          if (get().status !== "idle") {
             return false;
           }
           const current = get().evaluationRubrics;
@@ -1598,13 +1806,14 @@ export function createThreadStore(
         },
         abort() {
           const { status } = get();
+          if (status === "preparing") {
+            set({ status: "idle", activeRunId: null });
+            return;
+          }
           if (status !== "running") {
             return;
           }
           stopActiveRun?.();
-        },
-        dismissRunResult() {
-          set({ lastRunResult: null });
         },
       };
     })
@@ -1612,6 +1821,13 @@ export function createThreadStore(
 }
 
 function _isNonEmptyAssistantDelta(event: AgentEvent): boolean {
+  if (
+    event.type === "message_end" &&
+    event.message.role === "assistant" &&
+    (event.message.nativeToolActivities?.length ?? 0) > 0
+  ) {
+    return true;
+  }
   if (event.type !== "message_update") {
     return false;
   }
@@ -1626,7 +1842,7 @@ function _isNonEmptyAssistantDelta(event: AgentEvent): boolean {
 
 export const ThreadStoreContext = createContext<ThreadStore | null>(null);
 
-function useThreadStoreApi(): ThreadStore {
+export function useThreadStoreApi(): ThreadStore {
   const store = useContext(ThreadStoreContext);
   if (!store) throw new Error("hooks must be used within <ThreadPlayground>");
   return store;
@@ -1638,11 +1854,13 @@ export function useThreadStore<T>(selector: (s: ThreadState) => T): T {
 
 const selectActions = (s: ThreadState) => ({
   run: s.run,
-  abort: s.abort,
   dismissRunResult: s.dismissRunResult,
+  resolveRunValidationIssue: s.resolveRunValidationIssue,
+  abort: s.abort,
   undo: s.undo,
   redo: s.redo,
   restoreThread: s.restoreThread,
+  loadRunSnapshot: s.loadRunSnapshot,
   removeRun: s.removeRun,
   saveEvaluation: s.saveEvaluation,
   removeEvaluation: s.removeEvaluation,
@@ -1668,6 +1886,7 @@ const selectActions = (s: ThreadState) => ({
   updateMessageTextContent: s.updateMessageTextContent,
   addMessageImageContent: s.addMessageImageContent,
   removeMessageImageContent: s.removeMessageImageContent,
+  updateToolCallOutput: s.updateToolCallOutputContent,
   updateToolCallOutputText: s.updateToolCallOutputTextContent,
   addTool: s.addTool,
   updateTool: s.updateTool,

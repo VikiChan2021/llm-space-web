@@ -1,14 +1,17 @@
-import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { readFileSync } from "node:fs";
+import { rmSync } from "node:fs";
 import path from "node:path";
 
-import { getSettingsDir } from "@llm-space/core/server";
+import {
+  atomicWriteJsonFileSync,
+  getSettingsDir,
+  readJsonFileSync,
+} from "@llm-space/core/server";
+import { z } from "zod";
 
 import {
   GITHUB_OAUTH_CLIENT_ID,
   type AuthConfig,
   type GithubAuthState,
-  type GithubUser,
 } from "../../shared/auth";
 
 import {
@@ -18,10 +21,39 @@ import {
   requestDeviceCode,
 } from "./github-device-flow";
 
+const AuthConfigSchema: z.ZodType<AuthConfig | null> = z
+  .object({
+    accessToken: z.string().min(1),
+    tokenType: z.string(),
+    scope: z.string(),
+    user: z.object({
+      login: z.string().min(1),
+      name: z.string().nullable(),
+      email: z.string().nullable(),
+      avatarUrl: z.string(),
+      htmlUrl: z.string(),
+    }),
+  })
+  .or(z.null());
+
 export interface GitHubAuthManagerOptions {
   /** Pushed on every auth-state transition (→ renderer over RPC). */
   onChange: (state: GithubAuthState) => void;
+  /** Device Flow request implementation; defaults to the GitHub HTTP helpers. */
+  deviceFlow?: GitHubDeviceFlow;
 }
+
+export interface GitHubDeviceFlow {
+  fetchGithubUser: typeof fetchGithubUser;
+  pollForAccessToken: typeof pollForAccessToken;
+  requestDeviceCode: typeof requestDeviceCode;
+}
+
+const GITHUB_DEVICE_FLOW: GitHubDeviceFlow = {
+  fetchGithubUser,
+  pollForAccessToken,
+  requestDeviceCode,
+};
 
 /**
  * Owns GitHub authentication: the persisted access token (`settings/auth.json`,
@@ -32,6 +64,7 @@ export interface GitHubAuthManagerOptions {
  */
 export class GitHubAuthManager {
   private _config: AuthConfig | null;
+  private readonly _deviceFlow: GitHubDeviceFlow;
   private readonly _onChange: (state: GithubAuthState) => void;
   /** Non-null while a Device Flow is in progress; aborts the token poll. */
   private _signInController: AbortController | null = null;
@@ -39,6 +72,7 @@ export class GitHubAuthManager {
   private _pending: { userCode: string; verificationUri: string } | null = null;
 
   constructor(options: GitHubAuthManagerOptions) {
+    this._deviceFlow = options.deviceFlow ?? GITHUB_DEVICE_FLOW;
     this._onChange = options.onChange;
     this._config = this._loadConfig();
   }
@@ -81,7 +115,9 @@ export class GitHubAuthManager {
     this._emit();
 
     try {
-      const device = await requestDeviceCode(GITHUB_OAUTH_CLIENT_ID);
+      const device = await this._deviceFlow.requestDeviceCode(
+        GITHUB_OAUTH_CLIENT_ID
+      );
       if (controller.signal.aborted) {
         return;
       }
@@ -92,13 +128,22 @@ export class GitHubAuthManager {
         verificationUri: device.verificationUri,
       };
       this._emit();
-      const token = await pollForAccessToken(
+      const token = await this._deviceFlow.pollForAccessToken(
         GITHUB_OAUTH_CLIENT_ID,
         device.deviceCode,
         device.interval,
         controller.signal
       );
-      const user = await fetchGithubUser(token.accessToken);
+      const user = await this._deviceFlow.fetchGithubUser(
+        token.accessToken,
+        controller.signal
+      );
+      if (
+        controller.signal.aborted ||
+        this._signInController !== controller
+      ) {
+        return;
+      }
       this._config = {
         accessToken: token.accessToken,
         tokenType: token.tokenType,
@@ -112,8 +157,8 @@ export class GitHubAuthManager {
       }
       return;
     } finally {
-      this._pending = null;
       if (this._signInController === controller) {
+        this._pending = null;
         this._signInController = null;
       }
     }
@@ -127,6 +172,7 @@ export class GitHubAuthManager {
     }
     this._signInController.abort();
     this._signInController = null;
+    this._pending = null;
     this._emit();
   }
 
@@ -156,18 +202,7 @@ export class GitHubAuthManager {
   }
 
   private _saveConfig(): void {
-    mkdirSync(getSettingsDir(), { recursive: true });
-    writeFileSync(
-      this._configPath,
-      `${JSON.stringify(this._config, null, 2)}\n`,
-      "utf8"
-    );
-    // The file holds a bearer token — keep it owner-only.
-    try {
-      chmodSync(this._configPath, 0o600);
-    } catch (error) {
-      console.error("Failed to restrict auth.json permissions:", error);
-    }
+    atomicWriteJsonFileSync(this._configPath, this._config, { mode: 0o600 });
   }
 
   /**
@@ -176,51 +211,19 @@ export class GitHubAuthManager {
    * startup.
    */
   private _loadConfig(): AuthConfig | null {
-    let raw: string;
     try {
-      raw = readFileSync(this._configPath, "utf8");
+      return readJsonFileSync(this._configPath, {
+        schema: AuthConfigSchema,
+        recovery: "none",
+        fallback: () => null,
+        mode: 0o600,
+        seedMissing: false,
+      }).value;
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        return null;
-      }
       console.error("Failed to read auth.json:", error);
       return null;
     }
-    try {
-      return _normalize(JSON.parse(raw) as Partial<AuthConfig>);
-    } catch (error) {
-      console.error("Ignoring malformed auth.json:", error);
-      return null;
-    }
   }
-}
-
-/** Validate a parsed `auth.json`, or throw if it isn't a usable token blob. */
-function _normalize(input: Partial<AuthConfig>): AuthConfig {
-  const user = input.user as Partial<GithubUser> | undefined;
-  if (
-    typeof input.accessToken !== "string" ||
-    !input.accessToken ||
-    !user ||
-    typeof user.login !== "string"
-  ) {
-    throw new Error("auth.json is missing a token or user");
-  }
-  return {
-    accessToken: input.accessToken,
-    tokenType: typeof input.tokenType === "string" ? input.tokenType : "bearer",
-    scope: typeof input.scope === "string" ? input.scope : "gist",
-    user: {
-      login: user.login,
-      name: typeof user.name === "string" ? user.name : null,
-      email: typeof user.email === "string" ? user.email : null,
-      avatarUrl: typeof user.avatarUrl === "string" ? user.avatarUrl : "",
-      htmlUrl:
-        typeof user.htmlUrl === "string"
-          ? user.htmlUrl
-          : `https://github.com/${user.login}`,
-    },
-  };
 }
 
 /** A human-readable message for a caught sign-in error. */

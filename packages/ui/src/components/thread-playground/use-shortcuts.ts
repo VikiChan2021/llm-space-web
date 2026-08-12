@@ -13,7 +13,7 @@ export function useShortcuts({ readonly }: { readonly: boolean }) {
 
   return useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
-      if (!(event.metaKey || event.ctrlKey || event.altKey)) {
+      if (!(event.metaKey || event.ctrlKey)) {
         return;
       }
 
@@ -33,7 +33,7 @@ export function useShortcuts({ readonly }: { readonly: boolean }) {
           } catch {
             // Ignored
           }
-        } else {
+        } else if (status === "idle") {
           void run();
         }
         return;

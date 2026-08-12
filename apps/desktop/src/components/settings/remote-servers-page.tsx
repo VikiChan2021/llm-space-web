@@ -15,15 +15,25 @@ import { Separator } from "@llm-space/ui/ui/separator";
 import {
   Check,
   Circle,
+  FolderSync,
   ShieldAlert,
+  ShieldCheck,
+  Laptop,
   Loader2,
+  Network,
   Plus,
   RefreshCw,
   Server,
   Trash2,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 
 import {
@@ -38,6 +48,7 @@ import {
   updateRemoteServer,
 } from "@/client/remote-servers";
 import type {
+  RemoteDisconnectResult,
   RemoteHostKeyTrustRequest,
   RemoteServerDraft,
   RemoteServerView,
@@ -45,11 +56,18 @@ import type {
 import type { RuntimeId } from "@/shared/runtime";
 
 import {
+  runRemoteRuntimeActionIfAllowed,
+  type RemoteRuntimeActionOutcome,
+} from "../remote-runtime-actions";
+import { runRemoteTrustContinuationIfAllowed } from "../remote-trust-continuation";
+
+import {
   canConnectRemoteServer,
   canEditRemoteServer,
   canRemoveRemoteServer,
   remoteConnectionFlow,
 } from "./remote-server-display";
+import { SettingsEmptyState } from "./settings-empty-state";
 import { SettingsPage } from "./settings-page";
 
 interface FormState {
@@ -68,11 +86,19 @@ function _emptyForm(): FormState {
 }
 
 export function RemoteServersPage({
+  canConnect,
+  canDisconnect,
+  acquireConnect,
+  acquireDisconnect,
   onConnected,
   onDisconnected,
 }: {
+  canConnect?: () => boolean;
+  canDisconnect?: (runtimeId: RuntimeId) => boolean;
+  acquireConnect?: () => (() => void) | null;
+  acquireDisconnect?: (runtimeId: RuntimeId) => (() => void) | null;
   onConnected?: (runtimeId: RuntimeId) => void;
-  onDisconnected?: (runtimeId: RuntimeId) => void;
+  onDisconnected?: (runtimeId: RuntimeId) => void | Promise<void>;
 }) {
   const [servers, setServers] = useState<RemoteServerView[]>([]);
   const serversRef = useRef<RemoteServerView[]>([]);
@@ -80,6 +106,7 @@ export function RemoteServersPage({
   const [form, setForm] = useState<FormState | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [trustBusy, setTrustBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const selected = useMemo(
     () => servers.find((server) => server.id === selectedId) ?? null,
@@ -92,13 +119,18 @@ export function RemoteServersPage({
   }, []);
 
   const refresh = useCallback(async () => {
-    const next = await listRemoteServers();
-    updateServers(next);
-    setSelectedId((current) =>
-      current && next.some((server) => server.id === current)
-        ? current
-        : (next[0]?.id ?? null)
-    );
+    setLoading(true);
+    try {
+      const next = await listRemoteServers();
+      updateServers(next);
+      setSelectedId((current) =>
+        current && next.some((server) => server.id === current)
+          ? current
+          : (next[0]?.id ?? null)
+      );
+    } finally {
+      setLoading(false);
+    }
   }, [updateServers]);
 
   useEffect(() => {
@@ -125,39 +157,57 @@ export function RemoteServersPage({
 
   const save = async () => {
     if (!form) return;
-    try {
-      const draft = _draft(form);
-      const next = form.id
-        ? await updateRemoteServer(form.id, draft)
-        : await addRemoteServer(draft);
-      updateServers(next);
-      const nextId = form.id ?? next.at(-1)?.id ?? null;
-      setSelectedId(nextId);
-      setForm(null);
-      toast.success("Remote server saved");
-    } catch (error) {
-      toast.error("Failed to save remote server", {
-        description:
-          error instanceof Error ? error.message : "Please try again.",
-      });
+    const previousRuntimeId = form.id
+      ? servers.find((server) => server.id === form.id)?.runtimeId
+      : undefined;
+    const persist = async (): Promise<boolean> => {
+      try {
+        const draft = _draft(form);
+        const next = form.id
+          ? await updateRemoteServer(form.id, draft)
+          : await addRemoteServer(draft);
+        updateServers(next);
+        const nextId = form.id ?? next.at(-1)?.id ?? null;
+        setSelectedId(nextId);
+        setForm(null);
+        toast.success("Remote server saved");
+        return true;
+      } catch (error) {
+        toast.error("Failed to save remote server", {
+          description:
+            error instanceof Error ? error.message : "Please try again.",
+        });
+        return false;
+      }
+    };
+    if (!previousRuntimeId) {
+      await persist();
+      return;
     }
+    await runRemoteRuntimeActionIfAllowed({
+      allowed: () => canDisconnect?.(previousRuntimeId) ?? true,
+      acquire: acquireDisconnect
+        ? () => acquireDisconnect(previousRuntimeId)
+        : undefined,
+      action: persist,
+      afterAction: () => onDisconnected?.(previousRuntimeId),
+    });
   };
 
   const run = async (
     id: string,
-    action: (id: string) => Promise<RemoteServerView[]>,
+    action: (
+      id: string
+    ) => Promise<RemoteServerView[] | RemoteDisconnectResult>,
     options: {
       closeOnConnected?: boolean;
-      notifyDisconnected?: boolean;
       selectFallback?: boolean;
     } = {}
-  ) => {
+  ): Promise<boolean | RemoteRuntimeActionOutcome> => {
     setBusyId(id);
     try {
-      const previousRuntimeId = servers.find(
-        (server) => server.id === id
-      )?.runtimeId;
-      const next = await action(id);
+      const result = await action(id);
+      const next = Array.isArray(result) ? result : result.servers;
       updateServers(next);
       setSelectedId(
         options.selectFallback && !next.some((server) => server.id === id)
@@ -166,47 +216,61 @@ export function RemoteServersPage({
       );
       if (options.closeOnConnected) {
         const connected = next.find((server) => server.id === id);
-        if (connected?.status === "connected") onConnected?.(connected.runtimeId);
+        if (connected?.status === "connected")
+          onConnected?.(connected.runtimeId);
       }
-      if (options.notifyDisconnected && previousRuntimeId) {
-        onDisconnected?.(previousRuntimeId);
-      }
+      return !Array.isArray(result) && result.status === "applied-with-error"
+        ? { applied: true, error: new Error(result.error) }
+        : true;
     } catch (error) {
-      let failed = serversRef.current.find((server) => server.id === id);
       try {
         const latest = await listRemoteServers();
         updateServers(latest);
-        failed = latest.find((server) => server.id === id) ?? failed;
       } catch {
-        // Keep the best-known local snapshot for the toast title.
+        // Keep the best-known local snapshot for error reporting.
       }
-      toast.error(_failureTitle(failed), {
-        description:
-          error instanceof Error ? error.message : "Please try again.",
-      });
+      return { applied: false, error };
     } finally {
       setBusyId(null);
     }
+  };
+
+  const reportRunError = (id: string, error: unknown) => {
+    const failed = serversRef.current.find((server) => server.id === id);
+    toast.error(_failureTitle(failed), {
+      description: error instanceof Error ? error.message : "Please try again.",
+    });
   };
 
   const trustHostKey = async (
     server: RemoteServerView,
     request: RemoteHostKeyTrustRequest
   ) => {
-    setTrustBusy(true);
-    try {
-      const next = await trustRemoteServerHostKey(server.id, request.requestId);
-      updateServers(next);
-      const connected = next.find((item) => item.id === server.id);
-      if (connected?.status === "connected") onConnected?.(connected.runtimeId);
-    } catch (error) {
-      toast.error("Failed to trust SSH host", {
-        description:
-          error instanceof Error ? error.message : "Please try again.",
-      });
-    } finally {
-      setTrustBusy(false);
-    }
+    await runRemoteTrustContinuationIfAllowed({
+      allowed: () => canConnect?.() ?? true,
+      acquire: acquireConnect,
+      trust: async () => {
+        setTrustBusy(true);
+        try {
+          const next = await trustRemoteServerHostKey(
+            server.id,
+            request.requestId
+          );
+          updateServers(next);
+          const connected = next.find((item) => item.id === server.id);
+          if (connected?.status === "connected") {
+            onConnected?.(connected.runtimeId);
+          }
+        } catch (error) {
+          toast.error("Failed to trust SSH host", {
+            description:
+              error instanceof Error ? error.message : "Please try again.",
+          });
+        } finally {
+          setTrustBusy(false);
+        }
+      },
+    });
   };
 
   const rejectHostKey = async (
@@ -215,7 +279,10 @@ export function RemoteServersPage({
   ) => {
     setTrustBusy(true);
     try {
-      const next = await rejectRemoteServerHostKey(server.id, request.requestId);
+      const next = await rejectRemoteServerHostKey(
+        server.id,
+        request.requestId
+      );
       updateServers(next);
     } catch (error) {
       toast.error("Failed to cancel SSH host trust", {
@@ -241,12 +308,22 @@ export function RemoteServersPage({
     <SettingsPage
       title="Remote Servers"
       description="Access LLM Space workspaces—including threads, settings, and skills—hosted on remote servers over SSH. Passwords and passphrases are not stored."
-      className="p-0"
+      className={servers.length === 0 && !form ? undefined : "p-0"}
     >
-      <div className="grid h-full min-h-0 grid-cols-[280px_minmax(0,1fr)] border-t">
+      {loading && servers.length === 0 && !form ? (
+        <div className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm">
+          <Loader2 className="size-4 animate-spin" />
+          Loading remote servers
+        </div>
+      ) : servers.length === 0 && !form ? (
+        <RemoteServersEmptyState onAdd={startAdd} />
+      ) : (
+        <div className="grid h-full min-h-0 grid-cols-[280px_minmax(0,1fr)]">
         <aside className="bg-muted/20 flex min-h-0 flex-col border-r">
           <div className="flex h-11 items-center justify-between px-3">
-            <span className="text-sm font-medium">Servers</span>
+            <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+              SERVERS
+            </span>
             <div className="flex gap-1">
               <Button
                 size="icon-sm"
@@ -268,11 +345,7 @@ export function RemoteServersPage({
           </div>
           <Separator />
           <div className="min-h-0 flex-1 overflow-auto p-2">
-            {servers.length === 0 ? (
-              <div className="text-muted-foreground p-4 text-sm">
-                No remote servers. Click + to add one.
-              </div>
-            ) : (
+            {servers.length > 0 ? (
               <div className="space-y-2">
                 {servers.map((server) => (
                   <div
@@ -316,7 +389,7 @@ export function RemoteServersPage({
                   </div>
                 ))}
               </div>
-            )}
+            ) : null}
           </div>
         </aside>
 
@@ -333,23 +406,46 @@ export function RemoteServersPage({
               server={selected}
               busy={busyId === selected.id}
               onConnect={() =>
-                void run(selected.id, connectRemoteServer, {
-                  closeOnConnected: true,
+                void runRemoteRuntimeActionIfAllowed({
+                  allowed: () => canConnect?.() ?? true,
+                  acquire: acquireConnect,
+                  action: () =>
+                    run(selected.id, connectRemoteServer, {
+                      closeOnConnected: true,
+                    }),
+                  onError: (error) => reportRunError(selected.id, error),
                 })
               }
               onDisconnect={() =>
-                void run(selected.id, disconnectRemoteServer, {
-                  notifyDisconnected: true,
+                void runRemoteRuntimeActionIfAllowed({
+                  allowed: () => canDisconnect?.(selected.runtimeId) ?? true,
+                  acquire: acquireDisconnect
+                    ? () => acquireDisconnect(selected.runtimeId)
+                    : undefined,
+                  action: () => run(selected.id, disconnectRemoteServer),
+                  afterAction: () => onDisconnected?.(selected.runtimeId),
+                  onError: (error) => reportRunError(selected.id, error),
                 })
               }
               onEdit={() => startEdit(selected)}
               onRemove={() =>
-                void run(selected.id, removeRemoteServer, {
-                  selectFallback: true,
+                void runRemoteRuntimeActionIfAllowed({
+                  allowed: () => canDisconnect?.(selected.runtimeId) ?? true,
+                  acquire: acquireDisconnect
+                    ? () => acquireDisconnect(selected.runtimeId)
+                    : undefined,
+                  action: () =>
+                    run(selected.id, removeRemoteServer, {
+                      selectFallback: true,
+                    }),
+                  afterAction: () => onDisconnected?.(selected.runtimeId),
+                  onError: (error) => reportRunError(selected.id, error),
                 })
               }
               onTrustHostKey={(request) => void trustHostKey(selected, request)}
-              onRejectHostKey={(request) => void rejectHostKey(selected, request)}
+              onRejectHostKey={(request) =>
+                void rejectHostKey(selected, request)
+              }
               trustBusy={trustBusy}
             />
           ) : (
@@ -357,11 +453,62 @@ export function RemoteServersPage({
               Select a server or click + to add one.
             </div>
           )}
-        </section>
-      </div>
+          </section>
+        </div>
+      )}
     </SettingsPage>
   );
 }
+
+function RemoteServersEmptyState({ onAdd }: { onAdd: () => void }) {
+  return (
+    <SettingsEmptyState
+      icon={Server}
+      wallIcons={REMOTE_SERVER_WALL_ICONS}
+      label="No remote servers"
+      title="Bring another workspace within reach"
+      description="Connect over SSH to open a remote LLM Space workspace—threads, settings, and skills included."
+      actions={
+        <>
+          <Button onClick={onAdd}>
+            <Plus className="size-4" />
+            Add remote server
+          </Button>
+          <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+            <ShieldCheck className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+            Passwords and passphrases are never stored.
+          </p>
+        </>
+      }
+      capabilities={[
+        {
+          icon: FolderSync,
+          title: "Your workspace, anywhere",
+          description: "Open remote threads, settings, and skills in place.",
+        },
+        {
+          icon: Network,
+          title: "SSH-native",
+          description: "Use the secure connection already trusted by your team.",
+        },
+        {
+          icon: ShieldCheck,
+          title: "Credentials stay yours",
+          description: "Sensitive passwords and passphrases are not persisted.",
+        },
+      ]}
+    />
+  );
+}
+
+const REMOTE_SERVER_WALL_ICONS = [
+  Server,
+  Laptop,
+  Network,
+  FolderSync,
+  ShieldCheck,
+  RefreshCw,
+] as const;
 
 function RemoteServerDetails({
   server,
@@ -548,7 +695,10 @@ function SshHostKeyDialog({
             <Info label="known_hosts" value={request.knownHostsFile} />
           ) : null}
           {request.knownHostsLine ? (
-            <Info label="Offending line" value={String(request.knownHostsLine)} />
+            <Info
+              label="Offending line"
+              value={String(request.knownHostsLine)}
+            />
           ) : null}
         </div>
         {changed ? (

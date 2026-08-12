@@ -22,6 +22,8 @@ A Thread is the basic unit of work in LLM Space. A Thread usually contains:
 
 In the UI, creating, opening, copying, moving, and deleting Threads is essentially managing Thread files in the workspace.
 
+You can also publish a read-only copy with [Sharing Threads](./sharing.md), or turn the Thread into an editable agent codebase with [Generating Projects](./generating-projects.md).
+
 # Evaluation Rubrics
 
 Run History lets you select two durable runs and compare their saved evidence. You can keep the simple overall verdict and note workflow, or select a reusable rubric owned by the current Thread.
@@ -138,13 +140,15 @@ Messages are the conversation history of a Thread. LLM Space currently uses two 
 User message content can be:
 
 - Text: `{ "type": "text", "text": "..." }`
-- Image data: `{ "type": "image_data", "mimeType": "image/png", "data": "..." }`
+- Image data: `{ "type": "image", "mimeType": "image/png", "data": "..." }`
 
 Assistant message content is mainly text, and may also include:
 
 - `thinking`: reasoning or thinking content returned by the model, depending on provider support.
 - `toolCalls`: records of tool calls requested by the model.
 - `usage`: token usage returned by the model provider.
+
+When a Thread becomes long, [Conversation Compaction](./compaction.md) can replace older turns with a structured checkpoint while keeping recent turns unchanged. Compaction is previewed first and applied to a new Thread file, so the source conversation remains available.
 
 # Tool Calls
 
@@ -278,7 +282,7 @@ Actual files may also contain `runHistory`, `evaluationRubrics`, and `evaluation
 
 # Supported Import Schemas
 
-The import entry point currently selects parsers by file extension, and `.json` is supported. When importing JSON, LLM Space attempts to recognize and normalize the following formats:
+The import entry point selects parsers by file extension. `.json` and `.jsonl` are supported. LLM Space attempts to recognize and normalize the following formats:
 
 | Format | Description |
 | --- | --- |
@@ -286,5 +290,6 @@ The import entry point currently selects parsers by file extension, and `.json` 
 | OpenAI Chat Completions-style JSON | Chat exports containing fields such as `messages`, `role`, `content`, and `tool_calls`. |
 | Anthropic Messages-style JSON | Chat exports containing fields such as `system`, `messages`, content blocks, `tool_use`, `tool_result`, and `input_schema`. |
 | Aurora-style JSON | Aurora Thread exports containing `Messages` and `Tools`. |
+| DeerFlow run-event JSONL | Persisted run events containing human, assistant, and tool messages. |
 
 After import, external formats are converted to the LLM Space Thread structure and written as new `.json` files under the current workspace directory. Files that cannot produce messages, System Prompt, Tools, or model information are skipped.

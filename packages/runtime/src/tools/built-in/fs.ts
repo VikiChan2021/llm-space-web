@@ -5,8 +5,13 @@ import path from "node:path";
 
 import type { BuiltinTool } from "@llm-space/core";
 import type { SkillContent } from "@llm-space/core";
+import { expandHomePath } from "@llm-space/core/server";
 
-import type { ToolEntry } from "../tool-registry";
+import {
+  createToolCallResponse,
+  type ToolCallResponse,
+  type ToolEntry,
+} from "../tool-registry";
 
 export interface FsBuiltInToolsDependencies {
   workspaceRoot: string;
@@ -60,30 +65,45 @@ function _hasIgnoredSegment(relativePath: string): boolean {
 
 // -- read ---------------------------------------------------------------------
 
-const IMAGE_EXTENSIONS = new Set([
-  ".png",
-  ".jpg",
-  ".jpeg",
+const IMAGE_MIME_TYPES: Readonly<Record<string, string>> = {
+  ".bmp": "image/bmp",
+  ".gif": "image/gif",
+  ".ico": "image/x-icon",
+  ".jpeg": "image/jpeg",
+  ".jpg": "image/jpeg",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".webp": "image/webp",
+};
+
+/** Formats pi providers consistently accept as model-facing image content. */
+const MODEL_IMAGE_EXTENSIONS = new Set([
   ".gif",
+  ".jpeg",
+  ".jpg",
+  ".png",
   ".webp",
-  ".bmp",
-  ".svg",
-  ".ico",
 ]);
 
 /**
- * Upper bound on the bytes a single `read` returns. An unbounded read (no
- * `limit`) still stops here so a huge file can't blow past the model's context —
- * the output is truncated with a notice pointing at `offset`/`limit`.
+ * Upper bound on text bytes a single `read` returns. An unbounded text read (no
+ * `limit`) still stops here and points at `offset`/`limit`. Model-supported
+ * images are returned whole because truncating base64 would corrupt the image.
  */
 const READ_MAX_SIZE_BYTES = 256 * 1024;
+
+/**
+ * Upper bound on raw image bytes sent through RPC and persisted in a thread.
+ * Base64 expands the payload further, so reject oversized images before readFile.
+ */
+const READ_MAX_IMAGE_SIZE_BYTES = 20 * 1024 * 1024;
 
 export const readTool: BuiltinTool = {
   type: "builtin",
   name: "read",
   icon: "file-text",
   description:
-    "Reads a file from the local filesystem. Use when you need to inspect source code, config, or any text file. Returns file contents with line numbers; for images, returns a text placeholder with the file's size rather than the image itself. Reads the whole file by default; pass offset/limit to read a specific line range. Output is capped at 256KB and truncated beyond that. Prefer this over bash for reading files. Do NOT use read to load a skill's SKILL.md — use the skill tool instead, unless you specifically need to edit that skill.",
+    "Reads a file from the local filesystem. Use when you need to inspect source code, config, text, or an image. Returns text files with line numbers and supported images up to 20 MiB as image content. Reads the whole text file by default; pass offset/limit to read a specific line range. Text output is capped at 256KB and truncated beyond that. Prefer this over bash for reading files. Do NOT use read to load a skill's SKILL.md — use the skill tool instead, unless you specifically need to edit that skill.",
   strict: true,
   parameters: {
     type: "object",
@@ -96,7 +116,8 @@ export const readTool: BuiltinTool = {
       },
       path: {
         type: "string",
-        description: "Absolute path to the file to read",
+        description:
+          "Absolute path to the file to read; a leading ~/ is expanded to the current user's home directory",
       },
       offset: {
         type: "number",
@@ -113,17 +134,41 @@ export const readTool: BuiltinTool = {
   },
 };
 
+/**
+ * Read a UTF-8 file with line numbers, or return image bytes as model-facing
+ * base64 content while retaining a compact text placeholder for the UI.
+ */
 export async function read(
   filePath: string,
   offset?: number,
   limit?: number
-): Promise<string> {
+): Promise<string | ToolCallResponse> {
+  filePath = expandHomePath(filePath);
   const stat = await fs.stat(filePath);
   if (stat.isDirectory()) {
     throw new Error(`${filePath} is a directory, not a file.`);
   }
-  if (IMAGE_EXTENSIONS.has(path.extname(filePath).toLowerCase())) {
-    return `[image file: ${filePath} (${stat.size} bytes)]`;
+  const extension = path.extname(filePath).toLowerCase();
+  const mimeType = IMAGE_MIME_TYPES[extension];
+  if (mimeType) {
+    const description = `[image file: ${filePath} (${stat.size} bytes)]`;
+    if (!MODEL_IMAGE_EXTENSIONS.has(extension)) {
+      return description;
+    }
+    if (stat.size > READ_MAX_IMAGE_SIZE_BYTES) {
+      throw new Error(
+        `${filePath} is too large to send as image content (${stat.size} bytes; maximum ${READ_MAX_IMAGE_SIZE_BYTES} bytes / 20 MiB).`
+      );
+    }
+    const buffer = await fs.readFile(filePath);
+    return createToolCallResponse([
+      { type: "text", text: description },
+      {
+        type: "image",
+        data: buffer.toString("base64"),
+        mimeType,
+      },
+    ]);
   }
   const content = await fs.readFile(filePath, "utf8");
   const lines = content.split("\n");
@@ -175,7 +220,8 @@ export const writeTool: BuiltinTool = {
       },
       path: {
         type: "string",
-        description: "Absolute path to the file to write",
+        description:
+          "Absolute path to the file to write; a leading ~/ is expanded to the current user's home directory",
       },
       contents: {
         type: "string",
@@ -190,6 +236,7 @@ export async function write(
   filePath: string,
   contents: string
 ): Promise<string> {
+  filePath = expandHomePath(filePath);
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, contents, "utf8");
   return `Wrote ${Buffer.byteLength(contents, "utf8")} bytes to ${filePath}`;
@@ -215,7 +262,8 @@ export const editTool: BuiltinTool = {
       },
       path: {
         type: "string",
-        description: "Absolute path to the file to edit",
+        description:
+          "Absolute path to the file to edit; a leading ~/ is expanded to the current user's home directory",
       },
       old_string: {
         type: "string",
@@ -242,6 +290,7 @@ export async function edit(
   newString: string,
   replaceAll = false
 ): Promise<string> {
+  filePath = expandHomePath(filePath);
   if (oldString === newString) {
     throw new Error("new_string must differ from old_string.");
   }
@@ -283,7 +332,8 @@ export const lsTool: BuiltinTool = {
       },
       path: {
         type: "string",
-        description: "Absolute path to the directory to list",
+        description:
+          "Absolute path to the directory to list; a leading ~/ is expanded to the current user's home directory",
       },
     },
     additionalProperties: false,
@@ -291,6 +341,7 @@ export const lsTool: BuiltinTool = {
 };
 
 export async function ls(dirPath: string): Promise<string> {
+  dirPath = expandHomePath(dirPath);
   const entries = (await fs.readdir(dirPath, { withFileTypes: true })).filter(
     (entry) => !_isIgnored(entry.name)
   );
@@ -342,7 +393,8 @@ export const treeTool: BuiltinTool = {
       },
       path: {
         type: "string",
-        description: "Absolute path to the directory to print as a tree",
+        description:
+          "Absolute path to the directory to print as a tree; a leading ~/ is expanded to the current user's home directory",
       },
       max_depth: {
         type: "number",
@@ -357,6 +409,7 @@ export async function tree(
   dirPath: string,
   maxDepth?: number
 ): Promise<string> {
+  dirPath = expandHomePath(dirPath);
   const stat = await fs.stat(dirPath);
   if (!stat.isDirectory()) {
     throw new Error(`${dirPath} is not a directory.`);
@@ -446,7 +499,8 @@ export const grepTool: BuiltinTool = {
       },
       path: {
         type: "string",
-        description: "Absolute path to a file or directory to search in",
+        description:
+          "Absolute path to a file or directory to search in; a leading ~/ is expanded to the current user's home directory",
       },
       glob: {
         type: "string",
@@ -474,6 +528,7 @@ export async function grep(
   caseInsensitive = false,
   contextLines?: number
 ): Promise<string> {
+  searchPath = expandHomePath(searchPath);
   const args = ["--line-number", "--with-filename", "--color=never"];
   // Prune common noise dirs/files regardless of any .gitignore presence.
   for (const name of DEFAULT_IGNORES) {
@@ -525,7 +580,7 @@ export const globTool: BuiltinTool = {
       target_directory: {
         type: "string",
         description:
-          "Absolute path to the directory to search in. Defaults to the workspace root if omitted.",
+          "Absolute path to the directory to search in; a leading ~/ is expanded to the current user's home directory. Defaults to the workspace root if omitted.",
       },
     },
     additionalProperties: false,
@@ -537,7 +592,7 @@ export async function glob(
   targetDirectory: string | undefined,
   workspaceRoot: string
 ): Promise<string> {
-  const root = targetDirectory ?? workspaceRoot;
+  const root = expandHomePath(targetDirectory ?? workspaceRoot);
   const scanner = new Bun.Glob(globPattern);
   const matches: { path: string; mtimeMs: number }[] = [];
   for await (const relative of scanner.scan({ cwd: root, dot: true })) {
@@ -598,6 +653,7 @@ const BASH_MAX_TIMEOUT_MS = 600_000;
 
 export async function bash(
   command: string,
+  workspaceRoot: string,
   timeout?: number
 ): Promise<{
   stdout: string;
@@ -611,7 +667,8 @@ export async function bash(
   const { stdout, stderr, code } = await _run(
     "bash",
     ["-c", command],
-    timeoutMs
+    timeoutMs,
+    workspaceRoot
   );
   return { stdout, stderr, exitCode: code };
 }
@@ -672,7 +729,8 @@ export const presentFilesTool: BuiltinTool = {
         items: {
           type: "string",
         },
-        description: "Absolute paths to the files to present to the user",
+        description:
+          "Absolute paths to the files to present to the user; a leading ~/ is expanded to the current user's home directory",
       },
     },
     additionalProperties: false,
@@ -691,7 +749,8 @@ export async function present_files(
   dependencies: Pick<FsBuiltInToolsDependencies, "openPath" | "revealPath"> = {}
 ): Promise<"OK"> {
   const reveals: Promise<void>[] = [];
-  for (const p of paths) {
+  for (const requestedPath of paths) {
+    const p = expandHomePath(requestedPath);
     if (_isHtmlFile(p)) {
       await dependencies.openPath?.(p);
     } else {
@@ -795,6 +854,7 @@ export function createFsBuiltInTools(
       async execute(args: Record<string, unknown>) {
         return bash(
           _requireString(args, "command"),
+          workspaceRoot,
           _optionalNumber(args, "timeout")
         );
       },
@@ -813,10 +873,14 @@ export function createFsBuiltInTools(
 function _run(
   command: string,
   args: string[],
-  timeoutMs?: number
+  timeoutMs?: number,
+  cwd?: string
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(command, args, {
+      cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
     let stdout = "";
     let stderr = "";
     let timedOut = false;

@@ -19,13 +19,27 @@ A workbench for prompt and agent development — build, trace, debug, evaluate, 
 | Local packaging / update test          | `mise run pack` · `pack:perf` · `pack:adhoc` · `pack:signed` · `pack:feed` + `feed:serve` | env combinations over `build:canary` (skip signing / CEF Performance edition / ad-hoc sign / local update feed on :8321); defined in `mise.toml` |
 | Cut a release                          | `mise run release` / `mise run release:canary`                              | → `bun scripts/release.ts`; see "Releases & auto-update"                                                               |
 | Test                                   | `mise run test`                                                             | runs the complete Bun test suite from the repository root                                                                  |
+| Check changed files                    | `mise run check:changed`                                                    | lints and typechecks only tracked changes and untracked source files                                                       |
 | Lint                                   | `mise run lint` / `mise run lint:fix`                                       | `lint` = `eslint .` (read-only), `lint:fix` = `eslint --fix .`; flat config at repo root                               |
-| Typecheck                              | `mise run typecheck`                                                        | `tsc --noEmit` over four projects: root, `packages/ui`, `apps/desktop`, `web`. `packages/ui`/`web` are React/DOM code, so they need their own DOM tsconfigs (the root config is Bun-flavored and excludes `packages/ui`); add a project here when you add a workspace. |
+| Typecheck                              | `mise run typecheck`                                                        | runs `tsc --noEmit` for root, runtime, UI, desktop, web, server, and the Atlas Plugin example; add a project here when you add a workspace. |
 | Add a dependency                       | `bun add <pkg>`                                                             | run inside the target package (`apps/desktop` or `packages/core`)                                                      |
 | Add a shadcn/ui component              | `bunx --bun shadcn@latest add <component>`                                  | run inside `packages/ui` (the shared design system now lives there, not `apps/desktop`)                                |
 | Run a script from root                 | `bun --filter <pkg> <script>`                                               | e.g. `bun --filter @llm-space/desktop start`                                                                           |
 
 Bun's built-in test runner discovers the repository's `*.test.ts` files through `mise run test`. CI (`.github/workflows/ci.yml`) runs tests + lint + typecheck + a production `vite build` + workflow-YAML validation on PRs and pushes to main. The last two exist because both failure modes are invisible until a release tag is pushed, and then take the release down with them: a renderer bundle that outgrows the runner's V8 heap (`build:view` sets `--max-old-space-size=4096`; the default ~2 GB stopped being enough at 14701 modules) and a malformed workflow file. Keep the renderer bundle in mind — if `vite build` starts OOMing again, raise the ceiling in `build:view` or cut the bundle down, and don't discover it at release time.
+
+For ordinary coding-agent work, run `mise run check:changed` instead of the
+repository-wide `mise run lint` and `mise run typecheck` tasks. The changed-file
+check uses Git tracked changes plus untracked source files, runs ESLint only on
+those files, and reports TypeScript diagnostics only for those files. Keep the
+full lint and typecheck tasks for CI parity, release preparation, or an explicit
+user request. The underlying commands are `bun run check:changed`,
+`bun run lint:changed`, `bun run lint:changed:fix`, and
+`bun run typecheck:changed` when `mise` is not available.
+
+Package tests live in `packages/<package>/tests/` beside `src/`, and their
+internal paths mirror `src/` (for example, `src/thread/history.ts` maps to
+`tests/thread/history.test.ts`). Do not colocate test files under `src/`.
 
 GUI commits (VS Code, Fork) failing with `bun: command not found`: husky hooks need bun on PATH — add `export PATH="$HOME/.local/share/mise/shims:$PATH"` to `~/.config/husky/init.sh` (husky's documented fix for version managers).
 
@@ -137,7 +151,7 @@ particular:
   generated Python renderer, including recursive-include and missing-file
   behavior.
 - Add generator regression tests in
-  `packages/core/src/generator/langgraph/templates.test.ts`, then execute the
+  `packages/core/tests/generator/langgraph/templates.test.ts`, then execute the
   generated Python at least once for syntax and behavior; TypeScript
   string/snapshot assertions alone are not sufficient.
 - Before releasing a prompt-runtime change, generate or inspect a General Agent
@@ -147,16 +161,24 @@ particular:
 
 State is **persisted to disk** under the llm-space root (`~/.llm-space` by default; override with `LLM_SPACE_HOME`):
 
-- `workspace/` — thread files as JSON, served through `LocalFileSystem` behind the `fs*` RPC requests. On a fresh install `bun/workspace/seed.ts` creates the empty directory so the welcome screen can offer blank-thread and example-start choices.
+- `workspace/` — thread files as JSON, served through `LocalFileSystem` behind the `fs*` RPC requests. On a fresh install `bun/workspace/seed.ts` creates the empty directory so the welcome screen can offer blank-thread and example-start choices. **Nothing derived ever goes in here**: it holds user content and nothing else.
+- `history/` — run snapshots, externalized out of the thread file so it stays small, and kept out of `workspace/` so the user never sees derived data next to their own. One folder per thread, named `sha256(<workspace-relative path>)`, holding an `index.json` marker (`{ version, resource, orphanedAt? }`) plus one JSON file per run, named by the opaque `snapshotRef` recorded in the thread's `runHistoryIndex`. `RunHistoryStore` (`packages/core/src/server/storage/local/run-history-store.ts`) owns the folder; because the key is the thread's path, `LocalFileSystem` re-keys it on `cp`/`mv` (including whole directory subtrees) and prunes entries a thread no longer references. Deleting a thread deliberately **keeps** its history, so a file restored from the trash keeps its runs; the marker is what makes that safe: `LocalFileSystem.maintainRunHistory()` (run once at desktop startup) uses it to stamp orphans and reclaim them after 30 days.
 - `settings/` — `models.json` (configured providers, owned by `ModelManager`), `window.json` (frame/zoom/maximized), and `reminders.json` (`featureRemindersSeen` ids + GitHub-star reminder state, owned by `bun/reminders/`).
 
 ### Releases & auto-update
 
-The app version has a **single source of truth: `apps/desktop/package.json`** — `electrobun.config.ts` imports it, and release CI fails if the pushed tag doesn't match. Cut releases with `mise run release` (stable) or `mise run release:canary`; the script (`scripts/release.ts`) runs `commit-and-tag-version` (conventional-commits-driven version bump + commit + `v*` tag, config in `.versionrc.json`) and pushes atomically. Automated changelog generation is off (`skip.changelog`) — the `CHANGELOG.md` at the repo root is **hand-curated** (Keep a Changelog format), so before cutting a stable release, add a `## [x.y.z]` section for it. CI builds each versioned release's GitHub notes by extracting that version's `CHANGELOG.md` section (no `--generate-notes`, which would dump commits/authors) and appending the install blurb; prereleases with no changelog entry (canary) fall back to install-only notes. The tag triggers `.github/workflows/release.yml`: build → codesign/notarize (canary/stable only; needs the `MACOS_*`/`ASC_*` signing secrets, mapped to electrobun's `ELECTROBUN_*` env vars in the workflow) → smoke test → upload. Artifacts land in two GitHub releases: the rolling `updates` release is the machine-readable update feed (`release.baseUrl` points at it; **never delete its `.patch` files** — old installs chain through them), and a versioned release carries the DMG for humans. In-app auto-update lives in `bun/updates/` (background check → silent download → "restart to update" toast via the `updateStatusChanged` message); the dev channel never updates.
+The app version has a **single source of truth: `apps/desktop/package.json`** — `electrobun.config.ts` imports it, and release CI fails if the pushed tag doesn't match. Cut releases with `mise run release` (stable) or `mise run release:canary`; the script (`scripts/release.ts`) runs `commit-and-tag-version` (conventional-commits-driven version bump + commit + `v*` tag, config in `.versionrc.json`) and pushes atomically. Automated changelog generation is off (`skip.changelog`) — the root `CHANGELOG.md` and `CHANGELOG.zh-CN.md` are **hand-curated** (Keep a Changelog format). Before **every stable release**, add matching `## [x.y.z]` sections to both language versions with the same version, date, and change semantics; neither language may be missing or stale when a release is cut. CI builds each versioned release's GitHub notes by extracting that version's English `CHANGELOG.md` section (no `--generate-notes`, which would dump commits/authors) and appending the install blurb; prereleases with no changelog entry (canary) fall back to install-only notes. The tag triggers `.github/workflows/release.yml`: build → codesign/notarize (canary/stable only; needs the `MACOS_*`/`ASC_*` signing secrets, mapped to electrobun's `ELECTROBUN_*` env vars in the workflow) → smoke test → upload. Artifacts land in two GitHub releases: the rolling `updates` release is the machine-readable update feed (`release.baseUrl` points at it; **never delete its `.patch` files** — old installs chain through them), and a versioned release carries the DMG for humans. In-app auto-update lives in `bun/updates/` (background check → silent download → "restart to update" toast via the `updateStatusChanged` message); the dev channel never updates.
 
 Before any release, run `mise run lint` from the repository root and require a
 clean exit with **zero warnings and zero errors**. The lint script enforces this
 with `--max-warnings 0`; never release from a revision that fails this check.
+
+If `@earendil-works/pi-ai` is still at version `0.83.0` when preparing a
+release, check the npm registry for a newer official version and verify whether
+upstream has fixed Responses tool-call ID replay for non-OpenAI providers. Do
+not ship the local dependency patch without checking first. If an official
+release contains the fix, upgrade the dependency and remove the local patch
+before releasing.
 
 **Two editions ship from every tag.** The regular one drives the system WebView; the **Performance** edition embeds Chromium (CEF). `LLM_SPACE_DESKTOP_RENDERER=cef` is the only switch — `electrobun.config.ts` forks the app name (`LLM Space Performance`), the identifier (`…llm-space.performance`) and the update feed off it, so the two install side by side in `/Applications` and update independently. They deliberately **share `~/.llm-space`** (`getLlmSpaceHomePath()` is name-independent), so switching editions keeps threads and settings. Two things make this work and will silently break if touched: (1) each edition needs its **own rolling update release** (`updates` / `updates-performance`) — `update.json` is named `{channel}-{os}-{arch}-update.json` with no app name, so a shared release would have them overwrite each other; hence the release workflow downloads the two editions' artifacts into **separate directories** rather than `merge-multiple` into one. (2) CEF must **not** get a `remote-debugging-port` in shipped builds — `chromiumFlags` is only set when `LLM_SPACE_DESKTOP_CDP_PORT` is explicitly passed (which `dev:cef` does, and CI never does); an always-on CDP port would let any local process drive the renderer. Build the Performance edition locally with `mise run pack:perf`.
 
@@ -219,6 +241,7 @@ Prefer dropping new images into the existing `src/mainview/public/images/` folde
 - **`ui/`** is generated shadcn/ui — **don't hand-edit** (also ESLint-ignored). Add components with `bunx --bun shadcn@latest add <component>`.
 - Prefer the **app-level wrappers** in `components/` over the raw shadcn primitives. In particular, **Tooltips must use `@/components/tooltip`** (`<Tooltip content={...}>…</Tooltip>`) — do **not** import `Tooltip`/`TooltipTrigger`/`TooltipContent` from `ui/tooltip` directly. The only direct use of the primitive is `TooltipProvider`, wired once in `app/layout.tsx`.
 - **Confirmations**: gate destructive or irreversible actions (delete a file, remove a provider) behind `ConfirmDialog` from `@/components/confirm-dialog` — don't fire them straight from a click.
+- **Empty states**: every list or collection view must define an intentional empty state. Prefer the shared `Empty`, `EmptyHeader`, `EmptyMedia`, `EmptyTitle`, `EmptyDescription`, and `EmptyContent` primitives from `@llm-space/ui/ui/empty` over ad hoc centered text or blank space. Include a concise explanation and, when useful, the primary action that helps the user populate or recover the list; also handle filtered/search results that contain no matches.
 - **Menus and commands**: every cross-boundary action is a `Command` (`shared/commands.ts`); its `type` is camelCase. Labels in `COMMAND_META`, native menus (`bun/app/menu.ts`), context menus, dropdown menus, and similar menu-like surfaces are **Title Case** ("Add New Method", "New File", "Close Tab"). Route everything through `executeCommand` rather than calling handlers directly.
 - **General UI copy**: ordinary buttons, headings, helper text, empty states, dialogs, and other non-menu labels use sentence case ("Add new method", "Start from example", "No tools yet").
 

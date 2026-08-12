@@ -1,6 +1,11 @@
 import { Type, type Static } from "typebox";
 
-import { Message, ModelUsage } from "../messages";
+import {
+  type AssistantMessage,
+  Message,
+  ModelUsage,
+  type ProviderHostedToolActivity,
+} from "../messages";
 import { ModelConfig } from "../models";
 import { normalizeTools, Tool } from "../tools";
 
@@ -204,6 +209,25 @@ export const ThreadRunSnapshot = Type.Object({
 });
 export type ThreadRunSnapshot = Static<typeof ThreadRunSnapshot>;
 
+/** Lightweight display data kept in the main thread file for a stored run. */
+export const ThreadRunPreview = Type.Object({
+  summary: Type.String(),
+  modelLabel: Type.String(),
+  messageCountLabel: Type.String(),
+});
+export type ThreadRunPreview = Static<typeof ThreadRunPreview>;
+
+/** A completed run whose full snapshot is stored outside the main thread file. */
+export const ThreadRunReference = Type.Object({
+  id: Type.String(),
+  timestamp: Type.Number(),
+  usage: Type.Optional(ModelUsage),
+  thread: Type.Optional(Type.Never()),
+  snapshotRef: Type.String(),
+  preview: ThreadRunPreview,
+});
+export type ThreadRunReference = Static<typeof ThreadRunReference>;
+
 /** One ordered dimension in a reusable manual evaluation rubric. */
 export const ThreadEvaluationCriterion = Type.Object({
   id: Type.String(),
@@ -338,17 +362,33 @@ export const ThreadEvaluation = Type.Union([
 ]);
 export type ThreadEvaluation = Static<typeof ThreadEvaluation>;
 
+/** Durable, non-conversation preferences owned by one thread. */
+export const ThreadMeta = Type.Object({
+  /** Optional focus supplied to the model when manually compacting context. */
+  compactionInstructions: Type.Optional(Type.String()),
+});
+export type ThreadMeta = Static<typeof ThreadMeta>;
+
 /**
  * The definition of a thread.
  */
 export const Thread = Type.Object({
   ...THREAD_FIELDS,
 
+  /** Durable thread-level preferences that are not sent during normal runs. */
+  meta: Type.Optional(ThreadMeta),
+
   /**
-   * Recent completed runs for debugging and replay. Entries are bounded by the
-   * desktop store and store de-nested thread snapshots.
+   * Legacy inline completed runs. New workspace persistence migrates these to
+   * {@link ThreadRunReference} entries without discarding snapshots.
    */
   runHistory: Type.Optional(Type.Array(ThreadRunSnapshot)),
+
+  /** Version of the external run-history persistence format. */
+  runHistoryVersion: Type.Optional(Type.Literal(2)),
+
+  /** Lightweight index for full run snapshots stored in sidecar files. */
+  runHistoryIndex: Type.Optional(Type.Array(ThreadRunReference)),
 
   /**
    * Manual evaluations created by comparing durable run snapshots.
@@ -382,17 +422,13 @@ export type Thread = Static<typeof Thread>;
 
 export function normalizeThread(thread: Thread): Thread {
   const context = thread.context;
-  const tools = context?.tools;
   const runHistory = thread.runHistory;
   let next = thread;
 
-  if (tools) {
-    const normalizedTools = normalizeTools(tools);
-    if (!_sameTools(tools, normalizedTools)) {
-      next = {
-        ...next,
-        context: { ...context, tools: normalizedTools },
-      };
+  if (context) {
+    const normalizedContext = _normalizeThreadContext(context);
+    if (normalizedContext !== context) {
+      next = { ...next, context: normalizedContext };
     }
   }
 
@@ -412,6 +448,53 @@ export function normalizeThread(thread: Thread): Thread {
   }
 
   return next;
+}
+
+function _normalizeThreadContext(context: ThreadContext): ThreadContext {
+  let next = context;
+  const tools = context.tools;
+  if (tools) {
+    const normalizedTools = normalizeTools(tools);
+    if (!_sameTools(tools, normalizedTools)) {
+      next = { ...next, tools: normalizedTools };
+    }
+  }
+
+  const messages = context.messages;
+  if (messages) {
+    let changed = false;
+    const normalizedMessages = messages.map((message) => {
+      const normalizedMessage = _normalizeMessage(message);
+      if (normalizedMessage !== message) changed = true;
+      return normalizedMessage;
+    });
+    if (changed) {
+      next = { ...next, messages: normalizedMessages };
+    }
+  }
+
+  return next;
+}
+
+function _normalizeMessage(message: Message): Message {
+  if (message.role !== "assistant" || !("nativeToolActivities" in message)) {
+    return message;
+  }
+
+  const legacy = message as AssistantMessage & {
+    nativeToolActivities?: ProviderHostedToolActivity[];
+  };
+  const { nativeToolActivities, ...rest } = legacy;
+  if (
+    rest.providerHostedToolActivities !== undefined ||
+    nativeToolActivities === undefined
+  ) {
+    return rest;
+  }
+  return {
+    ...rest,
+    providerHostedToolActivities: nativeToolActivities,
+  };
 }
 
 function _sameTools(

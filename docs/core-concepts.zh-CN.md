@@ -22,6 +22,8 @@ Thread 是 LLM Space 的基本工作单元。一个 Thread 通常包含：
 
 在界面里，新建、打开、复制、移动和删除 Thread，本质上是在管理工作区里的 Thread 文件。
 
+你还可以通过[分享 Thread](./sharing.zh-CN.md)发布只读副本，或者使用[生成项目](./generating-projects.zh-CN.md)将 Thread 转换成可编辑的 Agent 代码项目。
+
 # 评测 Rubric
 
 Run History 支持选择两个持久化运行并比较它们保存的证据。你可以继续使用简单的总体结论和备注，也可以选择当前 Thread 中可复用的 Rubric。
@@ -138,13 +140,15 @@ Messages 是 Thread 的对话历史。LLM Space 当前主要使用两种消息�
 用户消息的内容可以是：
 
 - 文本：`{ "type": "text", "text": "..." }`
-- 图片数据：`{ "type": "image_data", "mimeType": "image/png", "data": "..." }`
+- 图片数据：`{ "type": "image", "mimeType": "image/png", "data": "..." }`
 
 助手消息的内容主要是文本，也可以附带：
 
 - `thinking`：模型返回的推理或思考内容，取决于提供方是否支持。
 - `toolCalls`：模型请求调用工具的记录。
 - `usage`：模型提供方返回的 token 使用量。
+
+当 Thread 变得很长时，可以使用[对话压缩](./compaction.zh-CN.md)将较早轮次替换为结构化检查点，同时原样保留最近轮次。压缩会先生成预览，并应用到新的 Thread 文件，因此原始对话仍然可用。
 
 # Tool Calls
 
@@ -278,7 +282,7 @@ Thread 文件保存在：
 
 # 支持导入的 schema
 
-当前导入入口按文件扩展名选择解析器；已支持 `.json`。导入 JSON 时，LLM Space 会尝试识别并归一化以下格式：
+当前导入入口按文件扩展名选择解析器；已支持 `.json` 和 `.jsonl`。LLM Space 会尝试识别并归一化以下格式：
 
 | 格式 | 说明 |
 | --- | --- |
@@ -286,5 +290,6 @@ Thread 文件保存在：
 | OpenAI Chat Completions 风格 JSON | 包含 `messages`、`role`、`content`、`tool_calls` 等字段的聊天导出。 |
 | Anthropic Messages 风格 JSON | 包含 `system`、`messages`、内容块、`tool_use`、`tool_result`、`input_schema` 等字段的聊天导出。 |
 | Aurora 风格 JSON | 包含 `Messages` 和 `Tools` 的 Aurora 线程导出。 |
+| DeerFlow run-event JSONL | 包含用户、助手和工具消息的持久化运行事件。 |
 
 导入后，外部格式会转换为 LLM Space 的 Thread 结构，并写入当前工作区目录下的新 `.json` 文件。无法解析出消息、System Prompt、Tools 或模型信息的文件会被跳过。

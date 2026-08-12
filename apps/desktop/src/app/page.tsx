@@ -1,7 +1,8 @@
+import type { Thread } from "@llm-space/core";
 import { FirecrawlLimitDialog } from "@llm-space/ui/components/firecrawl-limit-dialog";
 import {
-  ModelProvider,
   useModels,
+  useRefreshModels,
 } from "@llm-space/ui/components/model-provider";
 import {
   LOCAL_STORAGE_KEYS,
@@ -18,20 +19,26 @@ import { useQueryClient } from "@tanstack/react-query";
 import { FileTextIcon, GitBranchIcon } from "lucide-react";
 import {
   lazy,
-  Suspense,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type Dispatch,
   type MutableRefObject,
-  type ReactNode,
   type SetStateAction,
 } from "react";
+import { flushSync } from "react-dom";
 import { usePanelRef } from "react-resizable-panels";
 import { toast } from "sonner";
 
+import { createFileSystemClient } from "@/client";
+import {
+  installPluginFile,
+  isPluginZipFile,
+  type PluginActiveTab,
+} from "@/client/plugins";
 import { getDefaultRuntime, listRuntimes } from "@/client/remote-servers";
 import { CommandProvider, useCommands, useRegisterCommands } from "@/commands";
 import { AccountStatus } from "@/components/account-status";
@@ -41,14 +48,29 @@ import { FileSystemTreeView } from "@/components/file-system-tree-view";
 import { GithubAuthProvider } from "@/components/github-auth-provider";
 import { GithubDeviceDialog } from "@/components/github-device-dialog";
 import { GithubStarReminder } from "@/components/github-star-reminder";
+import { LazyMount } from "@/components/lazy-mount";
+import { PageShareThreadController } from "@/components/page-share-thread-controller";
 import { RemoteStatus } from "@/components/remote-status";
+import type { ShareThreadTarget } from "@/components/share-thread-dialog-flow";
 import { SharedImportProvider } from "@/components/shared-import-provider";
 import {
   chooseActiveTabForRuntime,
   filterTabsForRuntime,
   ThreadTabs,
   useThreadTabs,
+  type AppTab,
 } from "@/components/thread-tabs";
+import { acquireFileMutationForTabs } from "@/components/thread-tabs/pane-file-mutation";
+import type { PaneLifecycleHost } from "@/components/thread-tabs/pane-lifecycle-host";
+import {
+  closeAllTabsIfAllowed,
+  closeOtherTabsIfAllowed,
+  closeTabIfAllowed,
+  paneIdForTab,
+  refreshTabIfAllowed,
+} from "@/components/thread-tabs/pane-mutation-actions";
+import { RuntimeRunTracker } from "@/components/thread-tabs/runtime-run-tracker";
+import { switchWorkspaceRuntimeIfAllowed } from "@/components/thread-tabs/runtime-workspace-transition";
 import { UpdateIndicator } from "@/components/update-indicator";
 import { UpdateStatusProvider } from "@/components/update-status-provider";
 import { Welcome } from "@/components/welcome";
@@ -66,7 +88,11 @@ import {
 import { useFullScreen } from "@/lib/use-full-screen";
 import type { SettingsTab } from "@/shared/commands";
 import type { RuntimeId } from "@/shared/runtime";
+import { buildShareThreadCommand } from "@/shared/share";
 import type { TraceRecord } from "@/shared/traces";
+
+import { invalidateRuntimeSwitchQueries } from "./runtime-switch-queries";
+import { WorkspaceModelScope } from "./workspace-model-scope";
 
 // Overlay surfaces that aren't part of the first paint — settings, the command
 // palette, onboarding, and examples. Loaded lazily so their code (and heavy
@@ -92,9 +118,9 @@ const StartFromExampleDialog = lazy(() =>
     default: m.StartFromExampleDialog,
   }))
 );
-const ShareThreadDialog = lazy(() =>
-  import("@/components/share-thread-dialog").then((m) => ({
-    default: m.ShareThreadDialog,
+const ThreadStorageDialog = lazy(() =>
+  import("@/components/thread-storage-dialog").then((m) => ({
+    default: m.ThreadStorageDialog,
   }))
 );
 const LazyTracePanel = lazy(() =>
@@ -102,21 +128,6 @@ const LazyTracePanel = lazy(() =>
     default: m.TracePanel,
   }))
 );
-
-/**
- * Renders a lazily-loaded overlay only once `open` first becomes true, then
- * keeps it mounted. Deferring the initial mount keeps the overlay's chunk out of
- * first paint; latching it mounted afterwards means its close animation and
- * subsequent opens are instant. The latch is a render-time ref (not an effect)
- * so the lazy `import()` starts in the same render that opens the overlay,
- * without a wasted extra render of the page tree.
- */
-function LazyMount({ open, children }: { open: boolean; children: ReactNode }) {
-  const mounted = useRef(false);
-  if (open) mounted.current = true;
-  if (!mounted.current) return null;
-  return <Suspense fallback={null}>{children}</Suspense>;
-}
 
 function _SidebarModeSwitch({
   mode,
@@ -197,6 +208,16 @@ function hasFiles(e: React.DragEvent): boolean {
   return e.dataTransfer.types.includes("Files");
 }
 
+type DropKind = "plugins" | "threads" | "mixed";
+
+function droppedFileKind(dataTransfer: DataTransfer): DropKind {
+  const files = [...dataTransfer.files];
+  const hasPlugin = files.some(isPluginZipFile);
+  const hasThread = files.some((file) => !isPluginZipFile(file));
+  if (hasPlugin && hasThread) return "mixed";
+  return hasPlugin ? "plugins" : "threads";
+}
+
 // Persisted width (in px) of the sidebar file-tree panel, so it survives
 // restarts. Collapsing sets the panel to 0 — we never store that, so reopening
 // restores the last dragged width.
@@ -238,31 +259,16 @@ function PageInner() {
   }, [workspaceRuntimeId]);
 
   return (
-    <WorkspaceModelScope runtimeId={workspaceRuntimeId}>
+    <WorkspaceModelScope
+      runtimeId={workspaceRuntimeId}
+      createClient={createElectrobunModelClient}
+    >
       <PageWorkspace
         workspaceRuntimeId={workspaceRuntimeId}
         setWorkspaceRuntimeId={setWorkspaceRuntimeId}
         workspaceRuntimeIdRef={workspaceRuntimeIdRef}
       />
     </WorkspaceModelScope>
-  );
-}
-
-function WorkspaceModelScope({
-  runtimeId,
-  children,
-}: {
-  runtimeId: RuntimeId;
-  children: ReactNode;
-}) {
-  const client = useMemo(
-    () => createElectrobunModelClient(runtimeId),
-    [runtimeId]
-  );
-  return (
-    <ModelProvider key={runtimeId} client={client}>
-      {children}
-    </ModelProvider>
   );
 }
 
@@ -275,9 +281,27 @@ function PageWorkspace({
   setWorkspaceRuntimeId: Dispatch<SetStateAction<RuntimeId>>;
   workspaceRuntimeIdRef: MutableRefObject<RuntimeId>;
 }) {
-  const tabs = useThreadTabs();
+  const runtimeRunTrackerRef = useRef(new RuntimeRunTracker());
+  const mutationRevision = useSyncExternalStore(
+    runtimeRunTrackerRef.current.subscribe,
+    runtimeRunTrackerRef.current.getSnapshot,
+    runtimeRunTrackerRef.current.getSnapshot
+  );
+  const canPruneRestoredTab = useCallback((tab: AppTab) => {
+    const paneId = paneIdForTab(tab);
+    return (
+      !runtimeRunTrackerRef.current.isPaneBusy(paneId) &&
+      !runtimeRunTrackerRef.current.isMutationReserved(
+        paneId,
+        tab.runtimeId,
+        tab.type === "thread" ? tab.path : undefined
+      )
+    );
+  }, []);
+  const tabs = useThreadTabs({ canPruneRestoredTab });
   const { executeCommand } = useCommands();
   const models = useModels();
+  const refreshModels = useRefreshModels();
   const queryClient = useQueryClient();
   const { tracingEnabled } = useExperimental();
 
@@ -286,6 +310,8 @@ function PageWorkspace({
     closeAllInRuntime,
     discardRuntime,
     closeOthersInRuntime,
+    handleMove,
+    handleRemove,
     openTrace,
     reopenClosed,
   } = tabs;
@@ -298,12 +324,39 @@ function PageWorkspace({
       chooseActiveTabForRuntime(tabs.tabs, tabs.activeId, workspaceRuntimeId),
     [tabs.activeId, tabs.tabs, workspaceRuntimeId]
   );
+  const threadStateRef = useRef(new Map<string, Thread>());
+  const handleThreadStateChange = useCallback(
+    (tabId: string, thread: Thread | null) => {
+      if (thread) threadStateRef.current.set(tabId, thread);
+      else threadStateRef.current.delete(tabId);
+    },
+    []
+  );
+  const getActivePluginTab = useCallback((): PluginActiveTab | null => {
+    const activeTab = visibleTabs.find((tab) => tab.id === visibleActiveId);
+    if (activeTab?.type !== "thread") return null;
+    const thread = threadStateRef.current.get(activeTab.id);
+    const filename = activeTab.path.split("/").at(-1);
+    return thread && filename
+      ? { ...activeTab, tabId: activeTab.id, filename, thread }
+      : null;
+  }, [visibleActiveId, visibleTabs]);
+  const getActiveShareThread = useCallback((): ShareThreadTarget | null => {
+    const activeTab = visibleTabs.find((tab) => tab.id === visibleActiveId);
+    return activeTab?.type === "thread"
+      ? { path: activeTab.path, runtimeId: activeTab.runtimeId }
+      : null;
+  }, [visibleActiveId, visibleTabs]);
   // The visible active tab is read through a ref so command handlers never go
   // stale or accidentally target a tab from another runtime.
   const activeTabIdRef = useRef(visibleActiveId);
+  const allTabsRef = useRef(tabs.tabs);
   useEffect(() => {
     activeTabIdRef.current = visibleActiveId;
   }, [visibleActiveId]);
+  useEffect(() => {
+    allTabsRef.current = tabs.tabs;
+  }, [tabs.tabs]);
   const activateVisibleTab = useCallback(
     (id: string) => {
       if (visibleTabs.some((tab) => tab.id === id)) tabs.activate(id);
@@ -331,6 +384,81 @@ function PageWorkspace({
     },
     [tabs, visibleActiveId, visibleTabs]
   );
+  const showRuntimeRunBlocked = useCallback((action: string) => {
+    toast.info("Wait for active runs to finish", {
+      description: `Completed output will be saved before ${action}.`,
+    });
+  }, []);
+  const canDisconnectRuntime = useCallback(
+    (runtimeId: RuntimeId) => {
+      if (runtimeRunTrackerRef.current.canDisconnect(runtimeId)) return true;
+      showRuntimeRunBlocked("disconnecting this runtime");
+      return false;
+    },
+    [showRuntimeRunBlocked]
+  );
+  const canConnectRemote = useCallback(() => {
+    if (!runtimeRunTrackerRef.current.hasAnyRunning()) return true;
+    showRuntimeRunBlocked("changing remote connections");
+    return false;
+  }, [showRuntimeRunBlocked]);
+  const handlePaneRunStart = useCallback(
+    (paneId: string, runtimeId: RuntimeId, runId: string, path?: string) =>
+      runtimeRunTrackerRef.current.beginRun(paneId, runtimeId, runId, path),
+    []
+  );
+  const handlePaneRunSettled = useCallback((paneId: string, runId: string) => {
+    runtimeRunTrackerRef.current.settleRun(paneId, runId);
+  }, []);
+  const handlePanePersistenceChange = useCallback(
+    (
+      paneId: string,
+      runtimeId: RuntimeId,
+      owner: object,
+      busy: boolean,
+      path?: string
+    ) => {
+      runtimeRunTrackerRef.current.setPersistenceBusy(
+        paneId,
+        runtimeId,
+        owner,
+        busy,
+        path
+      );
+    },
+    []
+  );
+  const isPaneMutationReserved = useCallback(
+    (paneId: string, runtimeId: RuntimeId, path?: string) =>
+      runtimeRunTrackerRef.current.isMutationReserved(paneId, runtimeId, path),
+    []
+  );
+  const acquireFileMutation = useCallback(
+    (paths: string[], runtimeId: RuntimeId, action: string) =>
+      acquireFileMutationForTabs({
+        tracker: runtimeRunTrackerRef.current,
+        tabs: allTabsRef.current,
+        paths,
+        runtimeId,
+        onBlocked: () => showRuntimeRunBlocked(action),
+      }),
+    [showRuntimeRunBlocked]
+  );
+  const acquireRemoteConnectionMutation = useCallback(() => {
+    const release = runtimeRunTrackerRef.current.reserveAll();
+    if (release) return release;
+    showRuntimeRunBlocked("changing remote connections");
+    return null;
+  }, [showRuntimeRunBlocked]);
+  const acquireRuntimeDisconnectMutation = useCallback(
+    (runtimeId: RuntimeId) => {
+      const release = runtimeRunTrackerRef.current.reserveRuntime(runtimeId);
+      if (release) return release;
+      showRuntimeRunBlocked("disconnecting this runtime");
+      return null;
+    },
+    [showRuntimeRunBlocked]
+  );
   const discardRuntimeWorkspace = useCallback(
     (runtimeId: RuntimeId) => {
       discardRuntime(runtimeId);
@@ -345,6 +473,38 @@ function PageWorkspace({
   const sidebarPanelRef = usePanelRef();
   const defaultSidebarSize = useRef(readSidebarSize());
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const sidebarOpenRef = useRef(true);
+  const sidebarSizeWriteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+  const handleSidebarResize = useCallback(
+    (size: { inPixels: number }) => {
+      const open = size.inPixels > 0;
+      if (sidebarOpenRef.current !== open) {
+        sidebarOpenRef.current = open;
+        setSidebarOpen(open);
+      }
+
+      // localStorage writes are synchronous. Coalesce the pointer-move stream
+      // into one trailing write so resizing stays on the browser's layout path.
+      if (!open) return;
+      if (sidebarSizeWriteTimerRef.current !== null) {
+        clearTimeout(sidebarSizeWriteTimerRef.current);
+      }
+      sidebarSizeWriteTimerRef.current = setTimeout(() => {
+        sidebarSizeWriteTimerRef.current = null;
+        writeSidebarSize(size.inPixels);
+      }, 120);
+    },
+    []
+  );
+  useEffect(() => {
+    return () => {
+      if (sidebarSizeWriteTimerRef.current !== null) {
+        clearTimeout(sidebarSizeWriteTimerRef.current);
+      }
+    };
+  }, []);
   const toggleSidebar = useCallback(() => {
     const panel = sidebarPanelRef.current;
     if (!panel) return;
@@ -353,30 +513,51 @@ function PageWorkspace({
   }, [sidebarPanelRef]);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const handleSettingsOpenChange = useCallback(
+    (open: boolean) => {
+      setSettingsOpen(open);
+      if (!open) void refreshModels();
+    },
+    [refreshModels]
+  );
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
+  const [settingsPluginId, setSettingsPluginId] = useState<string>();
   // One event per open transition, no matter which command opened Settings.
   useEffect(() => {
     if (settingsOpen) track({ event: "settings_opened", properties: {} });
   }, [settingsOpen]);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [threadStorageMode, setThreadStorageMode] = useState<
+    "save" | "import" | null
+  >(null);
   const [onboardOpen, setOnboardOpen] = useState(false);
   const [examplesOpen, setExamplesOpen] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
-  // The thread path being shared (a specific file, or the resolved active tab).
-  const shareTargetRef = useRef("");
   const [sidebarMode, setSidebarMode] = useState<"files" | "traces">("files");
   // Which folder a chosen example's thread is created into (default: root).
   const examplesParentRef = useRef("");
 
   const switchWorkspaceRuntime = useCallback(
     (nextRuntimeId: RuntimeId) => {
-      workspaceRuntimeIdRef.current = nextRuntimeId;
-      setWorkspaceRuntimeId(nextRuntimeId);
-      setSidebarMode("files");
-      void queryClient.invalidateQueries({ queryKey: ["fs"] });
-      void queryClient.invalidateQueries({ queryKey: ["thread"] });
+      const currentRuntimeId = workspaceRuntimeIdRef.current;
+      return switchWorkspaceRuntimeIfAllowed({
+        tracker: runtimeRunTrackerRef.current,
+        currentRuntimeId,
+        nextRuntimeId,
+        onBlocked: () => showRuntimeRunBlocked("switching runtimes"),
+        onSwitch: () => {
+          workspaceRuntimeIdRef.current = nextRuntimeId;
+          setWorkspaceRuntimeId(nextRuntimeId);
+          setSidebarMode("files");
+          void invalidateRuntimeSwitchQueries(queryClient, nextRuntimeId);
+        },
+      });
     },
-    [queryClient, setWorkspaceRuntimeId, workspaceRuntimeIdRef]
+    [
+      queryClient,
+      setWorkspaceRuntimeId,
+      showRuntimeRunBlocked,
+      workspaceRuntimeIdRef,
+    ]
   );
 
   const refreshRuntimes = useCallback(
@@ -404,11 +585,27 @@ function PageWorkspace({
 
   const transitionWorkspaceRuntime = useCallback(
     (nextRuntimeId: RuntimeId) => {
+      if (!switchWorkspaceRuntime(nextRuntimeId)) return;
       setSettingsOpen(false);
-      switchWorkspaceRuntime(nextRuntimeId);
       void refreshRuntimes({ syncDefault: false });
     },
     [refreshRuntimes, switchWorkspaceRuntime]
+  );
+
+  const commitDisconnectedRuntime = useCallback(
+    (runtimeId: RuntimeId) => {
+      // The runtime reservation is released as soon as this callback returns.
+      // Commit tab removal and any active-runtime transition synchronously so
+      // no pane can acquire a fresh run lease against a disconnected runtime
+      // in the React scheduling gap.
+      flushSync(() => {
+        discardRuntimeWorkspace(runtimeId);
+        if (workspaceRuntimeIdRef.current === runtimeId) {
+          transitionWorkspaceRuntime("local");
+        }
+      });
+    },
+    [discardRuntimeWorkspace, transitionWorkspaceRuntime, workspaceRuntimeIdRef]
   );
 
   useEffect(() => {
@@ -427,6 +624,7 @@ function PageWorkspace({
   const pendingImportRuntimeIdRef = useRef<RuntimeId>("local");
   const dragDepthRef = useRef(0);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const [dropKind, setDropKind] = useState<DropKind>("threads");
   const { open: openTab } = tabs;
   const handleImportFiles = useCallback(
     async (
@@ -436,7 +634,7 @@ function PageWorkspace({
     ) => {
       const list = [...files];
       if (list.length === 0) return;
-      const { created, total } =
+      const { created, total, recovered, warnings } =
         list[0] instanceof File
           ? await importThreadFiles(parent, list as File[], models, runtimeId)
           : await importThreadFileRecords(
@@ -446,7 +644,9 @@ function PageWorkspace({
               runtimeId
             );
       if (created.length === 0) {
-        toast.error("No threads could be imported from the selected files.");
+        toast.error("No threads could be imported from the selected files.", {
+          description: warnings[0],
+        });
         return;
       }
       executeCommand({ type: "refreshTree", args: { runtimeId } });
@@ -454,10 +654,83 @@ function PageWorkspace({
       const skipped = total - created.length;
       toast.success(
         `Imported ${created.length} thread${created.length === 1 ? "" : "s"}`,
-        skipped > 0 ? { description: `${skipped} file(s) skipped` } : undefined
+        skipped > 0 || recovered > 0
+          ? {
+              description: [
+                skipped > 0 ? `${skipped} file(s) skipped` : "",
+                recovered > 0
+                  ? `${recovered} recovered from truncated JSON`
+                  : "",
+                warnings[0] ?? "",
+              ]
+                .filter(Boolean)
+                .join(" · "),
+            }
+          : undefined
       );
     },
     [models, executeCommand, openTab, workspaceRuntimeIdRef]
+  );
+  const handleDroppedFiles = useCallback(
+    async (files: FileList) => {
+      const pluginFiles = [...files].filter(isPluginZipFile);
+      const threadFiles = [...files].filter((file) => !isPluginZipFile(file));
+
+      for (const file of pluginFiles) {
+        try {
+          const result = await installPluginFile(file);
+          toast.success(`Installed ${result.pluginId} v${result.version}`, {
+            description: "The existing plugin was replaced and reloaded.",
+            action: {
+              label: "View plugin",
+              onClick: () => {
+                setSettingsPluginId(result.pluginId);
+                setSettingsTab("plugins");
+                setSettingsOpen(true);
+              },
+            },
+          });
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : String(error));
+        }
+      }
+      if (threadFiles.length > 0) {
+        await handleImportFiles(threadFiles, "", workspaceRuntimeIdRef.current);
+      }
+    },
+    [handleImportFiles, workspaceRuntimeIdRef]
+  );
+  const getActiveThreadForStorage =
+    useCallback(async (): Promise<Thread | null> => {
+      const target = getActiveShareThread();
+      if (!target) return null;
+      return createFileSystemClient(target.runtimeId).read(target.path);
+    }, [getActiveShareThread]);
+  const importFromThreadStorage = useCallback(
+    async (thread: Thread) => {
+      const runtimeId: RuntimeId = "local";
+      if (
+        workspaceRuntimeIdRef.current !== runtimeId &&
+        !switchWorkspaceRuntime(runtimeId)
+      ) {
+        throw new Error(
+          "Finish active remote runs before importing into the local workspace."
+        );
+      }
+      const fs = createFileSystemClient(runtimeId);
+      await fs.mkdir("imported").catch(() => undefined);
+      await handleImportFiles(
+        [
+          {
+            name: `${thread.title?.trim() || "imported-thread"}.json`,
+            text: JSON.stringify(thread),
+          },
+        ],
+        "imported",
+        runtimeId
+      );
+    },
+    [handleImportFiles, switchWorkspaceRuntime, workspaceRuntimeIdRef]
   );
 
   // Register the command handlers backed by page-level state (tabs, sidebar,
@@ -469,16 +742,40 @@ function PageWorkspace({
       const target =
         id ??
         (path ? threadTabId(path, targetRuntimeId) : activeTabIdRef.current);
-      if (target) close(target);
+      if (!target) return;
+      closeTabIfAllowed({
+        tracker: runtimeRunTrackerRef.current,
+        tabs: tabs.tabs,
+        targetId: target,
+        onBlocked: () => showRuntimeRunBlocked("closing this tab"),
+        close,
+      });
     },
     closeOtherTabs: ({ id, path, runtimeId }) => {
       const targetRuntimeId = runtimeId ?? workspaceRuntimeIdRef.current;
       const target =
         id ??
         (path ? threadTabId(path, targetRuntimeId) : activeTabIdRef.current);
-      if (target) closeOthersInRuntime(target, targetRuntimeId);
+      if (!target) return;
+      closeOtherTabsIfAllowed({
+        tracker: runtimeRunTrackerRef.current,
+        tabs: tabs.tabs,
+        keepId: target,
+        runtimeId: targetRuntimeId,
+        onBlocked: () => showRuntimeRunBlocked("closing other tabs"),
+        closeOthers: closeOthersInRuntime,
+      });
     },
-    closeAllTabs: () => closeAllInRuntime(workspaceRuntimeIdRef.current),
+    closeAllTabs: () => {
+      const runtimeId = workspaceRuntimeIdRef.current;
+      closeAllTabsIfAllowed({
+        tracker: runtimeRunTrackerRef.current,
+        tabs: tabs.tabs,
+        runtimeId,
+        onBlocked: () => showRuntimeRunBlocked("closing all tabs"),
+        closeAll: closeAllInRuntime,
+      });
+    },
     reopenClosedTab: () => void reopenClosed(),
     selectNextTab: () => activateVisibleSibling(1),
     selectPreviousTab: () => activateVisibleSibling(-1),
@@ -497,22 +794,6 @@ function PageWorkspace({
       if (runtimeId && runtimeId !== workspaceRuntimeId) return;
       examplesParentRef.current = parent;
       setExamplesOpen(true);
-    },
-    // Share a specific thread, or the active thread when no path is given (the
-    // header button / native menu / palette). Thread tab ids are
-    // `thread:{runtimeId}:{path}`.
-    shareThread: ({ path, runtimeId }) => {
-      const targetRuntimeId = runtimeId ?? workspaceRuntimeId;
-      if (targetRuntimeId !== workspaceRuntimeId) return;
-      const activeTab = visibleTabs.find((tab) => tab.id === visibleActiveId);
-      const target =
-        path ??
-        (activeTab?.type === "thread" && activeTab.runtimeId === targetRuntimeId
-          ? activeTab.path
-          : undefined);
-      if (!target) return;
-      shareTargetRef.current = target;
-      setShareOpen(true);
     },
     importFiles: ({ parent = "", files, runtimeId }) => {
       const targetRuntimeId = runtimeId ?? workspaceRuntimeIdRef.current;
@@ -568,6 +849,112 @@ function PageWorkspace({
     () => executeCommand({ type: "closeAllTabs", args: {} }),
     [executeCommand]
   );
+  const refreshReservationsRef = useRef(new Map<string, () => void>());
+  const writePluginActiveTabThread = useCallback(
+    async (target: PluginActiveTab, next: Thread): Promise<void> => {
+      const current = getActivePluginTab();
+      if (
+        current?.tabId !== target.tabId ||
+        current?.paneId !== target.paneId ||
+        current?.path !== target.path ||
+        current?.runtimeId !== target.runtimeId
+      ) {
+        throw new Error(
+          "The active thread changed before the Plugin Command completed."
+        );
+      }
+
+      const release = runtimeRunTrackerRef.current.reservePanes([
+        target.paneId,
+      ]);
+      if (!release) {
+        throw new Error(
+          "Finish the active run or save before a Plugin Command writes the thread."
+        );
+      }
+
+      try {
+        const committed: Thread = {
+          ...next,
+          runtimeId: target.runtimeId,
+        };
+        await createFileSystemClient(target.runtimeId).write(
+          target.path,
+          committed
+        );
+        threadStateRef.current.set(target.tabId, committed);
+        refreshReservationsRef.current.set(target.paneId, release);
+        tabs.refresh(target.tabId);
+      } catch (error) {
+        release();
+        throw error;
+      }
+    },
+    [getActivePluginTab, tabs]
+  );
+  const handleRefreshTab = useCallback(
+    (id: string) => {
+      const tab = tabs.tabs.find((candidate) => candidate.id === id);
+      if (!tab) return;
+      const reservation = refreshTabIfAllowed({
+        tracker: runtimeRunTrackerRef.current,
+        tabs: tabs.tabs,
+        targetId: tab.id,
+        onBlocked: () => showRuntimeRunBlocked("refreshing this tab"),
+        refresh: tabs.refresh,
+      });
+      if (reservation) {
+        refreshReservationsRef.current.set(
+          reservation.paneId,
+          reservation.release
+        );
+      }
+    },
+    [showRuntimeRunBlocked, tabs]
+  );
+  const handlePaneRefreshSettled = useCallback((paneId: string) => {
+    const release = refreshReservationsRef.current.get(paneId);
+    if (!release) return;
+    refreshReservationsRef.current.delete(paneId);
+    release();
+  }, []);
+  const paneLifecycleHost = useMemo<PaneLifecycleHost>(
+    () => ({
+      acquireMutation: acquireFileMutation,
+      isMutationReserved: isPaneMutationReserved,
+      onPersistenceChange: handlePanePersistenceChange,
+      onRefreshSettled: handlePaneRefreshSettled,
+      onRunSettled: handlePaneRunSettled,
+      onRunStart: handlePaneRunStart,
+    }),
+    [
+      acquireFileMutation,
+      handlePanePersistenceChange,
+      handlePaneRefreshSettled,
+      handlePaneRunSettled,
+      handlePaneRunStart,
+      isPaneMutationReserved,
+    ]
+  );
+  useEffect(
+    () => () => {
+      refreshReservationsRef.current.forEach((release) => release());
+      refreshReservationsRef.current.clear();
+    },
+    []
+  );
+  const reconcileFileRemove = useCallback(
+    (path: string, runtimeId: RuntimeId) => {
+      flushSync(() => handleRemove(path, runtimeId));
+    },
+    [handleRemove]
+  );
+  const reconcileFileMove = useCallback(
+    (from: string, to: string, runtimeId: RuntimeId) => {
+      flushSync(() => handleMove(from, to, runtimeId));
+    },
+    [handleMove]
+  );
   const handleRevealFile = useCallback(
     (path: string, runtimeId: RuntimeId) =>
       executeCommand({ type: "revealFile", args: { path, runtimeId } }),
@@ -580,7 +967,20 @@ function PageWorkspace({
   );
   const handleShareThread = useCallback(
     (path: string, runtimeId: RuntimeId) =>
-      executeCommand({ type: "shareThread", args: { path, runtimeId } }),
+      executeCommand(buildShareThreadCommand(path, runtimeId)),
+    [executeCommand]
+  );
+  // Copy the thread file to the OS clipboard as a file reference. The bun-side
+  // command takes an absolute path, so resolve the tab's path first.
+  const handleCopyFile = useCallback(
+    async (path: string, runtimeId: RuntimeId) => {
+      try {
+        const absolute = await createFileSystemClient(runtimeId).realpath(path);
+        executeCommand({ type: "copyFile", args: { path: absolute } });
+      } catch (err) {
+        toast.error((err as Error).message);
+      }
+    },
     [executeCommand]
   );
   const handleNewFile = useCallback(
@@ -606,11 +1006,13 @@ function PageWorkspace({
         if (!hasFiles(e)) return;
         e.preventDefault();
         dragDepthRef.current += 1;
+        setDropKind(droppedFileKind(e.dataTransfer));
         setIsDraggingFiles(true);
       }}
       onDragOver={(e) => {
         if (!hasFiles(e)) return;
         e.preventDefault();
+        setDropKind(droppedFileKind(e.dataTransfer));
         e.dataTransfer.dropEffect = "copy";
       }}
       onDragLeave={(e) => {
@@ -626,11 +1028,7 @@ function PageWorkspace({
         e.preventDefault();
         dragDepthRef.current = 0;
         setIsDraggingFiles(false);
-        void handleImportFiles(
-          e.dataTransfer.files,
-          "",
-          workspaceRuntimeIdRef.current
-        );
+        void handleDroppedFiles(e.dataTransfer.files);
       }}
     >
       <SharedImportProvider />
@@ -638,7 +1036,7 @@ function PageWorkspace({
         ref={fileInputRef}
         type="file"
         multiple
-        accept=".json,application/json"
+        accept=".json,.jsonl,application/json,application/x-ndjson"
         aria-label="Import thread files"
         className="hidden"
         onChange={(e) => {
@@ -662,12 +1060,7 @@ function PageWorkspace({
             collapsedSize={0}
             defaultSize={defaultSidebarSize.current}
             minSize={200}
-            onResize={(size) => {
-              setSidebarOpen(size.inPixels > 0);
-              // Persist the dragged width, but never the collapsed (0) state so
-              // reopening restores the last real width.
-              if (size.inPixels > 0) writeSidebarSize(size.inPixels);
-            }}
+            onResize={handleSidebarResize}
           >
             <FileSystemTreeView
               runtimeId={workspaceRuntimeId}
@@ -675,8 +1068,9 @@ function PageWorkspace({
                 effectiveSidebarMode === "files" ? "min-h-0 flex-1" : "hidden"
               }
               onSelectFile={tabs.open}
-              onRemove={tabs.handleRemove}
-              onMove={tabs.handleMove}
+              onRemove={reconcileFileRemove}
+              onMove={reconcileFileMove}
+              acquireMutation={acquireFileMutation}
             />
             {tracingEnabled && (
               <LazyMount open={effectiveSidebarMode === "traces"}>
@@ -701,56 +1095,58 @@ function PageWorkspace({
             )}
             <RemoteStatus
               runtimeId={workspaceRuntimeId}
-              onDisconnecting={discardRuntimeWorkspace}
-              onDisconnected={(runtimeId) => {
-                discardRuntimeWorkspace(runtimeId);
-                if (workspaceRuntimeIdRef.current !== runtimeId) return;
-                transitionWorkspaceRuntime("local");
-              }}
+              canDisconnect={canDisconnectRuntime}
+              acquireDisconnect={acquireRuntimeDisconnectMutation}
+              onDisconnected={commitDisconnectedRuntime}
             />
             <AccountStatus />
           </ResizablePanel>
           <ResizableHandle />
           <ResizablePanel minSize={640}>
-            {visibleTabs.length === 0 ? (
-              <Welcome
-                onNewStarter={() => setExamplesOpen(true)}
-                onNewFile={() =>
-                  executeCommand({
-                    type: "newFile",
-                    args: { runtimeId: workspaceRuntimeId },
-                  })
-                }
-                onModels={() =>
-                  executeCommand({
-                    type: "openSettings",
-                    args: { tab: "models" },
-                  })
-                }
-              />
-            ) : (
-              <ThreadTabs
-                tabs={visibleTabs}
-                activeId={visibleActiveId}
-                activate={activateVisibleTab}
-                refresh={tabs.refresh}
-                consumeDiscardedPane={tabs.consumeDiscardedPane}
-                sidebarOpen={sidebarOpen}
-                fullScreen={fullScreen}
-                close={handleCloseTab}
-                closeOthers={handleCloseOtherTabs}
-                closeAll={handleCloseAllTabs}
-                reveal={handleRevealFile}
-                moveToTrash={handleMoveToTrash}
-                share={handleShareThread}
-                reorder={reorderVisibleTabs}
-                onNewFile={handleNewFile}
-                onMove={tabs.handleMove}
-                onTraceTitleChange={tabs.handleTraceTitleChange}
-                onToggleSidebar={handleToggleSidebar}
-                toolbarSlot={<UpdateIndicator />}
-              />
-            )}
+            <ThreadTabs
+              tabs={visibleTabs}
+              paneTabs={tabs.tabs}
+              emptyState={
+                <Welcome
+                  onNewStarter={() => setExamplesOpen(true)}
+                  onNewFile={() =>
+                    executeCommand({
+                      type: "newFile",
+                      args: { runtimeId: workspaceRuntimeId },
+                    })
+                  }
+                  onModels={() =>
+                    executeCommand({
+                      type: "openSettings",
+                      args: { tab: "models" },
+                    })
+                  }
+                />
+              }
+              activeId={visibleActiveId}
+              activate={activateVisibleTab}
+              refresh={handleRefreshTab}
+              consumeDiscardedPane={tabs.consumeDiscardedPane}
+              sidebarOpen={sidebarOpen}
+              fullScreen={fullScreen}
+              close={handleCloseTab}
+              closeOthers={handleCloseOtherTabs}
+              closeAll={handleCloseAllTabs}
+              reveal={handleRevealFile}
+              moveToTrash={handleMoveToTrash}
+              share={handleShareThread}
+              copyFile={handleCopyFile}
+              openThread={tabs.open}
+              reorder={reorderVisibleTabs}
+              onNewFile={handleNewFile}
+              onMove={reconcileFileMove}
+              onTraceTitleChange={tabs.handleTraceTitleChange}
+              onToggleSidebar={handleToggleSidebar}
+              lifecycleHost={paneLifecycleHost}
+              mutationRevision={mutationRevision}
+              onThreadStateChange={handleThreadStateChange}
+              toolbarSlot={<UpdateIndicator />}
+            />
           </ResizablePanel>
         </ResizablePanelGroup>
       </main>
@@ -758,21 +1154,25 @@ function PageWorkspace({
       <GithubDeviceDialog />
       <GithubStarReminder />
       <FeatureReminderDialog />
+      <PageShareThreadController
+        workspaceRuntimeId={workspaceRuntimeId}
+        getActiveThread={getActiveShareThread}
+      />
       <LazyMount open={settingsOpen}>
         <SettingsDialog
           tab={settingsTab}
+          selectedPluginId={settingsPluginId}
           open={settingsOpen}
-          onOpenChange={setSettingsOpen}
+          onOpenChange={handleSettingsOpenChange}
           onTabChange={setSettingsTab}
+          canConnectRemote={canConnectRemote}
+          canDisconnectRemote={canDisconnectRuntime}
+          acquireConnectRemote={acquireRemoteConnectionMutation}
+          acquireDisconnectRemote={acquireRuntimeDisconnectMutation}
           onRemoteConnected={(runtimeId) => {
             transitionWorkspaceRuntime(runtimeId);
           }}
-          onRemoteDisconnected={(runtimeId) => {
-            discardRuntimeWorkspace(runtimeId);
-            if (workspaceRuntimeIdRef.current === runtimeId) {
-              transitionWorkspaceRuntime("local");
-            }
-          }}
+          onRemoteDisconnected={commitDisconnectedRuntime}
         />
       </LazyMount>
       <LazyMount open={commandPaletteOpen}>
@@ -780,17 +1180,25 @@ function PageWorkspace({
           open={commandPaletteOpen}
           onOpenChange={setCommandPaletteOpen}
           blacklist={COMMAND_PALETTE_BLACKLIST}
+          onSaveTo={() => setThreadStorageMode("save")}
+          onImportFrom={() => setThreadStorageMode("import")}
+          getActiveTab={getActivePluginTab}
+          writeActiveTabThread={writePluginActiveTabThread}
+        />
+      </LazyMount>
+      <LazyMount open={threadStorageMode !== null}>
+        <ThreadStorageDialog
+          mode={threadStorageMode ?? "save"}
+          open={threadStorageMode !== null}
+          onOpenChange={(open) => {
+            if (!open) setThreadStorageMode(null);
+          }}
+          getThread={getActiveThreadForStorage}
+          onImported={importFromThreadStorage}
         />
       </LazyMount>
       <LazyMount open={onboardOpen}>
         <OnboardDialog open={onboardOpen} onOpenChange={setOnboardOpen} />
-      </LazyMount>
-      <LazyMount open={shareOpen}>
-        <ShareThreadDialog
-          open={shareOpen}
-          path={shareTargetRef.current}
-          onOpenChange={setShareOpen}
-        />
       </LazyMount>
       <LazyMount open={examplesOpen}>
         <StartFromExampleDialog
@@ -809,8 +1217,12 @@ function PageWorkspace({
         />
       </LazyMount>
       {isDraggingFiles && (
-        <div className="border-primary bg-primary/10 text-primary pointer-events-none absolute inset-3 z-50 flex items-center justify-center rounded-lg border-2 border-dashed text-sm font-medium backdrop-blur-sm">
-          Drop files to import as threads
+        <div className="border-primary bg-primary/10 text-primary pointer-events-none fixed inset-3 z-[100] flex items-center justify-center rounded-lg border-2 border-dashed text-sm font-medium backdrop-blur-sm">
+          {dropKind === "plugins"
+            ? "Drop plugin ZIP to install"
+            : dropKind === "mixed"
+              ? "Drop ZIPs to install and files to import"
+              : "Drop files to import as threads"}
         </div>
       )}
     </div>

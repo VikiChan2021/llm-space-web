@@ -42,16 +42,24 @@ function unavailable(): never {
 }
 
 /**
- * The web host remains browser-only. Guest mode enables editing and the
- * injected HTTP model transport, but intentionally exposes no local tools,
- * filesystem, MCP, generator, or desktop command bridge.
+ * Browser-only host. Guest mode injects an HTTP transport and sandboxed tools;
+ * the shared-thread viewer remains display-only.
  */
 export const webHost: HostServices = {
   presentational: !GUEST_WORKBENCH_ENABLED,
-  transport: null,
+  createTransport: () => null,
   executeTool: GUEST_WORKBENCH_ENABLED
-    ? (tool, args, options) =>
-        executeGuestTool(tool, args, options?.runtimeId)
+    ? async (tool, args, options) => {
+        const result = await executeGuestTool(
+          tool,
+          args,
+          options.runtimeId
+        );
+        return {
+          content: [{ type: "text", text: result.contentText }],
+          isError: result.isError,
+        };
+      }
     : null,
   toolExecutionPolicy: GUEST_WORKBENCH_ENABLED
     ? {
@@ -67,6 +75,10 @@ export const webHost: HostServices = {
       Promise.resolve({
         discoveryPaths: [{ path: GUEST_SKILLS_PATH, hiddenSkills: [] }],
       }),
+    listAvailable: () =>
+      Promise.resolve(
+        GUEST_WORKBENCH_ENABLED ? listGuestSkills(GUEST_SKILLS_PATH) : []
+      ),
     listSkills: (path) =>
       Promise.resolve(GUEST_WORKBENCH_ENABLED ? listGuestSkills(path) : []),
   },
@@ -84,6 +96,9 @@ export const webHost: HostServices = {
     list: () =>
       Promise.resolve(GUEST_WORKBENCH_ENABLED ? GUEST_BUILTIN_TOOLS : []),
     fsReveal: () => unavailable(),
+  },
+  pluginTools: {
+    list: () => Promise.resolve([]),
   },
   paths: {
     ensureRootDir: (relativePath) => Promise.resolve(relativePath),
@@ -168,6 +183,9 @@ export const webModelClient: ModelClient = {
   removeProvider: _availableGuestModels,
   addProvider: _availableGuestModels,
   addCustomProvider: _availableGuestModels,
+  addProviderProfile: _availableGuestModels,
+  updateProviderProfile: _availableGuestModels,
+  removeProviderProfile: _availableGuestModels,
   updateProvider: _availableGuestModels,
   setModelEnabled: _availableGuestModels,
   setAllModelsEnabled: _availableGuestModels,

@@ -1,15 +1,32 @@
 import type {
+  ArkImageGenerationConfig,
   AgentEvent,
   AgentStreamRequest,
   BuiltinTool,
+  BuiltinToolCallResponse,
   CustomModel,
   FileNode,
   ModelConfig,
   ModelProviderGroup,
   NetworkSettings,
+  ProviderProfilePatch,
+  ProviderConnectionRef,
   SearchSettings,
   SystemProxyDetection,
   Thread,
+  ThreadRunReference,
+  ThreadRunSnapshot,
+  ThreadSnapshot,
+  ThreadLocator,
+  ThreadStorageView,
+  PluginCommandView,
+  PluginCommandExecutionResult,
+  PluginCommandReport,
+  PluginCommandUserMessage,
+  PluginTool,
+  PluginView,
+  JsonObject,
+  JsonValue,
 } from "@llm-space/core";
 import type {
   McpCallToolResponse,
@@ -25,6 +42,7 @@ import type { GithubAuthState } from "./auth";
 import type { Command } from "./commands";
 import type { FeatureReminder } from "./feature-reminders";
 import type {
+  RemoteDisconnectResult,
   RemoteServerDraft,
   RemoteServerStatusChangedPayload,
   RemoteServerView,
@@ -48,6 +66,8 @@ import type { UpdateMode, UpdateStatusChangedPayload } from "./updates";
 export interface StreamThreadRequestPayload extends RuntimeScopedParams {
   streamId: string;
   request: AgentStreamRequest;
+  /** Per-tab connection choice; never persisted into the thread. */
+  connection?: ProviderConnectionRef;
 }
 
 /** A bun→webview chunk of a streaming agent run, keyed by `streamId`. */
@@ -60,6 +80,21 @@ export type StreamThreadResponsePayload =
 export interface AbortStreamThreadPayload extends RuntimeScopedParams {
   streamId: string;
 }
+
+export type PluginCommandExecutionEvent =
+  | {
+      executionId: string;
+      commandId: string;
+      type: "status";
+      status: "running" | "succeeded" | "failed";
+      userMessage?: PluginCommandUserMessage;
+    }
+  | {
+      executionId: string;
+      commandId: string;
+      type: "phase";
+      report: PluginCommandReport;
+    };
 
 export interface DesktopRPCType {
   bun: RPCSchema<{
@@ -102,7 +137,7 @@ export interface DesktopRPCType {
       };
       remoteDisconnectServer: {
         params: { serverId: string };
-        response: RemoteServerView[];
+        response: RemoteDisconnectResult;
       };
       remoteSetDefaultRuntime: {
         params: { runtimeId: RuntimeId };
@@ -141,12 +176,27 @@ export interface DesktopRPCType {
         };
         response: ModelProviderGroup[];
       };
+      addProviderProfile: {
+        params: RuntimeScopedParams & { providerId: string };
+        response: ModelProviderGroup[];
+      };
+      updateProviderProfile: {
+        params: RuntimeScopedParams & {
+          providerId: string;
+          profileId: string;
+        } & ProviderProfilePatch;
+        response: ModelProviderGroup[];
+      };
+      removeProviderProfile: {
+        params: RuntimeScopedParams & {
+          providerId: string;
+          profileId: string;
+        };
+        response: ModelProviderGroup[];
+      };
       updateProvider: {
         params: RuntimeScopedParams & {
           providerId: string;
-          apiKey?: string | null;
-          baseUrl?: string | null;
-          headers?: Record<string, string> | null;
           name?: string | null;
           api?:
             | "anthropic-messages"
@@ -154,6 +204,7 @@ export interface DesktopRPCType {
             | "openai-responses"
             | null;
           icon?: string | null;
+          imageGeneration?: ArkImageGenerationConfig;
         };
         response: ModelProviderGroup[];
       };
@@ -185,6 +236,7 @@ export interface DesktopRPCType {
       testModelConnection: {
         params: RuntimeScopedParams & {
           providerId: string;
+          profileId?: string;
           modelId: string;
           candidate?: CustomModel;
         };
@@ -246,6 +298,92 @@ export interface DesktopRPCType {
         params: RuntimeScopedParams & { path: string; thread: Thread };
         response: null;
       };
+      fsArchiveRun: {
+        params: RuntimeScopedParams & {
+          path: string;
+          run: ThreadRunSnapshot & { id: string };
+        };
+        response: ThreadRunReference;
+      };
+      fsReadRunSnapshot: {
+        params: RuntimeScopedParams & { path: string; snapshotRef: string };
+        response: ThreadSnapshot;
+      };
+      pluginsList: {
+        params: Record<string, never>;
+        response: PluginView[];
+      };
+      pluginsRefresh: {
+        params: Record<string, never>;
+        response: PluginView[];
+      };
+      pluginsInstallZip: {
+        params: { fileName: string; dataBase64: string };
+        response: {
+          pluginId: string;
+          version: string;
+          path: string;
+          plugins: PluginView[];
+        };
+      };
+      pluginsReload: {
+        params: { pluginId: string };
+        response: PluginView[];
+      };
+      pluginsUninstall: {
+        params: { pluginId: string };
+        response: PluginView[];
+      };
+      pluginsSetEnabled: {
+        params: { pluginId: string; enabled: boolean };
+        response: PluginView[];
+      };
+      pluginsSetSettings: {
+        params: { pluginId: string; settings: JsonObject };
+        response: PluginView[];
+      };
+      pluginCommandsList: {
+        params: Record<string, never>;
+        response: PluginCommandView[];
+      };
+      pluginCommandExecute: {
+        params: {
+          executionId: string;
+          commandId: string;
+          arguments: string[];
+          activeTab: { filename: string; thread: Thread } | null;
+        };
+        response: PluginCommandExecutionResult;
+      };
+      pluginToolsList: {
+        params: Record<string, never>;
+        response: PluginTool[];
+      };
+      pluginToolExecute: {
+        params: {
+          tool: PluginTool;
+          thread: Thread;
+          variables: Record<string, JsonValue>;
+          arguments: Record<string, unknown>;
+        };
+        response: BuiltinToolCallResponse;
+      };
+      threadStoragesList: {
+        params: Record<string, never>;
+        response: ThreadStorageView[];
+      };
+      threadStorageResolveLatest: {
+        params: { storageId: string; resourceId: string };
+        response: ThreadLocator;
+      };
+      threadStorageRead: {
+        params: { storageId: string; locator: ThreadLocator };
+        response: Thread;
+      };
+      threadStorageWrite: {
+        params: { storageId: string; thread: Thread; resourceId?: string };
+        response: ThreadLocator;
+      };
       // Publish a workspace thread as a shareable link: read the thread from
       // disk, create a secret GitHub Gist (requires GitHub sign-in), and return
       // the web viewer URL + gist id. `title`/`description` override the shared
@@ -253,7 +391,12 @@ export interface DesktopRPCType {
       // description). Throws when signed out or the gist API fails; the renderer
       // maps the error to friendly copy.
       shareThread: {
-        params: { path: string; title?: string; description?: string };
+        params: {
+          runtimeId: RuntimeId;
+          path: string;
+          title?: string;
+          description?: string;
+        };
         response: { shareUrl: string; gistId: string };
       };
       // Open an absolute directory itself, or reveal an absolute file selected
@@ -268,11 +411,14 @@ export interface DesktopRPCType {
       // Read an arbitrary text file (NOT confined to the workspace) for the
       // prompt `@include` macro. A leading `~` expands to the user's home.
       // Returns "" for a missing/unreadable path so includes degrade quietly.
-      fsReadText: { params: { path: string }; response: { text: string } };
+      fsReadText: {
+        params: { runtimeId: RuntimeId; path: string };
+        response: { text: string };
+      };
       // Whether a path points to a readable regular file for template
       // `exists(path)` conditions. A leading `~` expands to the user's home.
       fsTextFileExists: {
-        params: { path: string };
+        params: { runtimeId: RuntimeId; path: string };
         response: { exists: boolean };
       };
       // Whether a path points to an existing directory. A leading `~` expands
@@ -305,9 +451,7 @@ export interface DesktopRPCType {
       // `uv` runs. The wizard's "Next" gate on the directory step.
       generatorPrepareDirectory: {
         params: { parentDir: string; projectName: string };
-        response:
-          | { ok: true; dir: string }
-          | { ok: false; error: string };
+        response: { ok: true; dir: string } | { ok: false; error: string };
       };
       // Whether `uv` is installed on the host (+ version), so the renderer can
       // prompt to install it or fall back to instructions in PLAN.md.
@@ -338,11 +482,21 @@ export interface DesktopRPCType {
         params: { rootDir: string; relativePath: string };
         response: null;
       };
+      // On macOS, open Terminal in an authorized generated project and run
+      // `make dev`. Returns false on unsupported platforms.
+      generatorOpenDevTerminal: {
+        params: { rootDir: string };
+        response: boolean;
+      };
       // Resolve real secret values for a generated `.env`: the runtime's model
       // provider API key plus the raw values of named environment variables. Used
       // only after explicit user opt-in to materialize secrets to disk.
       generatorResolveEnv: {
-        params: RuntimeScopedParams & { providerId: string; envNames: string[] };
+        params: RuntimeScopedParams & {
+          providerId: string;
+          profileId?: string;
+          envNames: string[];
+        };
         response: { modelApiKey: string; envValues: Record<string, string> };
       };
       mcpListServers: {
@@ -368,6 +522,10 @@ export interface DesktopRPCType {
         params: RuntimeScopedParams & { serverId: string };
         response: McpServerView[];
       };
+      mcpCancelTest: {
+        params: RuntimeScopedParams & { serverId: string };
+        response: McpServerView[];
+      };
       mcpListTools: {
         params: RuntimeScopedParams & { serverId: string };
         response: McpServerToolsResponse;
@@ -388,8 +546,10 @@ export interface DesktopRPCType {
         params: RuntimeScopedParams & {
           name: string;
           arguments: Record<string, unknown>;
+          config?: Record<string, unknown>;
+          connection?: ProviderConnectionRef;
         };
-        response: { contentText: string };
+        response: BuiltinToolCallResponse;
       };
       // The user's anonymous-analytics opt-out preference plus whether the
       // hard gates allow sending at all (see `shared/analytics.ts`).
@@ -449,10 +609,35 @@ export interface DesktopRPCType {
         };
         response: SkillsSettings;
       };
+      skillsSetPluginSkillHidden: {
+        params: RuntimeScopedParams & {
+          pluginId: string;
+          skillName: string;
+          hidden: boolean;
+        };
+        response: SkillsSettings;
+      };
+      skillsSetAllPluginSkillsHidden: {
+        params: RuntimeScopedParams & {
+          pluginId: string;
+          hidden: boolean;
+        };
+        response: SkillsSettings;
+      };
       // Enable/disable every skill in one folder at once.
       skillsSetAllSkillsHidden: {
         params: RuntimeScopedParams & { path: string; hidden: boolean };
         response: SkillsSettings;
+      };
+      // List every enabled, conflict-free skill available to agents.
+      skillsListAvailable: {
+        params: RuntimeScopedParams;
+        response: SkillInfo[];
+      };
+      // List all Skills from active Plugins, including individually disabled ones.
+      skillsListPluginSkills: {
+        params: RuntimeScopedParams;
+        response: SkillInfo[];
       };
       // Discover the skills under one folder (name/description/path/enabled).
       skillsListSkills: {
@@ -486,7 +671,10 @@ export interface DesktopRPCType {
       };
       // Import renderer-read Langfuse JSON files into one trace project.
       traceImportLangfuseJson: {
-        params: RuntimeScopedParams & { projectId: string; files: TraceImportFile[] };
+        params: RuntimeScopedParams & {
+          projectId: string;
+          files: TraceImportFile[];
+        };
         response: TraceImportResult;
       };
       // Search a bounded remote Langfuse trace list for explicit user sync.
@@ -605,6 +793,8 @@ export interface DesktopRPCType {
       sharedImportStatusChanged: SharedImportStatusPayload;
       // Remote SSH connection progress and status updates from the bun side.
       remoteServerStatusChanged: RemoteServerStatusChangedPayload;
+      pluginsChanged: Record<string, never>;
+      pluginCommandExecutionChanged: PluginCommandExecutionEvent;
     };
   }>;
 }

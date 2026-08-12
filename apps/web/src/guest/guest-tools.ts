@@ -1,4 +1,4 @@
-import type { BuiltinTool, McpTool } from "@llm-space/core";
+import type { BuiltinTool, McpTool, PluginTool } from "@llm-space/core";
 
 import {
   callGuestBuiltinApi,
@@ -249,8 +249,9 @@ const AUTO_EXECUTABLE_BUILTINS = new Set([
 ]);
 
 export function canGuestAutoExecute(
-  tool: McpTool | BuiltinTool
+  tool: McpTool | BuiltinTool | PluginTool
 ): boolean {
+  if (tool.type === "plugin") return false;
   if (tool.type === "mcp") {
     return isGuestBuiltinMcpServer(tool.serverId);
   }
@@ -258,10 +259,13 @@ export function canGuestAutoExecute(
 }
 
 export async function executeGuestTool(
-  tool: McpTool | BuiltinTool,
+  tool: McpTool | BuiltinTool | PluginTool,
   args: Record<string, unknown>,
   workspaceId?: string
 ): Promise<GuestToolCallResult> {
+  if (tool.type === "plugin") {
+    throw new Error("游客环境暂不支持执行插件工具。");
+  }
   if (tool.type === "mcp") {
     const server = findGuestMcpServer(tool.serverId);
     if (!server) {

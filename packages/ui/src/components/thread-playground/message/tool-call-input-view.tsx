@@ -1,6 +1,6 @@
 import { formatSkillLocator, type ToolCallInput } from "@llm-space/core";
 import { ChevronDown, ChevronRight, MoreHorizontal } from "lucide-react";
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { PreviewDialog } from "@llm-space/ui/components/preview-dialog-lazy";
@@ -17,12 +17,13 @@ import {
 } from "@llm-space/ui/ui/dropdown-menu";
 
 
-import { parseTodoWriteInput, TodoWriteView } from "./todo-write-view";
+import { parseTodoWriteInput } from "./todo-write-input";
+import { TodoWriteView } from "./todo-write-view";
 
 /**
- * Built-in `fs` tools whose `path` argument is an absolute on-disk path worth
- * making click-to-reveal in the OS file manager. Kept in sync with the tools in
- * `bun/tools/built-in/fs.ts` that take a `path` parameter.
+ * Built-in `fs` tools with an absolute on-disk path argument worth making
+ * click-to-reveal in the OS file manager. Kept in sync with the path-taking
+ * tools in the runtime's built-in `fs` module.
  */
 const FS_TOOLS_WITH_PATH = new Set([
   "read",
@@ -31,6 +32,7 @@ const FS_TOOLS_WITH_PATH = new Set([
   "ls",
   "tree",
   "grep",
+  "glob",
 ]);
 
 /**
@@ -76,7 +78,10 @@ function _linkKindFor(
   if (typeof value !== "string") {
     return undefined;
   }
-  if (isFsTool && key === "path") {
+  if (
+    isFsTool &&
+    (key === "path" || (toolName === "glob" && key === "target_directory"))
+  ) {
     return "path";
   }
   if (toolName === "skill" && key === "name") {
@@ -88,10 +93,16 @@ function _linkKindFor(
   return undefined;
 }
 
-function _ToolCallInputView({ input }: { input: ToolCallInput }) {
-  const todos = parseTodoWriteInput(input);
-  if (todos) {
-    return <TodoWriteView todos={todos} input={input} />;
+function _ToolCallInputView({
+  input,
+  streaming,
+}: {
+  input: ToolCallInput;
+  streaming: boolean;
+}) {
+  const todos = parseTodoWriteInput(input, streaming);
+  if (todos !== null) {
+    return <TodoWriteView todos={todos} />;
   }
 
   const args = input.arguments as Record<string, unknown>;
@@ -392,11 +403,44 @@ function ArgumentLine({
   onActivate?: () => void;
   activateTitle?: string;
 }) {
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const pointerDraggedRef = useRef(false);
+  const handlePointerDown = useCallback((event: React.PointerEvent) => {
+    if (event.button !== 0) {
+      return;
+    }
+    pointerStartRef.current = { x: event.clientX, y: event.clientY };
+    pointerDraggedRef.current = false;
+  }, []);
+  const handlePointerMove = useCallback((event: React.PointerEvent) => {
+    const start = pointerStartRef.current;
+    if (start && (event.buttons & 1) !== 0 && isPointerDrag(start, event)) {
+      pointerDraggedRef.current = true;
+    }
+  }, []);
+  const handlePointerCancel = useCallback(() => {
+    pointerStartRef.current = null;
+    pointerDraggedRef.current = false;
+  }, []);
+  const handleClick = useCallback(
+    (event: React.MouseEvent<HTMLElement>) => {
+      const wasPointerDrag = pointerDraggedRef.current;
+      pointerStartRef.current = null;
+      pointerDraggedRef.current = false;
+      if (!wasPointerDrag && !hasTextSelectionWithin(event.currentTarget)) {
+        onToggle();
+      }
+    },
+    [onToggle]
+  );
   const line =
     expandable && expanded ? (
       <div
         className="min-w-max flex-1 cursor-pointer whitespace-pre"
-        onClick={onToggle}
+        onClick={handleClick}
+        onPointerCancel={handlePointerCancel}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
       >
         {"  "}
         <span className="text-foreground">{argumentKey}</span>
@@ -410,7 +454,10 @@ function ArgumentLine({
           "flex min-w-0 flex-1 items-baseline whitespace-pre",
           expandable && "cursor-pointer"
         )}
-        onClick={expandable ? onToggle : undefined}
+        onClick={expandable ? handleClick : undefined}
+        onPointerCancel={expandable ? handlePointerCancel : undefined}
+        onPointerDown={expandable ? handlePointerDown : undefined}
+        onPointerMove={expandable ? handlePointerMove : undefined}
       >
         <span className="shrink-0">{"  "}</span>
         <span className="text-foreground shrink-0">{argumentKey}</span>
@@ -445,6 +492,47 @@ function ArgumentLine({
       <span>{line}</span>
     </Tooltip>
   );
+}
+
+const POINTER_DRAG_THRESHOLD_PX = 3;
+
+/** Ignore minor pointer jitter while still recognizing a text-selection drag. */
+export function isPointerDrag(
+  start: { x: number; y: number },
+  current: { clientX: number; clientY: number }
+): boolean {
+  return (
+    Math.hypot(current.clientX - start.x, current.clientY - start.y) >=
+    POINTER_DRAG_THRESHOLD_PX
+  );
+}
+
+/**
+ * A drag that selects text still ends with a click in CEF/WebKit. Treat that
+ * gesture as selection, rather than activating the expandable argument row.
+ */
+export function hasTextSelectionWithin(
+  target: Node,
+  selection: {
+    isCollapsed: boolean;
+    rangeCount: number;
+    getRangeAt(index: number): { intersectsNode(node: Node): boolean };
+  } | null = window.getSelection()
+): boolean {
+  if (!selection || selection.isCollapsed) {
+    return false;
+  }
+
+  for (let index = 0; index < selection.rangeCount; index += 1) {
+    try {
+      if (selection.getRangeAt(index).intersectsNode(target)) {
+        return true;
+      }
+    } catch {
+      // A stale cross-document range cannot belong to this argument row.
+    }
+  }
+  return false;
 }
 
 function formatJson(value: unknown): string {

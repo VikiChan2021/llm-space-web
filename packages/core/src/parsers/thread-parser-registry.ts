@@ -1,7 +1,12 @@
 import type { Thread } from "../types";
 
+import { DeerFlowJsonlThreadParser } from "./deerflow-jsonl-thread-parser";
 import { JsonThreadParser } from "./json-thread-parser";
-import type { ThreadParseContext, ThreadParser } from "./thread-parser";
+import type {
+  ThreadParseContext,
+  ThreadParseDiagnostic,
+  ThreadParser,
+} from "./thread-parser";
 
 /**
  * Dispatches raw file content to a registered {@link ThreadParser} based on the
@@ -53,13 +58,37 @@ export class ThreadParserRegistry {
     }
     return parser.parse(raw, context);
   }
+
+  async parseDetailed(
+    fileName: string,
+    raw: string,
+    context?: ThreadParseContext
+  ): Promise<ThreadParseDiagnostic> {
+    const parser = this.getByExtension(_extensionOf(fileName));
+    if (!parser) {
+      return {
+        status: "unsupported",
+        message: `Unsupported thread file type: ${fileName}`,
+      };
+    }
+    if (parser.parseDetailed) {
+      return parser.parseDetailed(raw, context);
+    }
+    const thread = await parser.parse(raw, context);
+    return thread
+      ? { status: "parsed", thread, recovered: false }
+      : { status: "invalid-shape", message: "Unrecognized thread data." };
+  }
 }
 
 /**
  * A registry pre-registered with the built-in parsers.
  */
 export function createDefaultThreadParserRegistry(): ThreadParserRegistry {
-  return new ThreadParserRegistry([new JsonThreadParser()]);
+  return new ThreadParserRegistry([
+    new JsonThreadParser(),
+    new DeerFlowJsonlThreadParser(),
+  ]);
 }
 
 /** Lowercase and ensure a single leading dot, e.g. `"JSON"` → `".json"`. */

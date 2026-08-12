@@ -10,6 +10,7 @@ import { useMemo, type ReactNode } from "react";
 import { fsReveal, listBuiltInTools } from "@/client/built-in-tools";
 import {
   checkUv,
+  openGeneratorDevTerminal,
   pickGeneratorDirectory,
   prepareGeneratorDirectory,
   removeProjectFile,
@@ -26,20 +27,21 @@ import {
   readTextFile,
   textFileExists,
 } from "@/client/paths";
+import { listPluginTools } from "@/client/plugins";
 import { createRpcTransport } from "@/client/rpc-transport";
 import { getSearchSettings } from "@/client/search";
-import { getSkillsSettings, listSkills } from "@/client/skills";
+import {
+  getSkillsSettings,
+  listAvailableSkills,
+  listSkills,
+} from "@/client/skills";
 import { executeTool } from "@/client/tool-execution";
 import { useCommands } from "@/commands";
 import { electrobun } from "@/lib/electrobun";
 import type { SettingsTab } from "@/shared/commands";
 import type { RuntimeId } from "@/shared/runtime";
 
-// One transport for the app: stream agent runs over Electrobun RPC to the bun
-// process. It multiplexes concurrent runs by internal `streamId`, so a single
-// module-level instance is safe.
-const transport = createRpcTransport();
-
+import { createDesktopShareThreadAction } from "./share-thread-action";
 function _rpc() {
   if (!electrobun.rpc) {
     throw new Error("Electrobun RPC is not initialized");
@@ -64,6 +66,21 @@ export function createElectrobunModelClient(
       _rpc().request.addProvider({ ...scope(), providerId }),
     addCustomProvider: (input) =>
       _rpc().request.addCustomProvider({ ...scope(), ...input }),
+    addProviderProfile: (providerId) =>
+      _rpc().request.addProviderProfile({ ...scope(), providerId }),
+    updateProviderProfile: (providerId, profileId, fields) =>
+      _rpc().request.updateProviderProfile({
+        ...scope(),
+        providerId,
+        profileId,
+        ...fields,
+      }),
+    removeProviderProfile: (providerId, profileId) =>
+      _rpc().request.removeProviderProfile({
+        ...scope(),
+        providerId,
+        profileId,
+      }),
     updateProvider: (providerId, fields) =>
       _rpc().request.updateProvider({ ...scope(), providerId, ...fields }),
     setModelEnabled: (providerId, modelId, enabled) =>
@@ -75,10 +92,11 @@ export function createElectrobunModelClient(
       }),
     setAllModelsEnabled: (providerId, enabled) =>
       _rpc().request.setAllModelsEnabled({ ...scope(), providerId, enabled }),
-    testModelConnection: async (providerId, modelId, candidate) => {
+    testModelConnection: async (providerId, modelId, candidate, profileId) => {
       await _rpc().request.testModelConnection({
         ...scope(),
         providerId,
+        profileId,
         modelId,
         candidate,
       });
@@ -106,11 +124,14 @@ export function DesktopHostProvider({ children }: { children: ReactNode }) {
   const value = useMemo<HostServices>(
     () => ({
       presentational: false,
-      transport,
+      createTransport: (runtimeId: string) =>
+        createRpcTransport(runtimeId as RuntimeId),
       executeTool,
       skills: {
         getSettings: (options) =>
           getSkillsSettings(options?.runtimeId as RuntimeId | undefined),
+        listAvailable: (options) =>
+          listAvailableSkills(options?.runtimeId as RuntimeId | undefined),
         listSkills: (path, options) =>
           listSkills(path, options?.runtimeId as RuntimeId | undefined),
       },
@@ -125,10 +146,18 @@ export function DesktopHostProvider({ children }: { children: ReactNode }) {
           listBuiltInTools(options?.runtimeId as RuntimeId | undefined),
         fsReveal,
       },
+      pluginTools: {
+        list: ({ runtimeId } = {}) =>
+          runtimeId && runtimeId !== "local"
+            ? Promise.resolve([])
+            : listPluginTools(),
+      },
       paths: { ensureRootDir },
       files: {
-        readText: readTextFile,
-        exists: textFileExists,
+        readText: (path, options) =>
+          readTextFile(path, options.runtimeId as RuntimeId),
+        exists: (path, options) =>
+          textFileExists(path, options.runtimeId as RuntimeId),
         directoryExists,
         pickFile,
         pickDirectory,
@@ -140,8 +169,20 @@ export function DesktopHostProvider({ children }: { children: ReactNode }) {
         runUv,
         writeFile: writeProjectFile,
         removeFile: removeProjectFile,
-        getSearchSettings,
-        resolveEnv: resolveGeneratorEnv,
+        openDevTerminal: openGeneratorDevTerminal,
+        getSearchSettings: (options: { runtimeId: string }) =>
+          getSearchSettings(options.runtimeId as RuntimeId),
+        resolveEnv: (
+          providerId: string,
+          envNames: string[],
+          options: { runtimeId: string; profileId?: string }
+        ) =>
+          resolveGeneratorEnv(
+            providerId,
+            envNames,
+            options.profileId,
+            options.runtimeId as RuntimeId
+          ),
       },
       actions: {
         openSettings: (tab) =>
@@ -150,8 +191,7 @@ export function DesktopHostProvider({ children }: { children: ReactNode }) {
             args: { tab: tab as SettingsTab },
           }),
         openLink: (url) => executeCommand({ type: "openLink", args: { url } }),
-        shareThread: (path) =>
-          executeCommand({ type: "shareThread", args: { path } }),
+        shareThread: createDesktopShareThreadAction(executeCommand),
         openVariables: (variableName) =>
           executeCommand({ type: "openVariables", args: { variableName } }),
         registerOpenVariables: (handler) =>

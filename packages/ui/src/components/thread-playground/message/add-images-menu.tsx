@@ -42,7 +42,7 @@ export function AddImagesMenu({
       messages.reduce(
         (count, message) =>
           count +
-          message.content.filter((content) => content.type === "image_data")
+          message.content.filter((content) => content.type === "image")
             .length,
         0
       ),

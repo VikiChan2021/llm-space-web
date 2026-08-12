@@ -1,4 +1,8 @@
-import type { LocalFileSystem } from "@llm-space/core/server";
+import {
+  readUserTextFile,
+  userTextFileExists,
+  type LocalFileSystem,
+} from "@llm-space/core/server";
 
 import type { McpManager } from "../mcp";
 import type { ModelManager } from "../models";
@@ -79,6 +83,26 @@ export class LocalRuntimeClient implements RuntimeClient {
     return this.availableModels();
   }
 
+  async addProviderProfile(providerId: string) {
+    this._deps.modelManager.addProfile(providerId);
+    return this.availableModels();
+  }
+
+  async updateProviderProfile(
+    input: Parameters<RuntimeClient["updateProviderProfile"]>[0]
+  ) {
+    const { providerId, profileId, ...fields } = input;
+    this._deps.modelManager.updateProfile(providerId, profileId, fields);
+    return this.availableModels();
+  }
+
+  async removeProviderProfile(
+    input: Parameters<RuntimeClient["removeProviderProfile"]>[0]
+  ) {
+    this._deps.modelManager.removeProfile(input.providerId, input.profileId);
+    return this.availableModels();
+  }
+
   async updateProvider(input: Parameters<RuntimeClient["updateProvider"]>[0]) {
     const { providerId, ...fields } = input;
     this._deps.modelManager.updateProvider(providerId, fields);
@@ -119,7 +143,12 @@ export class LocalRuntimeClient implements RuntimeClient {
     input: Parameters<RuntimeClient["resolveGeneratorEnv"]>[0]
   ) {
     const modelApiKey =
-      (await this._deps.modelManager.getApiKey(input.providerId, true)) ?? "";
+      (
+        await this._deps.modelManager.resolveConnection({
+          providerId: input.providerId,
+          profileId: input.profileId,
+        })
+      ).apiKey ?? "";
     const envValues: Record<string, string> = {};
     for (const name of input.envNames) {
       envValues[name] = process.env[name] ?? "";
@@ -183,8 +212,27 @@ export class LocalRuntimeClient implements RuntimeClient {
     await this._deps.localFs.write(path, thread);
   }
 
+  fsArchiveRun(
+    path: string,
+    run: Parameters<RuntimeClient["fsArchiveRun"]>[1]
+  ) {
+    return this._deps.localFs.archiveRun(path, run);
+  }
+
+  fsReadRunSnapshot(path: string, snapshotRef: string) {
+    return this._deps.localFs.readRunSnapshot(path, snapshotRef);
+  }
+
   fsRealpath(path: string) {
     return Promise.resolve(this._deps.localFs.realpath(path));
+  }
+
+  readTextFile(path: string) {
+    return readUserTextFile(path);
+  }
+
+  textFileExists(path: string) {
+    return userTextFileExists(path);
   }
 
   mcpListServers() {
@@ -208,6 +256,10 @@ export class LocalRuntimeClient implements RuntimeClient {
 
   mcpDisconnectServer(serverId: string) {
     return this._deps.mcpManager.disconnectServer(serverId);
+  }
+
+  mcpCancelTest(serverId: string) {
+    return this._deps.mcpManager.cancelTest(serverId);
   }
 
   mcpListTools(serverId: string) {
@@ -272,6 +324,25 @@ export class LocalRuntimeClient implements RuntimeClient {
     );
   }
 
+  skillsSetPluginSkillHidden(
+    input: Parameters<RuntimeClient["skillsSetPluginSkillHidden"]>[0]
+  ) {
+    return this._deps.skillsManager.setPluginSkillHidden(
+      input.pluginId,
+      input.skillName,
+      input.hidden
+    );
+  }
+
+  skillsSetAllPluginSkillsHidden(
+    input: Parameters<RuntimeClient["skillsSetAllPluginSkillsHidden"]>[0]
+  ) {
+    return this._deps.skillsManager.setAllPluginSkillsHidden(
+      input.pluginId,
+      input.hidden
+    );
+  }
+
   skillsSetAllSkillsHidden(
     input: Parameters<RuntimeClient["skillsSetAllSkillsHidden"]>[0]
   ) {
@@ -279,6 +350,14 @@ export class LocalRuntimeClient implements RuntimeClient {
       input.path,
       input.hidden
     );
+  }
+
+  skillsListAvailable() {
+    return this._deps.skillsManager.listAvailableSkills();
+  }
+
+  skillsListPluginSkills() {
+    return this._deps.skillsManager.listPluginSkills();
   }
 
   skillsListSkills(path: string) {

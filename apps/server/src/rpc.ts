@@ -1,4 +1,4 @@
-import type { Thread } from "@llm-space/core";
+import type { ProviderConnectionRef, Thread } from "@llm-space/core";
 import type { RuntimeClient } from "@llm-space/runtime/runtime";
 
 import { ServerError, toServerError } from "./errors";
@@ -75,8 +75,24 @@ async function _dispatch(
     case "fs.write":
       await runtime.fsWrite(_stringParam(params, "path"), _threadParam(params));
       return null;
+    case "fs.archiveRun":
+      return runtime.fsArchiveRun(
+        _stringParam(params, "path"),
+        _recordParam(params, "run") as Parameters<
+          RuntimeClient["fsArchiveRun"]
+        >[1]
+      );
+    case "fs.readRunSnapshot":
+      return runtime.fsReadRunSnapshot(
+        _stringParam(params, "path"),
+        _stringParam(params, "snapshotRef")
+      );
     case "fs.realpath":
       return { path: await runtime.fsRealpath(_stringParam(params, "path")) };
+    case "fs.readText":
+      return runtime.readTextFile(_stringParam(params, "path"));
+    case "fs.textFileExists":
+      return runtime.textFileExists(_stringParam(params, "path"));
     case "models.available":
       return runtime.availableModels();
     case "models.removeProvider":
@@ -88,6 +104,18 @@ async function _dispatch(
     case "models.addCustomProvider":
       return runtime.addCustomProvider(
         params as Parameters<RuntimeClient["addCustomProvider"]>[0]
+      );
+    case "models.addProviderProfile":
+      return runtime.addProviderProfile(_stringParam(params, "providerId"));
+    case "models.updateProviderProfile":
+      return runtime.updateProviderProfile(
+        params as unknown as Parameters<
+          RuntimeClient["updateProviderProfile"]
+        >[0]
+      );
+    case "models.removeProviderProfile":
+      return runtime.removeProviderProfile(
+        params as Parameters<RuntimeClient["removeProviderProfile"]>[0]
       );
     case "models.updateProvider":
       return runtime.updateProvider(
@@ -106,6 +134,9 @@ async function _dispatch(
     case "models.resolveGeneratorEnv":
       return runtime.resolveGeneratorEnv({
         providerId: _stringParam(params, "providerId"),
+        ...(_optionalStringParam(params, "profileId")
+          ? { profileId: _optionalStringParam(params, "profileId") }
+          : {}),
         envNames: _stringArrayParam(params, "envNames"),
       });
     case "models.setDefault":
@@ -146,6 +177,8 @@ async function _dispatch(
       return runtime.mcpRemoveServer(_stringParam(params, "serverId"));
     case "mcp.disconnectServer":
       return runtime.mcpDisconnectServer(_stringParam(params, "serverId"));
+    case "mcp.cancelTest":
+      return runtime.mcpCancelTest(_stringParam(params, "serverId"));
     case "mcp.listTools":
       return runtime.mcpListTools(_stringParam(params, "serverId"));
     case "mcp.callTool":
@@ -160,6 +193,8 @@ async function _dispatch(
       return runtime.builtInCallTool({
         name: _stringParam(params, "name"),
         arguments: _recordParam(params, "arguments"),
+        config: _optionalRecordParam(params, "config"),
+        connection: _optionalProviderConnectionParam(params),
       });
     case "search.get":
       return runtime.getSearchSettings();
@@ -189,10 +224,22 @@ async function _dispatch(
       return runtime.skillsSetSkillHidden(
         params as Parameters<RuntimeClient["skillsSetSkillHidden"]>[0]
       );
+    case "skills.setPluginSkillHidden":
+      return runtime.skillsSetPluginSkillHidden(
+        params as Parameters<RuntimeClient["skillsSetPluginSkillHidden"]>[0]
+      );
+    case "skills.setAllPluginSkillsHidden":
+      return runtime.skillsSetAllPluginSkillsHidden(
+        params as Parameters<RuntimeClient["skillsSetAllPluginSkillsHidden"]>[0]
+      );
     case "skills.setAllSkillsHidden":
       return runtime.skillsSetAllSkillsHidden(
         params as Parameters<RuntimeClient["skillsSetAllSkillsHidden"]>[0]
       );
+    case "skills.listAvailable":
+      return runtime.skillsListAvailable();
+    case "skills.listPluginSkills":
+      return runtime.skillsListPluginSkills();
     case "skills.listSkills":
       return runtime.skillsListSkills(_stringParam(params, "path"));
     case "skills.readSkill":
@@ -212,9 +259,11 @@ async function _dispatch(
     case "trace.importLangfuseJson":
       return runtime.traceImportLangfuseJson(
         _stringParam(params, "projectId"),
-        (params as unknown as {
-          files: Parameters<RuntimeClient["traceImportLangfuseJson"]>[1];
-        }).files
+        (
+          params as unknown as {
+            files: Parameters<RuntimeClient["traceImportLangfuseJson"]>[1];
+          }
+        ).files
       );
     case "trace.searchLangfuseTraces":
       return runtime.traceSearchLangfuseTraces(
@@ -267,6 +316,20 @@ function _stringParam(params: Record<string, unknown>, name: string): string {
   return value;
 }
 
+function _optionalStringParam(
+  params: Record<string, unknown>,
+  name: string
+): string | undefined {
+  const value = params[name];
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "string" || value.length === 0) {
+    throw new ServerError("invalid_request", `${name} must be a string.`);
+  }
+  return value;
+}
+
 function _stringArrayParam(
   params: Record<string, unknown>,
   name: string
@@ -304,4 +367,26 @@ function _recordParam(
     );
   }
   return value as Record<string, unknown>;
+}
+
+/** Read an optional object parameter without accepting arrays or primitives. */
+function _optionalRecordParam(
+  params: Record<string, unknown>,
+  name: string
+): Record<string, unknown> | undefined {
+  return params[name] === undefined ? undefined : _recordParam(params, name);
+}
+
+function _optionalProviderConnectionParam(
+  params: Record<string, unknown>
+): ProviderConnectionRef | undefined {
+  const connection = _optionalRecordParam(params, "connection");
+  if (!connection) {
+    return undefined;
+  }
+  const profileId = _optionalStringParam(connection, "profileId");
+  return {
+    providerId: _stringParam(connection, "providerId"),
+    ...(profileId ? { profileId } : {}),
+  };
 }

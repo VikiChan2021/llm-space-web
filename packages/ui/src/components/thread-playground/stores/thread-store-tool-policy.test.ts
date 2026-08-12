@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+
 import type { AgentEvent, AgentTransport } from "@llm-space/core";
 
 import { createThreadStore } from "./thread-store";
@@ -7,8 +8,8 @@ const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
 const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
 
 beforeAll(() => {
-  globalThis.requestAnimationFrame = (callback) =>
-    setTimeout(() => callback(performance.now()), 0);
+  globalThis.requestAnimationFrame = ((callback: FrameRequestCallback) =>
+    setTimeout(() => callback(performance.now()), 0)) as never;
   globalThis.cancelAnimationFrame = (handle) => clearTimeout(handle);
 });
 
@@ -33,7 +34,10 @@ describe("host tool execution policy", () => {
       canAutoExecuteTool: () => true,
       executeTool: async () => {
         toolCalls += 1;
-        return { contentText: "virtual content", isError: false };
+        return {
+          content: [{ type: "text", text: "virtual content" }],
+          isError: false,
+        };
       },
     });
 
@@ -47,7 +51,9 @@ describe("host tool execution policy", () => {
     );
     expect(
       toolMessage?.role === "assistant"
-        ? toolMessage.toolCalls?.[0]?.output?.content[0]?.text
+        ? toolMessage.toolCalls?.[0]?.output?.content[0]?.type === "text"
+          ? toolMessage.toolCalls[0].output.content[0].text
+          : undefined
         : undefined
     ).toBe("virtual content");
   });
@@ -63,7 +69,10 @@ describe("host tool execution policy", () => {
       canAutoExecuteTool: () => false,
       executeTool: async () => {
         toolCalls += 1;
-        return { contentText: "should not run", isError: false };
+        return {
+          content: [{ type: "text", text: "should not run" }],
+          isError: false,
+        };
       },
     });
 
@@ -86,7 +95,7 @@ describe("host tool execution policy", () => {
       maxAutoToolCalls: 8,
       executeTool: async () => {
         toolCalls += 1;
-        return { contentText: "ok", isError: false };
+        return { content: [{ type: "text", text: "ok" }], isError: false };
       },
     });
 
@@ -101,7 +110,10 @@ function _store(
   transport: AgentTransport,
   options: {
     canAutoExecuteTool: () => boolean;
-    executeTool: () => Promise<{ contentText: string; isError: boolean }>;
+    executeTool: () => Promise<{
+      content: { type: "text"; text: string }[];
+      isError: boolean;
+    }>;
     maxAutoToolTurns?: number;
     maxAutoToolCalls?: number;
   }

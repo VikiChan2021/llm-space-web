@@ -1,27 +1,24 @@
+import { userDirectoryExists } from "@llm-space/core/server";
+import type { GistThreadWriter } from "@llm-space/core/storage";
 import {
-  readUserTextFile,
-  userDirectoryExists,
-  userTextFileExists,
-} from "@llm-space/core/server";
-import type { LocalFileSystem } from "@llm-space/core/server";
-import {
-  GIST_CONNECTOR_ID,
-  type GistThreadWriter,
-} from "@llm-space/core/storage";
+  installPluginZip,
+  type PluginManager,
+} from "@llm-space/runtime/plugins";
 import { BrowserView, Utils, type BrowserWindow } from "electrobun/bun";
 
 import type { Command } from "../../shared/commands";
 import type { DesktopRPCType } from "../../shared/rpc";
-import { buildWebShareUrl } from "../../shared/share";
 import type { Analytics } from "../analytics";
 import type { GitHubAuthManager } from "../auth";
 import {
   checkUv,
+  openGeneratorDevTerminal,
   prepareGeneratorDir,
   removeProjectFile,
   runUv,
   writeProjectFile,
 } from "../fs";
+import type { PluginCommandExecutionController } from "../plugins/plugin-command-execution-controller";
 import {
   dismissGithubStarReminder,
   getNextFeatureReminder,
@@ -35,7 +32,9 @@ import type { UpdaterService } from "../updates";
 
 import { ensureRootDir } from "./ensure-root-dir";
 import { fsReveal } from "./fs-reveal";
-import { buildSharedThread } from "./share-thread";
+import { createPromptFileRpcHandlers } from "./prompt-files";
+import { createShareThreadHandler } from "./share-thread";
+import { forwardStreamThread } from "./stream-thread-request";
 
 /**
  * The stream handler references its RPC instance inside the initializer, so an
@@ -56,11 +55,12 @@ export interface MainWindowRPCDependencies {
   /** Publishes a thread as a secret gist for the `shareThread` request. */
   gistWriter: GistThreadWriter;
   homePath: string;
-  localFs: LocalFileSystem;
   runtimeRouter: RuntimeRouter;
   remoteServerManager: RemoteServerManager;
   skillsManager: SkillsManager;
   updater: UpdaterService;
+  pluginManager: PluginManager;
+  pluginCommandExecutions: PluginCommandExecutionController;
 }
 
 const MAX_REQUEST_TIME_MS = 5 * 60_000 + 10_000;
@@ -73,13 +73,15 @@ export function createMainWindowRPC({
   getMainWindow,
   gistWriter,
   homePath,
-  localFs,
   runtimeRouter,
   remoteServerManager,
   skillsManager,
   updater,
+  pluginManager,
+  pluginCommandExecutions,
 }: MainWindowRPCDependencies): MainWindowRPC {
   const getRuntime = runtimeRouter.get.bind(runtimeRouter);
+  const promptFileRequests = createPromptFileRpcHandlers(getRuntime);
   const rpc: MainWindowRPC = BrowserView.defineRPC<DesktopRPCType>({
     maxRequestTime: MAX_REQUEST_TIME_MS,
     handlers: {
@@ -135,6 +137,12 @@ export function createMainWindowRPC({
           });
           return groups;
         },
+        addProviderProfile: ({ runtimeId, providerId }) =>
+          getRuntime(runtimeId).addProviderProfile(providerId),
+        updateProviderProfile: (input) =>
+          getRuntime(input.runtimeId).updateProviderProfile(input),
+        removeProviderProfile: (input) =>
+          getRuntime(input.runtimeId).removeProviderProfile(input),
         updateProvider: (input) =>
           getRuntime(input.runtimeId).updateProvider(input),
         setModelEnabled: (input) =>
@@ -148,11 +156,13 @@ export function createMainWindowRPC({
         testModelConnection: async ({
           runtimeId,
           providerId,
+          profileId,
           modelId,
           candidate,
         }) => {
           await getRuntime(runtimeId).testModelConnection({
             providerId,
+            profileId,
             modelId,
             candidate,
           });
@@ -205,29 +215,65 @@ export function createMainWindowRPC({
           await getRuntime(runtimeId).fsWrite(path, thread);
           return null;
         },
+        fsArchiveRun: ({ runtimeId, path, run }) =>
+          getRuntime(runtimeId).fsArchiveRun(path, run),
+        fsReadRunSnapshot: ({ runtimeId, path, snapshotRef }) =>
+          getRuntime(runtimeId).fsReadRunSnapshot(path, snapshotRef),
+        pluginsList: () => Promise.resolve(pluginManager.listPlugins()),
+        pluginsRefresh: () => pluginManager.refreshPlugins(),
+        pluginsInstallZip: async ({ fileName, dataBase64 }) => {
+          if (!fileName.toLowerCase().endsWith(".zip")) {
+            throw new Error("Only .zip plugin packages can be installed.");
+          }
+          const result = await installPluginZip({
+            homePath,
+            archive: Buffer.from(dataBase64, "base64"),
+          });
+          const plugins = await pluginManager.refreshPlugins();
+          return { ...result, plugins };
+        },
+        pluginsReload: async ({ pluginId }) => {
+          await pluginManager.reloadPlugin(pluginId);
+          return pluginManager.listPlugins();
+        },
+        pluginsUninstall: ({ pluginId }) =>
+          pluginManager.uninstallPlugin(pluginId),
+        pluginsSetEnabled: ({ pluginId, enabled }) =>
+          pluginManager.setEnabled(pluginId, enabled),
+        pluginsSetSettings: ({ pluginId, settings }) =>
+          pluginManager.setSettings(pluginId, settings),
+        pluginCommandsList: () =>
+          Promise.resolve(pluginManager.commands.list()),
+        pluginCommandExecute: ({
+          executionId,
+          commandId,
+          arguments: args,
+          activeTab,
+        }) =>
+          pluginCommandExecutions.execute({
+            executionId,
+            commandId,
+            arguments: args,
+            context: { activeTab },
+          }),
+        pluginToolsList: () => Promise.resolve(pluginManager.tools.list()),
+        pluginToolExecute: ({ tool, thread, variables, arguments: args }) =>
+          pluginManager.tools.execute(tool, { thread, variables }, args),
+        threadStoragesList: () =>
+          Promise.resolve(pluginManager.threadStorages.list()),
+        threadStorageResolveLatest: ({ storageId, resourceId }) =>
+          pluginManager.threadStorages.resolveLatest(storageId, resourceId),
+        threadStorageRead: ({ storageId, locator }) =>
+          pluginManager.threadStorages.read(storageId, locator),
+        threadStorageWrite: ({ storageId, thread, resourceId }) =>
+          pluginManager.threadStorages.write(storageId, thread, resourceId),
         // Publish a thread as a secret gist and return its web viewer link.
         // `title`/`description` override the shared copy's display metadata
         // without touching the local thread file. The writer throws when signed
         // out or on a gist API failure; the error propagates to the renderer,
         // which maps it to friendly copy. Each call creates a fresh gist (no id
         // reuse), so a re-share yields a new link.
-        shareThread: async ({ path, title, description }) => {
-          const thread = await localFs.read(path);
-          const localRuntime = getRuntime("local");
-          const shared = buildSharedThread(
-            thread,
-            await localRuntime.availableModels(),
-            await localRuntime.getDefaultModel(),
-            title
-          );
-          const locator = await gistWriter.write(shared, undefined, {
-            description,
-          });
-          return {
-            gistId: locator.id,
-            shareUrl: buildWebShareUrl(GIST_CONNECTOR_ID, locator.id),
-          };
-        },
+        shareThread: createShareThreadHandler({ getRuntime, gistWriter }),
         fsReveal: async ({ path }) => {
           await fsReveal(path, { skillsManager });
           return null;
@@ -235,13 +281,8 @@ export function createMainWindowRPC({
         fsRealpath: async ({ runtimeId, path }) => ({
           path: await getRuntime(runtimeId).fsRealpath(path),
         }),
-        // Unconfined text read for the prompt `@include` macro (any path + `~`).
-        fsReadText: async ({ path }) => ({
-          text: await readUserTextFile(path),
-        }),
-        fsTextFileExists: async ({ path }) => ({
-          exists: await userTextFileExists(path),
-        }),
+        // Unconfined prompt-file access (any path + `~`) stays on its owner.
+        ...promptFileRequests,
         fsDirectoryExists: async ({ path }) => ({
           exists: await userDirectoryExists(path),
         }),
@@ -291,8 +332,14 @@ export function createMainWindowRPC({
           await removeProjectFile(rootDir, relativePath);
           return null;
         },
-        generatorResolveEnv: ({ runtimeId, providerId, envNames }) =>
-          getRuntime(runtimeId).resolveGeneratorEnv({ providerId, envNames }),
+        generatorOpenDevTerminal: ({ rootDir }) =>
+          openGeneratorDevTerminal(rootDir),
+        generatorResolveEnv: ({ runtimeId, providerId, profileId, envNames }) =>
+          getRuntime(runtimeId).resolveGeneratorEnv({
+            providerId,
+            profileId,
+            envNames,
+          }),
         mcpListServers: ({ runtimeId }) =>
           getRuntime(runtimeId).mcpListServers(),
         mcpAddServer: async ({ runtimeId, server }) => {
@@ -306,6 +353,8 @@ export function createMainWindowRPC({
           getRuntime(runtimeId).mcpRemoveServer(serverId),
         mcpDisconnectServer: ({ runtimeId, serverId }) =>
           getRuntime(runtimeId).mcpDisconnectServer(serverId),
+        mcpCancelTest: ({ runtimeId, serverId }) =>
+          getRuntime(runtimeId).mcpCancelTest(serverId),
         mcpListTools: ({ runtimeId, serverId }) =>
           getRuntime(runtimeId).mcpListTools(serverId),
         mcpCallTool: ({ runtimeId, serverId, toolName, arguments: args }) =>
@@ -316,8 +365,19 @@ export function createMainWindowRPC({
           }),
         builtInListTools: ({ runtimeId }) =>
           Promise.resolve(getRuntime(runtimeId).builtInListTools()),
-        builtInCallTool: ({ runtimeId, name, arguments: args }) =>
-          getRuntime(runtimeId).builtInCallTool({ name, arguments: args }),
+        builtInCallTool: ({
+          runtimeId,
+          name,
+          arguments: args,
+          config,
+          connection,
+        }) =>
+          getRuntime(runtimeId).builtInCallTool({
+            name,
+            arguments: args,
+            config,
+            connection,
+          }),
         getAnalyticsSettings: () => Promise.resolve(analytics.getSettings()),
         setAnalyticsSettings: ({ enabled }) =>
           Promise.resolve(analytics.setEnabled(enabled)),
@@ -355,10 +415,34 @@ export function createMainWindowRPC({
               hidden,
             })
           ),
+        skillsSetPluginSkillHidden: ({
+          runtimeId,
+          pluginId,
+          skillName,
+          hidden,
+        }) =>
+          Promise.resolve(
+            getRuntime(runtimeId).skillsSetPluginSkillHidden({
+              pluginId,
+              skillName,
+              hidden,
+            })
+          ),
+        skillsSetAllPluginSkillsHidden: ({ runtimeId, pluginId, hidden }) =>
+          Promise.resolve(
+            getRuntime(runtimeId).skillsSetAllPluginSkillsHidden({
+              pluginId,
+              hidden,
+            })
+          ),
         skillsSetAllSkillsHidden: ({ runtimeId, path, hidden }) =>
           Promise.resolve(
             getRuntime(runtimeId).skillsSetAllSkillsHidden({ path, hidden })
           ),
+        skillsListAvailable: ({ runtimeId }) =>
+          Promise.resolve(getRuntime(runtimeId).skillsListAvailable()),
+        skillsListPluginSkills: ({ runtimeId }) =>
+          Promise.resolve(getRuntime(runtimeId).skillsListPluginSkills()),
         skillsListSkills: ({ runtimeId, path }) =>
           Promise.resolve(getRuntime(runtimeId).skillsListSkills(path)),
         skillsReadSkill: ({ runtimeId, path }) =>
@@ -410,7 +494,12 @@ export function createMainWindowRPC({
               title
             )
           ),
-        traceWriteWorkbench: async ({ runtimeId, projectId, traceKey, thread }) => {
+        traceWriteWorkbench: async ({
+          runtimeId,
+          projectId,
+          traceKey,
+          thread,
+        }) => {
           await getRuntime(runtimeId).traceWriteWorkbench(
             projectId,
             traceKey,
@@ -440,8 +529,10 @@ export function createMainWindowRPC({
         sendStreamThreadRequest: (payload) => {
           // Fire-and-forget: stream events back as `receiveStreamThreadResponse`
           // messages. `rpc` is initialized by the time this handler runs.
-          void getRuntime(payload.runtimeId).streamThread(payload, (message) =>
-            rpc.send.receiveStreamThreadResponse(message)
+          void forwardStreamThread(
+            () => getRuntime(payload.runtimeId),
+            payload,
+            (message) => rpc.send.receiveStreamThreadResponse(message)
           );
         },
         abortStreamThread: (payload) =>

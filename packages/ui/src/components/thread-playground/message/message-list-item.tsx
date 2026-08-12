@@ -1,8 +1,7 @@
-import type { DraggableProvidedDragHandleProps } from "@hello-pangea/dnd";
 import {
   getMessageText,
   isExecutableTool,
-  type ImageDataContent,
+  type ImageContent,
   type Message,
   type ThreadContext,
   type ToolCall,
@@ -11,8 +10,8 @@ import {
   createMessagePromptVariablePlaceKey,
   summarizeToolCalls,
 } from "@llm-space/core/thread";
-import { PlusIcon } from "lucide-react";
-import { memo, useCallback, useMemo, useState } from "react";
+import { CircleAlertIcon, PlusIcon, TriangleAlertIcon } from "lucide-react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { CodeEditor } from "@llm-space/ui/components/code-editor";
@@ -27,18 +26,25 @@ import { Marker, MarkerContent } from "@llm-space/ui/ui/marker";
 import { ShineBorder } from "@llm-space/ui/ui/shine-border";
 import { Skeleton } from "@llm-space/ui/ui/skeleton";
 
-
-import { useThreadStore, useThreadStoreActions } from "../stores";
+import {
+  type RunValidationIssue,
+  useThreadStore,
+  useThreadStoreActions,
+} from "../stores";
 import { usePromptVariableExtensionForContext } from "../variable/use-prompt-variable-extension";
 
+import { CitationList } from "./citation-list";
 import { ImageContentList } from "./image-content-view";
 import {
   MAX_IMAGES_PER_THREAD,
   prepareImageFile,
 } from "./image-input";
+import type { MessageDragHandleProps } from "./message-drag-handle-props";
 import { MessageListItemHeader } from "./message-list-item-header";
+import { ProviderHostedToolActivityList } from "./provider-hosted-tool-activity-list";
 import { ThinkingView } from "./thinking-view";
 import { ToolCallListItem } from "./tool-call-list-item";
+import { useTextCitationExtension } from "./use-text-citation-extension";
 import { useToolCallRunner } from "./use-tool-call-runner";
 
 function _MessageListItem({
@@ -47,6 +53,7 @@ function _MessageListItem({
   message,
   placeholder,
   readonly = false,
+  runValidationIssue = null,
   streaming,
   collapsed,
   autoFocus = false,
@@ -57,26 +64,40 @@ function _MessageListItem({
   message: Message;
   placeholder?: string;
   readonly?: boolean;
+  runValidationIssue?: RunValidationIssue | null;
   streaming?: boolean;
   collapsed?: boolean;
   /** Focus this message's editor on mount. Set only for a freshly-added message. */
   autoFocus?: boolean;
-  dragHandleProps?: DraggableProvidedDragHandleProps | null;
+  dragHandleProps?: MessageDragHandleProps;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const { fidelity } = useRenderingFidelity();
   const variableExtension = usePromptVariableExtensionForContext(
     createMessagePromptVariablePlaceKey(message.id),
     context
   );
+  const assistantTextContents = useMemo(
+    () =>
+      message.role === "assistant"
+        ? message.content.filter((content) => content.type === "text")
+        : [],
+    [message]
+  );
+  const citationExtension = useTextCitationExtension(assistantTextContents);
+  const editorExtensions = useMemo(
+    () => [...(variableExtension ?? []), ...citationExtension],
+    [citationExtension, variableExtension]
+  );
   const text = useMemo(() => getMessageText(message), [message]);
   const imageContents = useMemo(() => {
-    const result: { content: ImageDataContent; contentIndex: number }[] = [];
+    const result: { content: ImageContent; contentIndex: number }[] = [];
     // Assistant messages must not display images.
     if (message.role === "assistant") {
       return result;
     }
     message.content.forEach((content, contentIndex) => {
-      if (content.type === "image_data") {
+      if (content.type === "image") {
         result.push({ content, contentIndex });
       }
     });
@@ -94,6 +115,7 @@ function _MessageListItem({
       message.role === "assistant" &&
       !message.thinking &&
       message.content.length === 0 &&
+      (message.providerHostedToolActivities?.length ?? 0) === 0 &&
       (message.toolCalls?.length ?? 0) > 0,
     [message]
   );
@@ -111,8 +133,7 @@ function _MessageListItem({
       threadMessages.reduce(
         (count, item) =>
           count +
-          item.content.filter((content) => content.type === "image_data")
-            .length,
+          item.content.filter((content) => content.type === "image").length,
         0
       ),
     [threadMessages]
@@ -171,30 +192,50 @@ function _MessageListItem({
         }
       }
     },
-    [
-      addMessageImageContent,
-      message.id,
-      message.role,
-      threadImageCount,
-    ]
+    [addMessageImageContent, message.id, message.role, threadImageCount]
   );
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" && e.metaKey) {
+      if (
+        message.role === "user" &&
+        e.key === "Enter" &&
+        (e.metaKey || e.ctrlKey)
+      ) {
         void handleRun();
         e.preventDefault();
         e.stopPropagation();
       }
     },
-    [handleRun]
+    [handleRun, message.role]
   );
+  const validationErrorId = `message-${message.id}-run-error`;
+  useEffect(() => {
+    if (!runValidationIssue) {
+      return;
+    }
+    containerRef.current?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+      block: "nearest",
+    });
+  }, [runValidationIssue]);
   return (
     <div
+      aria-describedby={runValidationIssue ? validationErrorId : undefined}
+      aria-invalid={Boolean(runValidationIssue) || undefined}
+      data-message-id={message.id}
+      data-navigation-anchor-id={`message:${message.id}`}
       className={cn(
-        "hover:border-accent-foreground/20 focus-within:border-ring! group group/message relative flex size-full flex-col items-center rounded-lg border bg-(--textarea) transition-[padding-bottom,border-color]",
-        collapsed && "pb-2.5",
+        "hover:border-accent-foreground/20 focus-within:border-ring! group group/message relative flex size-full flex-col items-center rounded-lg border bg-(--textarea) transition-[padding-bottom,border-color,box-shadow]",
+        runValidationIssue?.level === "warning" &&
+          "border-amber-400/30! focus-within:border-amber-400/40! hover:border-amber-400/40!",
+        runValidationIssue?.level === "error" &&
+          "border-destructive/40! hover:border-destructive/50! focus-within:border-destructive/50!",
+        collapsed && !runValidationIssue && "pb-2.5",
         className
       )}
+      ref={containerRef}
     >
       <div
         className={cn(
@@ -236,37 +277,52 @@ function _MessageListItem({
             streaming &&
             !message.thinking &&
             message.content.length === 0 &&
+            (!message.providerHostedToolActivities ||
+              message.providerHostedToolActivities.length === 0) &&
             (!message.toolCalls || message.toolCalls.length === 0) && (
               <StreamingMessageSkeleton className="mt-2" />
             )}
           {message.role === "assistant" && message.thinking && (
             <ThinkingView className="mt-2" thinking={message.thinking} />
           )}
+          {message.role === "assistant" &&
+            message.providerHostedToolActivities &&
+            message.providerHostedToolActivities.length > 0 && (
+              <ProviderHostedToolActivityList
+                activities={message.providerHostedToolActivities}
+              />
+            )}
           <ImageContentList
             messageId={message.id}
             images={imageContents}
             readonly={readonly}
           />
-          {message.content.length > 0 && (
-            <CodeEditor
-              className="max-h-[40vh] min-h-9.5 w-full bg-transparent"
-              autoFocus={autoFocus}
-              hideFocusRing
-              hideBorder
-              scrollOnFocus
-              plain={fidelity === "lite"}
-              placeholder={
-                placeholder ??
-                `Enter ${message.role === "user" ? "user" : "assistant"} message here`
-              }
-              streaming={streaming}
-              readonly={readonly}
-              value={text}
-              extraExtensions={variableExtension}
-              onChange={handleTextContentChange}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-            />
+          {message.content.length > 0 &&
+            (text.length > 0 ||
+              message.role !== "assistant" ||
+              !message.providerHostedToolActivities?.length) && (
+              <CodeEditor
+                className="max-h-[40vh] min-h-9.5 w-full bg-transparent"
+                autoFocus={autoFocus}
+                hideFocusRing
+                hideBorder
+                scrollOnFocus
+                plain={fidelity === "lite"}
+                placeholder={
+                  placeholder ??
+                  `Enter ${message.role === "user" ? "user" : "assistant"} message here`
+                }
+                streaming={streaming}
+                readonly={readonly}
+                value={text}
+                extraExtensions={editorExtensions}
+                onChange={handleTextContentChange}
+                onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
+              />
+            )}
+          {message.role === "assistant" && (
+            <CitationList contents={assistantTextContents} />
           )}
           {message.role === "assistant" &&
             message.toolCalls &&
@@ -280,6 +336,7 @@ function _MessageListItem({
                     canContinue={toolCallSummary?.canContinue ?? false}
                     onContinue={handleContinue}
                     readonly={readonly}
+                    streaming={streaming === true}
                     toolCall={toolCall}
                   />
                 ))}
@@ -292,6 +349,26 @@ function _MessageListItem({
             )}
         </main>
       </CollapsibleContent>
+      {runValidationIssue ? (
+        <div
+          className={cn(
+            "text-foreground/75 mx-2 mb-2 flex w-[calc(100%-1rem)] items-center gap-2 rounded-md px-2.5 py-1.5 text-xs motion-safe:transition-[margin-top] motion-safe:duration-200 motion-safe:ease-in-out",
+            collapsed && "mt-2",
+            runValidationIssue.level === "warning"
+              ? "bg-amber-400/8"
+              : "bg-destructive/8"
+          )}
+          id={validationErrorId}
+          role="alert"
+        >
+          {runValidationIssue.level === "warning" ? (
+            <TriangleAlertIcon className="size-3.5 shrink-0 text-amber-400/80" />
+          ) : (
+            <CircleAlertIcon className="text-destructive/70 size-3.5 shrink-0" />
+          )}
+          <span className="min-w-0 grow">{runValidationIssue.message}</span>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -320,7 +397,7 @@ function _ToolStepContinuation({
   const [callingTools, setCallingTools] = useState(false);
   const canCallTools =
     !readonly &&
-    status !== "running" &&
+    status === "idle" &&
     !callingTools &&
     callableToolCalls.length > 0;
   // "Continue" runs the thread from this message (continuing past the tool
@@ -328,7 +405,7 @@ function _ToolStepContinuation({
   // call has a response.
   const canContinue =
     !readonly &&
-    status !== "running" &&
+    status === "idle" &&
     !callingTools &&
     summarizeToolCalls(toolCalls).canContinue;
   const handleContinue = useCallback(async () => {
@@ -392,7 +469,7 @@ function _ToolStepContinuation({
             size="sm"
             variant="outline"
             disabled={!canCallTools}
-            aria-label="Call available MCP and built-in tools"
+            aria-label="Call available tools"
             onClick={() => void handleCallTools()}
           >
             Call tools

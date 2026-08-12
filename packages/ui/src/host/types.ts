@@ -7,21 +7,27 @@
 
 import type {
   AgentTransport,
+  ArkImageGenerationConfig,
   BuiltinTool,
+  BuiltinToolCallResponse,
   CustomModel,
   McpServerToolsResponse,
   McpServerView,
   McpTool,
+  PluginTool,
+  JsonValue,
   ModelConfig,
   ModelProviderGroup,
+  ProviderConnectionRef,
+  ProviderProfilePatch,
   SearchSettings,
   SkillInfo,
   SkillsSettings,
+  Thread,
 } from "@llm-space/core";
 
 /** A tool call's result, normalized across the built-in and MCP backends. */
-export interface ToolCallResult {
-  contentText: string;
+export interface ToolCallResult extends BuiltinToolCallResponse {
   isError: boolean;
 }
 
@@ -30,13 +36,30 @@ export interface RuntimeScopedHostOptions {
   runtimeId?: string;
 }
 
-export interface ExecuteToolOptions extends RuntimeScopedHostOptions {}
+/** A runtime scope that must be present for ownership-sensitive operations. */
+export interface RuntimeOwnedHostOptions {
+  runtimeId: string;
+}
 
-/** Invoke an executable tool (built-in or MCP). */
+/** Identifies the thread and runtime selected by a Playground Share action. */
+export interface ShareThreadActionInput {
+  path: string;
+  runtimeId: string;
+}
+
+export interface ExecuteToolOptions extends RuntimeScopedHostOptions {
+  /** Ephemeral provider connection used by provider-backed built-in tools. */
+  connection?: ProviderConnectionRef;
+  /** Owning Thread snapshot and one resolved variable map for this call batch. */
+  thread: Thread;
+  variables: Record<string, JsonValue>;
+}
+
+/** Invoke an executable tool (built-in, MCP, or Plugin). */
 export type ExecuteTool = (
-  tool: McpTool | BuiltinTool,
+  tool: McpTool | BuiltinTool | PluginTool,
   args: Record<string, unknown>,
-  options?: ExecuteToolOptions
+  options: ExecuteToolOptions
 ) => Promise<ToolCallResult>;
 
 /**
@@ -58,6 +81,7 @@ export interface ToolExecutionPolicy {
 /** Read-only skills access used by prompt variables + examples. */
 export interface SkillsHost {
   getSettings(options?: RuntimeScopedHostOptions): Promise<SkillsSettings>;
+  listAvailable(options?: RuntimeScopedHostOptions): Promise<SkillInfo[]>;
   listSkills(
     path: string,
     options?: RuntimeScopedHostOptions
@@ -80,6 +104,11 @@ export interface BuiltinToolsHost {
   fsReveal(path: string): Promise<void>;
 }
 
+/** Locally installed Plugin Tools available for importing into a Thread. */
+export interface PluginToolsHost {
+  list(options?: RuntimeScopedHostOptions): Promise<PluginTool[]>;
+}
+
 /** Workspace path resolution (used to seed example threads). */
 export interface PathsHost {
   ensureRootDir(relativePath: string): Promise<string>;
@@ -88,9 +117,9 @@ export interface PathsHost {
 /** Arbitrary text-file reads + native file picking for prompt variables. */
 export interface FilesHost {
   /** Read a file's UTF-8 contents (`~` expands to home); `""` when missing. */
-  readText(path: string): Promise<string>;
+  readText(path: string, options: RuntimeOwnedHostOptions): Promise<string>;
   /** Whether a path points to a readable regular file (`~` expands to home). */
-  exists(path: string): Promise<boolean>;
+  exists(path: string, options: RuntimeOwnedHostOptions): Promise<boolean>;
   /**
    * Whether a path points to an existing directory. `null` when the host cannot
    * inspect the local filesystem (e.g. the display-only web viewer).
@@ -153,8 +182,13 @@ export interface GeneratorHost {
   ): Promise<void>;
   /** Delete a file under an authorized project directory; no-op when missing. */
   removeFile(rootDir: string, relativePath: string): Promise<void>;
+  /**
+   * Open a native terminal in the generated project and run its development
+   * target. Returns false when the host platform does not support this action.
+   */
+  openDevTerminal(rootDir: string): Promise<boolean>;
   /** The user's web-search settings, written into a generated project's `.env`. */
-  getSearchSettings(): Promise<SearchSettings>;
+  getSearchSettings(options: RuntimeOwnedHostOptions): Promise<SearchSettings>;
   /**
    * Resolve the model provider's real API key plus the values of the named
    * environment variables — used to write a `.env` with the user's actual
@@ -162,7 +196,8 @@ export interface GeneratorHost {
    */
   resolveEnv(
     providerId: string,
-    envNames: string[]
+    envNames: string[],
+    options: RuntimeOwnedHostOptions & { profileId?: string }
   ): Promise<{ modelApiKey: string; envValues: Record<string, string> }>;
 }
 
@@ -176,10 +211,10 @@ export interface HostActions {
   openSettings(tab: string): void;
   openLink(url: string): void;
   /**
-   * Open the host's Share surface for a thread. `path` targets a specific
-   * thread; omitting it shares the active thread. No-op on web (presentational).
+   * Open the host's Share surface for the thread owned by `runtimeId`. No-op on
+   * web (presentational).
    */
-  shareThread(path?: string): void;
+  shareThread(input: ShareThreadActionInput): void;
   /** Request opening the variables dialog (handled within the playground). */
   openVariables(variableName?: string): void;
   /** Register the variables-dialog opener; returns a disposer. No-op on web. */
@@ -189,19 +224,24 @@ export interface HostActions {
 }
 
 /**
- * The full set of host capabilities. `transport`/`executeTool` are `null` in a
- * display-only (`presentational`) host; the playground gates edit/run chrome on
- * `presentational`.
+ * The full set of host capabilities. `createTransport` returns `null` and
+ * `executeTool` is `null` in a display-only (`presentational`) host; the
+ * playground gates edit/run chrome on `presentational`.
  */
 export interface HostServices {
   /** Display-only: hide all action chrome and non-Preview dialogs. */
   presentational: boolean;
-  transport: AgentTransport | null;
+  /**
+   * Create an immutable transport bound to the runtime that owns a generation.
+   * Call once when a run starts so later workspace switches cannot reroute it.
+   */
+  createTransport: (runtimeId: string) => AgentTransport | null;
   executeTool: ExecuteTool | null;
   toolExecutionPolicy?: ToolExecutionPolicy;
   skills: SkillsHost;
   mcp: McpHost;
   builtinTools: BuiltinToolsHost;
+  pluginTools: PluginToolsHost;
   paths: PathsHost;
   files: FilesHost;
   /** Code-generator backing; `null` on hosts without it (the web viewer). */
@@ -226,16 +266,24 @@ export interface ModelClient {
     name: string;
     baseUrl: string;
   }): Promise<ModelProviderGroup[]>;
+  addProviderProfile(providerId: string): Promise<ModelProviderGroup[]>;
+  updateProviderProfile(
+    providerId: string,
+    profileId: string,
+    fields: ProviderProfilePatch
+  ): Promise<ModelProviderGroup[]>;
+  removeProviderProfile(
+    providerId: string,
+    profileId: string
+  ): Promise<ModelProviderGroup[]>;
   updateProvider(
     providerId: string,
     fields: {
-      apiKey?: string | null;
-      baseUrl?: string | null;
-      headers?: Record<string, string> | null;
       name?: string | null;
       api?:
         "anthropic-messages" | "openai-completions" | "openai-responses" | null;
       icon?: string | null;
+      imageGeneration?: ArkImageGenerationConfig;
     }
   ): Promise<ModelProviderGroup[]>;
   setModelEnabled(
@@ -250,7 +298,8 @@ export interface ModelClient {
   testModelConnection(
     providerId: string,
     modelId: string,
-    candidate?: CustomModel
+    candidate?: CustomModel,
+    profileId?: string
   ): Promise<void>;
   removeCustomModel(
     providerId: string,

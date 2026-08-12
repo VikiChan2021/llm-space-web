@@ -76,7 +76,9 @@ describe("游客 Thread 工作区", () => {
       result.workspace.threads[0].thread.context?.messages?.[0].content?.[0]
     ).toEqual({ type: "text", text: "搜索一下广州今天的天气" });
     expect(
-      result.workspace.threads[0].thread.context?.tools?.map((tool) => tool.name)
+      result.workspace.threads[0].thread.context?.tools
+        ?.filter((tool) => "name" in tool)
+        .map((tool) => tool.name)
     ).toEqual(["web_fetch", "web_search", "weather_report"]);
     expect(storage.values.has(GUEST_WORKSPACE_STORAGE_KEY)).toBe(true);
     expect(result.storageError).toBeNull();

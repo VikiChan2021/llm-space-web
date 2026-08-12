@@ -3,13 +3,27 @@ import type * as pi from "@earendil-works/pi-ai";
 import type { PiThreadContext } from "../types/agent";
 import type { Message, ModelUsage } from "../types/messages";
 import type { ThreadContext } from "../types/threads";
-import type { Tool } from "../types/tools";
+import {
+  isProviderHostedTool,
+  type ProviderHostedTool,
+  type Tool,
+} from "../types/tools";
 
 export function convertToPiContext(context: ThreadContext): PiThreadContext {
+  const tools = context.tools ?? [];
+  const providerHostedTools = tools.filter(isProviderHostedTool);
   const result: PiThreadContext = {
     systemPrompt: context.systemPrompt,
     messages: context.messages ? _convertToPiMessages(context.messages) : [],
-    tools: context.tools ? _convertToPiTools(context.tools) : [],
+    tools: _convertToPiTools(
+      tools.filter(
+        (tool): tool is Exclude<Tool, ProviderHostedTool> =>
+          !isProviderHostedTool(tool)
+      )
+    ),
+    responseApiNativeTools: providerHostedTools.map((tool) => ({
+      ...tool.config,
+    })),
   };
   return result;
 }
@@ -38,6 +52,12 @@ function _convertToPiMessages(messages: Message[]) {
         stopReason: "stop",
         timestamp: Date.now(),
         usage: _convertUsage(message.usage),
+        ...(message.providerHostedToolActivities
+          ? { nativeToolActivities: message.providerHostedToolActivities }
+          : {}),
+        ...(message.responseOutputItems
+          ? { responseOutputItems: message.responseOutputItems }
+          : {}),
       };
       result.push(piMessage);
     }
@@ -81,19 +101,7 @@ function _convertMessageContents(
   message: Message
 ): (pi.TextContent | pi.ImageContent | pi.ThinkingContent | pi.ToolCall)[] {
   if (message.role === "user") {
-    return message.content.map((content) => {
-      if (content.type === "text") {
-        return { ...content } satisfies pi.TextContent;
-      } else if (content.type === "image_data") {
-        return {
-          type: "image",
-          mimeType: content.mimeType,
-          data: content.data,
-        } satisfies pi.ImageContent;
-      } else {
-        throw new Error(`Unsupported content type: ${JSON.stringify(content)}`);
-      }
-    });
+    return message.content;
   } else if (message.role === "assistant") {
     const contents: (
       pi.TextContent | pi.ImageContent | pi.ThinkingContent | pi.ToolCall
@@ -107,7 +115,7 @@ function _convertMessageContents(
     for (const content of message.content) {
       if (content.type === "text") {
         contents.push({ ...content } satisfies pi.TextContent);
-      } else if (content.type === "image_data") {
+      } else if (content.type === "image") {
         // Assistant messages may not carry images; drop them on conversion.
         continue;
       } else {
@@ -128,7 +136,9 @@ function _convertMessageContents(
   }
 }
 
-function _convertToPiTools(tools: Tool[]): pi.Tool[] {
+function _convertToPiTools(
+  tools: Exclude<Tool, ProviderHostedTool>[]
+): pi.Tool[] {
   if (!tools) {
     return [];
   }

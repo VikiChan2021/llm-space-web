@@ -1,4 +1,8 @@
-import type { BuiltinTool } from "@llm-space/core";
+import type {
+  BuiltinTool,
+  BuiltinToolCallResponse,
+  ProviderConnectionRef,
+} from "@llm-space/core";
 
 import { electrobun } from "@/lib/electrobun";
 import type { RuntimeId } from "@/shared/runtime";
@@ -22,9 +26,11 @@ export async function callBuiltInTool(
   input: {
     name: string;
     arguments: Record<string, unknown>;
+    config?: Record<string, unknown>;
+    connection?: ProviderConnectionRef;
   },
   runtimeId?: RuntimeId
-): Promise<{ contentText: string }> {
+): Promise<BuiltinToolCallResponse> {
   return _rpc().request.builtInCallTool({
     ...runtimeScope(runtimeId),
     ...input,

@@ -151,7 +151,7 @@ export function GuestWorkbench() {
     [refreshQuota]
   );
   const guestHost = useMemo(
-    () => ({ ...webHost, transport }),
+    () => ({ ...webHost, createTransport: () => transport }),
     [transport]
   );
 

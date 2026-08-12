@@ -1,5 +1,6 @@
 "use client";
 
+import type { Thread } from "@llm-space/core";
 import { useTheme } from "@llm-space/ui/components/theme-provider";
 import { Tooltip } from "@llm-space/ui/components/tooltip";
 import { cn } from "@llm-space/ui/lib/utils";
@@ -12,7 +13,6 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@llm-space/ui/ui/context-menu";
-import { Kbd, KbdGroup } from "@llm-space/ui/ui/kbd";
 import { Tabs } from "@sinm/react-chrome-tabs";
 import "@sinm/react-chrome-tabs/css/chrome-tabs-dark-theme.css";
 import "@sinm/react-chrome-tabs/css/chrome-tabs.css";
@@ -30,6 +30,9 @@ import {
 import { electrobun } from "@/lib/electrobun";
 import type { RuntimeId } from "@/shared/runtime";
 
+import type { PaneLifecycleHost } from "./pane-lifecycle-host";
+import { RuntimePaneHost } from "./runtime-pane-host";
+import { ShareThreadMenuItem } from "./share-thread-menu-item";
 import { ThreadTabPane } from "./thread-tab-pane";
 import { TraceTabPane } from "./trace-tab-pane";
 import { tabLabel, type AppTab } from "./use-thread-tabs";
@@ -41,6 +44,10 @@ const REVEAL_LABEL = _isWindows ? "Reveal in Explorer" : "Reveal in Finder";
 const MOVE_TO_TRASH_LABEL = _isWindows
   ? "Move to Recycle Bin"
   : "Move to Trash";
+
+function _getPaneKey(tab: AppTab): string {
+  return tab.type === "thread" ? tab.paneId : tab.id;
+}
 
 // Suppress focus on mouse-down so a click doesn't leave these toolbar icons
 // with the focus-visible ring stuck; keyboard focus (Tab) still rings them.
@@ -57,7 +64,9 @@ function _tabIdFromEventTarget(target: EventTarget | null): string | null {
 
 interface ThreadTabsProps {
   className?: string;
+  emptyState?: ReactNode;
   tabs: AppTab[];
+  paneTabs: AppTab[];
   activeId: string | null;
   sidebarOpen?: boolean;
   fullScreen?: boolean;
@@ -70,6 +79,8 @@ interface ThreadTabsProps {
   reveal: (path: string, runtimeId: RuntimeId) => void;
   moveToTrash: (path: string, runtimeId: RuntimeId) => void;
   share: (path: string, runtimeId: RuntimeId) => void;
+  copyFile: (path: string, runtimeId: RuntimeId) => void;
+  openThread: (path: string, runtimeId: RuntimeId) => void;
   reorder: (from: number, to: number) => void;
   /** Create a new thread at the workspace root (auto-named, opened, selected). */
   onNewFile?: () => void;
@@ -81,13 +92,18 @@ interface ThreadTabsProps {
     runtimeId: RuntimeId
   ) => void;
   onToggleSidebar?: () => void;
+  lifecycleHost: PaneLifecycleHost;
+  mutationRevision: number;
+  onThreadStateChange?: (tabId: string, thread: Thread | null) => void;
   /** Extra content pinned at the right end of the tab strip, before "+". */
   toolbarSlot?: ReactNode;
 }
 
 export function ThreadTabs({
   className,
+  emptyState,
   tabs,
+  paneTabs,
   activeId,
   sidebarOpen = true,
   fullScreen = false,
@@ -100,11 +116,16 @@ export function ThreadTabs({
   reveal,
   moveToTrash,
   share,
+  copyFile,
+  openThread,
   reorder,
   onNewFile,
   onMove,
   onTraceTitleChange,
   onToggleSidebar,
+  lifecycleHost,
+  mutationRevision,
+  onThreadStateChange,
   toolbarSlot,
 }: ThreadTabsProps) {
   const { resolvedTheme } = useTheme();
@@ -227,6 +248,51 @@ export function ThreadTabs({
     [close]
   );
 
+  const renderPane = useCallback(
+    (tab: AppTab, active: boolean, viewMounted: boolean) =>
+      tab.type === "thread" ? (
+        <ThreadTabPane
+          tabId={tab.id}
+          paneId={tab.paneId}
+          path={tab.path}
+          runtimeId={tab.runtimeId}
+          active={active}
+          viewMounted={viewMounted}
+          lifecycleHost={lifecycleHost}
+          mutationRevision={mutationRevision}
+          refreshNonce={tab.refreshNonce ?? 0}
+          onMove={onMove}
+          onOpen={openThread}
+          onClose={close}
+          consumeDiscardedPane={consumeDiscardedPane}
+          onThreadStateChange={onThreadStateChange}
+        />
+      ) : (
+        <TraceTabPane
+          projectId={tab.projectId}
+          traceKey={tab.traceKey}
+          runtimeId={tab.runtimeId}
+          active={active}
+          viewMounted={viewMounted}
+          lifecycleHost={lifecycleHost}
+          mutationRevision={mutationRevision}
+          refreshNonce={tab.refreshNonce ?? 0}
+          onClose={close}
+          onRenameTitle={onTraceTitleChange}
+        />
+      ),
+    [
+      close,
+      openThread,
+      consumeDiscardedPane,
+      lifecycleHost,
+      mutationRevision,
+      onMove,
+      onThreadStateChange,
+      onTraceTitleChange,
+    ]
+  );
+
   return (
     <div
       ref={containerRef}
@@ -235,7 +301,10 @@ export function ThreadTabs({
       <ContextMenu>
         <ContextMenuTrigger asChild>
           <div
-            className="bg-tabs relative flex w-full"
+            className={cn(
+              "bg-tabs relative flex w-full",
+              tabs.length === 0 && "hidden"
+            )}
             onContextMenu={handleContextMenu}
             onMouseDownCapture={handleMouseDownCapture}
             onMouseUp={handleMouseUp}
@@ -253,16 +322,7 @@ export function ThreadTabs({
                     : "w-23 pl-18"
               )}
             >
-              <Tooltip
-                content={
-                  <>
-                    {sidebarOpen ? "Hide sidebar" : "Show sidebar"}{" "}
-                    <KbdGroup>
-                      <Kbd className="text-foreground!">⌘ B</Kbd>
-                    </KbdGroup>
-                  </>
-                }
-              >
+              <Tooltip content={sidebarOpen ? "Hide sidebar" : "Show sidebar"}>
                 <Button
                   size="icon-sm"
                   variant="ghost"
@@ -333,14 +393,19 @@ export function ThreadTabs({
             {contextMenuTab?.type === "thread" && (
               <>
                 <ContextMenuSeparator />
+                <ContextMenuItem
+                  onSelect={() =>
+                    copyFile(contextMenuTab.path, contextMenuTab.runtimeId)
+                  }
+                >
+                  Copy file
+                </ContextMenuItem>
                 <ContextMenuGroup>
-                  <ContextMenuItem
-                    onSelect={() =>
-                      share(contextMenuTab.path, contextMenuTab.runtimeId)
-                    }
-                  >
-                    Share...
-                  </ContextMenuItem>
+                  <ShareThreadMenuItem
+                    path={contextMenuTab.path}
+                    runtimeId={contextMenuTab.runtimeId}
+                    onShare={share}
+                  />
                 </ContextMenuGroup>
                 <ContextMenuSeparator />
                 <ContextMenuGroup>
@@ -365,33 +430,18 @@ export function ThreadTabs({
           </ContextMenuContent>
         ) : null}
       </ContextMenu>
-      <div className="relative min-h-0 flex-1">
-        {tabs.map((tab) =>
-          tab.type === "thread" ? (
-            <ThreadTabPane
-              key={tab.paneId}
-              paneId={tab.paneId}
-              path={tab.path}
-              runtimeId={tab.runtimeId}
-              active={tab.id === activeId}
-              refreshNonce={tab.refreshNonce ?? 0}
-              onMove={onMove}
-              onClose={() => close(tab.id)}
-              consumeDiscardedPane={consumeDiscardedPane}
-            />
-          ) : (
-            <TraceTabPane
-              key={tab.id}
-              projectId={tab.projectId}
-              traceKey={tab.traceKey}
-              runtimeId={tab.runtimeId}
-              active={tab.id === activeId}
-              refreshNonce={tab.refreshNonce ?? 0}
-              onClose={close}
-              onRenameTitle={onTraceTitleChange}
-            />
-          )
-        )}
+      {tabs.length === 0 ? (
+        <div className="min-h-0 flex-1">{emptyState}</div>
+      ) : null}
+      <div
+        className={cn("relative min-h-0 flex-1", tabs.length === 0 && "hidden")}
+      >
+        <RuntimePaneHost
+          tabs={paneTabs}
+          activeId={activeId}
+          getPaneKey={_getPaneKey}
+          renderPane={renderPane}
+        />
       </div>
     </div>
   );
