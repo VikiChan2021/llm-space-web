@@ -18,6 +18,7 @@ import {
   LibraryIcon,
   RotateCcwIcon,
   SettingsIcon,
+  SparklesIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -29,6 +30,11 @@ import {
   readGuestQuota,
   type GuestQuota,
 } from "./guest-api";
+import { GuestExampleDialog } from "./guest-example-dialog";
+import {
+  createGuestExampleThread,
+  type GuestExample,
+} from "./guest-examples";
 import { OPEN_GUEST_MCP_SETTINGS_EVENT } from "./guest-mcp";
 import { GuestMcpSettingsDialog } from "./guest-mcp-settings-dialog";
 import { GUEST_RUN_RECOVERY } from "./guest-run-recovery";
@@ -39,7 +45,7 @@ import {
 import { GuestThreadLibrary } from "./guest-thread-library";
 import {
   addGuestThread,
-  createStarterThread,
+  DEFAULT_GUEST_STARTER_ID,
   deleteGuestThread,
   duplicateGuestThread,
   loadGuestWorkspace,
@@ -89,6 +95,8 @@ export function GuestWorkbench() {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [mcpSettingsOpen, setMcpSettingsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [exampleDialogOpen, setExampleDialogOpen] = useState(false);
+  const [creatingExample, setCreatingExample] = useState(false);
   const [settingsTab, setSettingsTab] =
     useState<GuestSettingsTab>("appearance");
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
@@ -211,17 +219,40 @@ export function GuestWorkbench() {
   );
   const handleCreate = useCallback(() => {
     if (running) return;
-    commitWorkspace((current) =>
-      addGuestThread(
-        current,
-        createStarterThread(
+    setExampleDialogOpen(true);
+  }, [running]);
+  const handleSelectExample = useCallback(
+    async (example: GuestExample) => {
+      if (running || creatingExample) return;
+      setCreatingExample(true);
+      try {
+        const thread = await createGuestExampleThread(
+          example.id,
+          guestHost,
           BROWSER_WORKSPACE_FACTORY.createId,
           defaultModel
-        ),
-        BROWSER_WORKSPACE_FACTORY
-      )
-    );
-  }, [commitWorkspace, defaultModel, running]);
+        );
+        commitWorkspace((current) =>
+          addGuestThread(
+            current,
+            thread,
+            BROWSER_WORKSPACE_FACTORY,
+            example.id
+          )
+        );
+        setExampleDialogOpen(false);
+        toast.success(`已创建 ${example.label}`);
+      } catch (error) {
+        toast.error("无法创建案例", {
+          description:
+            error instanceof Error ? error.message : "请稍后重试。",
+        });
+      } finally {
+        setCreatingExample(false);
+      }
+    },
+    [commitWorkspace, creatingExample, defaultModel, guestHost, running]
+  );
   const handleSelect = useCallback(
     (recordId: string) => {
       if (running || recordId === activeRecord.id) return;
@@ -253,21 +284,41 @@ export function GuestWorkbench() {
     },
     [commitWorkspace, defaultModel, running]
   );
-  const handleReset = useCallback(() => {
+  const handleReset = useCallback(async () => {
     if (running) return;
-    commitWorkspace((current) =>
-      resetGuestThread(
-        current,
-        activeRecord.id,
+    try {
+      const replacement = await createGuestExampleThread(
+        activeRecord.starterId ?? DEFAULT_GUEST_STARTER_ID,
+        guestHost,
         BROWSER_WORKSPACE_FACTORY.createId,
-        BROWSER_WORKSPACE_FACTORY.now(),
         defaultModel
-      )
-    );
-    setRevision((value) => value + 1);
-    setResetConfirmOpen(false);
-    toast.success("已重置为示例内容");
-  }, [activeRecord.id, commitWorkspace, defaultModel, running]);
+      );
+      commitWorkspace((current) =>
+        resetGuestThread(
+          current,
+          activeRecord.id,
+          BROWSER_WORKSPACE_FACTORY.createId,
+          BROWSER_WORKSPACE_FACTORY.now(),
+          defaultModel,
+          replacement
+        )
+      );
+      setRevision((value) => value + 1);
+      setResetConfirmOpen(false);
+      toast.success("已恢复案例初始内容");
+    } catch (error) {
+      toast.error("无法重置案例", {
+        description: error instanceof Error ? error.message : "请稍后重试。",
+      });
+    }
+  }, [
+    activeRecord.id,
+    activeRecord.starterId,
+    commitWorkspace,
+    defaultModel,
+    guestHost,
+    running,
+  ]);
   const handleImport = useCallback(
     async (file: File): Promise<boolean> => {
       if (running) return false;
@@ -395,6 +446,16 @@ export function GuestWorkbench() {
           <Button
             variant="outline"
             size="sm"
+            aria-label="打开 Agent 案例库"
+            disabled={running}
+            onClick={() => setExampleDialogOpen(true)}
+          >
+            <SparklesIcon className="size-3.5" />
+            <span className="hidden lg:inline">案例</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             aria-label={`打开 Thread 列表，共 ${workspace.threads.length} 个`}
             onClick={() => setLibraryOpen(true)}
           >
@@ -475,6 +536,14 @@ export function GuestWorkbench() {
         }}
       />
 
+      <GuestExampleDialog
+        open={exampleDialogOpen}
+        onOpenChange={setExampleDialogOpen}
+        running={running}
+        creating={creatingExample}
+        onSelect={(example) => void handleSelectExample(example)}
+      />
+
       <ConfirmDialog
         open={resetConfirmOpen}
         onOpenChange={setResetConfirmOpen}
@@ -482,7 +551,7 @@ export function GuestWorkbench() {
         description={`“${activeRecord.thread.title || "未命名 Thread"}”的当前内容、Run 历史和评估会被示例内容替换。此操作无法撤销。`}
         cancelLabel="取消"
         confirmLabel="重置"
-        onConfirm={handleReset}
+        onConfirm={() => void handleReset()}
       />
       </div>
     </HostServicesProvider>

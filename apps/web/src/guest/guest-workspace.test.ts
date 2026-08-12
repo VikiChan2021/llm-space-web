@@ -7,6 +7,7 @@ import {
   createGuestWorkspace,
   deleteGuestThread,
   duplicateGuestThread,
+  DEFAULT_GUEST_STARTER_ID,
   GUEST_WORKSPACE_STORAGE_KEY,
   LEGACY_GUEST_THREAD_STORAGE_KEY,
   loadGuestWorkspace,
@@ -72,6 +73,9 @@ describe("游客 Thread 工作区", () => {
     expect(result.workspace.threads).toHaveLength(1);
     expect(result.workspace.activeThreadId).toBe(result.workspace.threads[0].id);
     expect(result.workspace.threads[0].thread.title).toBe("游客体验工作台");
+    expect(result.workspace.threads[0].starterId).toBe(
+      DEFAULT_GUEST_STARTER_ID
+    );
     expect(
       result.workspace.threads[0].thread.context?.messages?.[0].content?.[0]
     ).toEqual({ type: "text", text: "搜索一下广州今天的天气" });
@@ -142,7 +146,12 @@ describe("游客 Thread 工作区", () => {
   test("支持新建、选择、更新、复制和唯一标题", () => {
     const factory = _factory();
     let workspace = createGuestWorkspace(factory, _thread("实验"));
-    workspace = addGuestThread(workspace, _thread("实验"), factory);
+    workspace = addGuestThread(
+      workspace,
+      _thread("实验"),
+      factory,
+      "deep-research"
+    );
 
     expect(workspace.threads.map((record) => record.thread.title)).toEqual([
       "实验",
@@ -151,6 +160,8 @@ describe("游客 Thread 工作区", () => {
     expect(uniqueGuestThreadTitle("实验", workspace.threads)).toBe("实验 (3)");
 
     workspace = selectGuestThread(workspace, workspace.threads[0].id);
+    expect(workspace.activeThreadId).toBe(workspace.threads[0].id);
+    workspace = selectGuestThread(workspace, workspace.threads[1].id);
     workspace = updateGuestThread(
       workspace,
       workspace.activeThreadId,
@@ -166,6 +177,7 @@ describe("游客 Thread 工作区", () => {
     const duplicate = workspace.threads.at(-1);
     if (!duplicate) throw new Error("复制后的 Thread 不存在");
     expect(duplicate.thread.title).toBe("已更新 副本");
+    expect(duplicate.starterId).toBe("deep-research");
     expect(workspace.activeThreadId).toBe(duplicate.id);
   });
 

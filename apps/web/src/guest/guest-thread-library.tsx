@@ -98,7 +98,7 @@ export function GuestThreadLibrary({
           <div className="grid grid-cols-2 gap-2 border-b p-3">
             <Button disabled={running} onClick={handleCreate}>
               <PlusIcon />
-              新建 Thread
+              从案例新建
             </Button>
             <Button
               variant="outline"

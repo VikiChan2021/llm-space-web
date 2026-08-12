@@ -1,7 +1,7 @@
 # LLM Space 能力地图
 
-- 最后更新：2026-08-01
-- 地图状态：游客工作台 Hosted Alpha 已在线运行；“游客 Thread 资料库 V1”“Run 错误恢复 V1”“游客安全工具闭环 V1”“游客首次体验、智谱模型与 Web 文档 V1”“游客三模型可靠性与布局稳定 V1”“游客 Prompt 辅助与多模态输入 V1”以及“游客能力资源真实化与模型切换无阻塞 V1”均已部署到 `https://kandian.site/llm-space-web/` 并完成线上验收。根地址现直接进入游客工作台，Landing 保留在 `#/about`。GitHub 登录、BYOK、租户级持久 Thread、账单、Bash、stdio MCP、Generator，以及公共远程 MCP 的网络层出站策略仍需独立安全边界。此前的匿名会话、Personal Tenant、PostgreSQL 与强制 RLS 基础仍仅在本地验证，尚未接入游客入口。当前没有公开或动态加载的插件。
+- 最后更新：2026-08-12
+- 地图状态：游客工作台 Hosted Alpha 已在线运行；截至提交 `19b7256`，上游同步和 CodeMirror 运行时依赖修复已部署到 `https://kandian.site/llm-space-web/`。根地址直接进入游客工作台，Landing 保留在 `#/about`。天气 ReAct 完整闭环已经验证可用，但 2026-08-12 的全新浏览器实测发现默认 Run 设置仍关闭 ReAct 与自动工具执行，首次点击 Run 只停在 `weather_report` 工具调用结果处，不能一键得到最终天气答案。Web Agent 案例库 V1 已在本地实现并完成真实 Chromium 验证，尚未部署到 Hosted Alpha。GitHub 登录、BYOK、租户级持久 Thread、账单、Bash、stdio MCP、Generator，以及公共远程 MCP 的网络层出站策略仍需独立安全边界；身份、Personal Tenant、PostgreSQL 与强制 RLS 基础仍未接入游客入口。当前没有公开或动态加载的插件。
 - 证据规则：`confirmed` 表示有当前渲染产品或当前代码证据；`stale` 表示依赖旧日志或本轮未完全复查的代码路径；`unknown` 表示需要未来重新检查产品界面后才能用于决策。
 
 ## 交互式浏览器工作台
@@ -45,25 +45,46 @@
 - 明确非目标：不宣称已经达到生产级多用户 SaaS；不暴露供应商或 Langfuse 密钥；不开放宿主 Bash、宿主文件系统、stdio MCP、Generator、原生菜单、更新器、窗口控制或系统文件选择器。
 - 可见缺口：三款可见模型普通 Run、GLM-4.6V 图片问答和“模型发起天气 Tool Call—自动执行—模型整理答案”的完整天气 ReAct 闭环均已在线验证。失败结果仍不跨刷新持久化，也没有失败时间线、后台重试或静默故障转移。公共远程 MCP 上线前还需腾讯云网络层出站限制；BYOK、登录激活、租户级 Thread CRUD、多标签 Workspace、分布式额度、审计监控、备份和更强滥用防护仍待开发。
 
+## Web Agent 案例库
+
+- 状态：V1 已在本地实现并验证，Hosted Alpha 尚未部署验证
+- 新鲜度：confirmed
+- 最后检查：2026-08-12
+- 证据：
+  - 当前 Web 顶部已有常驻“案例”入口，Thread 抽屉的“从案例新建”进入同一选择界面；运行中两个入口均锁定。
+  - 案例库保留 Web 天气 Agent，并迁移桌面共享层全部 8 个案例：Blank、General Agent、Deep Research、Translation、Deep Wiki、Compact Memory、Meta Prompt、Meta Image Prompt，共 9 个。
+  - 选择案例会创建并切换到独立浏览器本地 Thread，不覆盖已有 Thread；`starterId` 随工作区记录持久化，复制保留来源，旧工作区和导入 Thread 继续兼容。
+  - Deep Research 实际带入完整研究 Prompt、两条初始消息与 `web_search`、`web_fetch`、`todo_write`；General Agent 保留 Skills、Web 与浏览器虚拟文件工具，并剔除 Bash、不可执行提问工具和插件式子 Agent。
+  - 真实 Chromium 从天气 Thread 打开案例库、选择 Deep Research、刷新恢复、临时修改消息再按来源重置均通过；Thread 数量从 1 增至 2，原天气 Thread 保留。
+  - 1440px 与 768px 当前截图位于 `output/playwright/web-agent-examples-v1/`；768px 实测 `documentElement.scrollWidth === innerWidth === 768`，对话框无页面级横向溢出。
+  - 本地浏览器因未启动 Guest API 产生 `/models` 与 `/quota` 502 及预期回退警告；案例打开、创建、刷新和重置没有新增应用异常。
+  - 15 个聚焦测试通过，包含 9/9 案例可创建、Deep Research 种子、General Agent 工具安全裁剪和 Guest Workspace 生命周期；`mise run check:changed` 与 `mise run build:guest-web` 通过。构建仍输出仓库既有的 top-level await 与大 chunk 容忍警告。
+- 能力边界：游客可从 9 个内置案例创建可编辑、可运行、可持久化的独立 Thread；案例复用桌面 Prompt 数据，但执行工具必须落在 Web 游客真实能力边界内。
+- 明确非目标：不提供远程案例市场、账号收藏、动态第三方模板、宿主 Bash、插件子 Agent、自动开启全局 ReAct 或服务端 Thread 同步。
+- 可见缺口：尚未部署到 Hosted Alpha，也没有案例选择/首次 Run 的匿名激活事件；案例执行仍继承当前全局 Run 模式，新访客的一键 ReAct 成功属于独立的“游客首次成功闭环”能力。
+
 ## 游客核心迭代闭环
 
-- 状态：首次天气工具入口、设置与中文使用说明已上线；真实模型天气闭环仍受上游可用性影响，运行历史与评估流程中文化仍待处理
+- 状态：天气 ReAct 完整闭环可用，但默认首次 Run 只完成模型到工具调用的半程；运行历史与评估流程中文化、首次成功引导和产品埋点仍待处理
 - 新鲜度：confirmed
-- 最后检查：2026-08-01
+- 最后检查：2026-08-12
 - 证据：
+  - 2026-08-12 在生产环境全新浏览器状态下，根地址正确进入 `#/workbench`，初始额度为 20/20，控制台零错误、零警告；默认天气示例首次点击 Run 后额度变为 19/20，模型正确发起 `weather_report({"location":"广州"})`，但界面停在等待工具结果的空输入框，没有继续生成最终答案。
+  - 当前 `packages/ui/src/components/thread-playground/stores/run-mode.ts` 明确让 `autoRunTools` 与 `reactLoop` 默认均为 `false`；对应设置藏在 Run 下拉菜单中，新访客必须先理解并手动启用 ReAct 才能完成一键天气闭环。
+  - 游客工作台尚未记录首次访问、首次 Run、工具调用、完整答案、失败、文档打开、运行比较等激活事件；当前只能用受控浏览器路径评估，无法得到真实访客漏斗基线。
   - 使用当前本地提交 `cf5cb8d` 和真实 Chromium 导入包含两个 Run 的受控 Thread，成功打开运行记录、非破坏式 Trace 检查、双 Run 对比和人工评估。
   - 人工选择“Run A Better”并填写中文评估说明后，评估记录写回浏览器本地 Thread；刷新页面后仍可在运行记录中打开，证明现有数据持久化闭环可用。
-  - 当前默认示例只引导用户执行一次通用问答，没有告诉用户修改哪一项、再次运行、打开运行记录、检查 Trace 或比较结果。
+  - 当前默认示例引导用户查询广州天气，但默认运行模式只走到工具调用；界面也没有告诉用户如何取得最终答案、修改哪一项、再次运行、打开运行记录、检查 Trace 或比较结果。
   - 运行记录入口是标题栏中的无文字历史图标；只有悬停提示，首次用户无法从静态界面理解它承载 Trace、恢复、比较和评估四项核心能力。
   - 运行记录、Trace 检查和评估主流程仍大量使用英文，包括 `Run history`、`Compare Runs`、`Inspect Run`、`Restore`、`Evaluate Runs`、`Rubric` 和评估结论。
   - 游客安全工具闭环已经消除工具空入口；本能力下一轮可直接聚焦默认引导、历史入口可发现性和中文化。
-  - ReAct/自动执行设置已具有真实运行能力；技能、Bash 和 Generator 入口仍需隔离沙箱边界说明。
+  - ReAct/自动执行设置与四份内置 Skills 已具有真实运行能力；Bash 和 Generator 入口仍需隔离沙箱边界说明。
   - 浏览器审计截图位于 `output/playwright/core-experience-audit/`，包含默认核心界面、运行记录中文化缺口、评估中文化缺口和不可用工具死入口。
   - 本轮未启动游客额度 API，因此浏览器控制台只有两条 `/api/guest/quota` 500 资源错误；核心 Trace/评估交互没有产生应用异常。
   - 2026-08-01 线上版本已把首次示例改为广州天气搜索并预装三个安全工具，根地址直达工作台；7 篇中文说明覆盖 Thread、模型额度、工具/MCP、Auto run/ReAct、错误恢复和浏览器数据边界。
 - 能力边界：专家用户或导入已有 Run 的用户可以在浏览器中完成单 Thread 的运行历史查看、快照 Trace 检查、恢复、两次 Run 对比、人工结论和刷新持久化；这些能力共用现有 Thread JSON，不依赖登录或服务端 Thread 存储。
 - 明确非目标：本能力本身不新增分享、登录、BYOK、团队协作、批量数据集、自动评审器、Bash、stdio MCP、Generator 或服务端 Thread 同步；游客可执行工具改由独立的“游客安全工具闭环 V1”能力承接。
-- 可见缺口：首次工具 Run 已纳入默认新手路径，但“修改—第二次运行—检查/比较—保存评估”的进阶闭环仍缺少界面内引导；历史图标可发现性及 Run history、Compare、Inspect、Evaluate 等流程中文化仍待处理。
+- 可见缺口：默认示例虽然已经展示工具调用，却不能让新访客一键获得最终答案；“首次完整答案—修改—第二次运行—检查/比较—保存评估”的渐进式闭环缺少界面内引导和可观测漏斗。历史图标可发现性及 Run history、Compare、Inspect、Evaluate 等流程中文化仍待处理。
 
 ## 游客 Prompt 辅助与多模态输入
 

@@ -14,10 +14,12 @@ export const MAX_GUEST_THREAD_IMPORT_BYTES = 1_048_576;
 
 const WORKSPACE_VERSION = 1;
 const DEFAULT_THREAD_TITLE = "游客体验工作台";
+export const DEFAULT_GUEST_STARTER_ID = "weather";
 
 export interface GuestThreadRecord {
   id: string;
   thread: Thread;
+  starterId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -142,7 +144,9 @@ export function createGuestWorkspace(
 ): GuestWorkspace {
   const record = createGuestThreadRecord(
     thread ?? createStarterThread(factory.createId, defaultModel),
-    factory
+    factory,
+    [],
+    thread ? undefined : DEFAULT_GUEST_STARTER_ID
   );
   return {
     version: WORKSPACE_VERSION,
@@ -154,11 +158,13 @@ export function createGuestWorkspace(
 export function createGuestThreadRecord(
   thread: Thread,
   factory: GuestWorkspaceFactory,
-  existing: readonly GuestThreadRecord[] = []
+  existing: readonly GuestThreadRecord[] = [],
+  starterId?: string
 ): GuestThreadRecord {
   const timestamp = factory.now();
   return {
     id: factory.createId(),
+    ...(starterId ? { starterId } : {}),
     thread: {
       ...normalizeThread(thread),
       title: uniqueGuestThreadTitle(
@@ -174,9 +180,15 @@ export function createGuestThreadRecord(
 export function addGuestThread(
   workspace: GuestWorkspace,
   thread: Thread,
-  factory: GuestWorkspaceFactory
+  factory: GuestWorkspaceFactory,
+  starterId?: string
 ): GuestWorkspace {
-  const record = createGuestThreadRecord(thread, factory, workspace.threads);
+  const record = createGuestThreadRecord(
+    thread,
+    factory,
+    workspace.threads,
+    starterId
+  );
   return {
     ...workspace,
     activeThreadId: record.id,
@@ -229,7 +241,8 @@ export function duplicateGuestThread(
       ...structuredClone(source.thread),
       title: `${source.thread.title?.trim() || DEFAULT_THREAD_TITLE} 副本`,
     },
-    factory
+    factory,
+    source.starterId
   );
 }
 
@@ -266,7 +279,8 @@ export function resetGuestThread(
   recordId: string,
   createId: () => string,
   now: string,
-  defaultModel?: ModelConfig | null
+  defaultModel?: ModelConfig | null,
+  replacement?: Thread
 ): GuestWorkspace {
   const current = workspace.threads.find((record) => record.id === recordId);
   if (!current) return workspace;
@@ -274,7 +288,7 @@ export function resetGuestThread(
     workspace,
     recordId,
     {
-      ...createStarterThread(createId, defaultModel),
+      ...(replacement ?? createStarterThread(createId, defaultModel)),
       title: current.thread.title,
     },
     now
@@ -357,6 +371,9 @@ function _parseWorkspace(raw: string | null): GuestWorkspace | null {
       }
       threads.push({
         id: value.id,
+        ...(typeof value.starterId === "string"
+          ? { starterId: value.starterId }
+          : {}),
         thread: normalizeThread(value.thread),
         createdAt: value.createdAt,
         updatedAt: value.updatedAt,
