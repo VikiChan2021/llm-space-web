@@ -1,14 +1,14 @@
 # LLM Space 能力地图
 
 - 最后更新：2026-08-12
-- 地图状态：游客工作台 Hosted Alpha 已在线运行；截至提交 `19b7256`，上游同步和 CodeMirror 运行时依赖修复已部署到 `https://kandian.site/llm-space-web/`。根地址直接进入游客工作台，Landing 保留在 `#/about`。天气 ReAct 完整闭环已经验证可用，但 2026-08-12 的全新浏览器实测发现默认 Run 设置仍关闭 ReAct 与自动工具执行，首次点击 Run 只停在 `weather_report` 工具调用结果处，不能一键得到最终天气答案。Web Agent 案例库 V1 已在本地实现并完成真实 Chromium 验证，尚未部署到 Hosted Alpha。GitHub 登录、BYOK、租户级持久 Thread、账单、Bash、stdio MCP、Generator，以及公共远程 MCP 的网络层出站策略仍需独立安全边界；身份、Personal Tenant、PostgreSQL 与强制 RLS 基础仍未接入游客入口。当前没有公开或动态加载的插件。
+- 地图状态：游客工作台 Hosted Alpha 已在线运行；截至提交 `f413847`，Web Agent 案例库 V1 已发布为腾讯云版本 `20260812-131315-f4138476f82c`，线上可从 9 个案例创建独立可调试 Thread。根地址直接进入游客工作台，Landing 保留在 `#/about`。天气 ReAct 完整闭环已经验证可用，但全新浏览器的默认 Run 设置仍关闭 ReAct 与自动工具执行，首次点击 Run 会停在工具结果调试阶段；启用 ReAct 后可自动完成工具调用与模型续答。GitHub 登录、BYOK、租户级持久 Thread、账单、Bash、stdio MCP、Generator，以及公共远程 MCP 的网络层出站策略仍需独立安全边界；身份、Personal Tenant、PostgreSQL 与强制 RLS 基础仍未接入游客入口。当前没有公开或动态加载的插件。
 - 证据规则：`confirmed` 表示有当前渲染产品或当前代码证据；`stale` 表示依赖旧日志或本轮未完全复查的代码路径；`unknown` 表示需要未来重新检查产品界面后才能用于决策。
 
 ## 交互式浏览器工作台
 
 - 状态：线上 Hosted Alpha 可用；三款资源包对齐模型、单行顶部、固定高度设置、工作台优先入口和中文使用说明已部署并完成线上验收
 - 新鲜度：confirmed
-- 最后检查：2026-08-01
+- 最后检查：2026-08-12
 - 证据：
   - 当前线上 `https://kandian.site/llm-space-web/` 会直接重定向到 `#/workbench`；介绍页保留在 `#/about`，两个路由均恢复正确的浏览器标题。
   - 2026-08-01 功能发布为 `20260801-083709-a49c04be1c64`，对应提交 `a49c04be1c6488bd77e5fed16940b9e2516c6f72`；systemd 服务为 active，Nginx 配置与本机 API 检查通过。
@@ -41,13 +41,14 @@
   - 本轮 38 个聚焦测试、零警告 lint、全仓类型检查、默认 Web 构建、游客 Web 构建和 Guest API 打包通过；完整仓库测试为 411 通过、1 跳过、6 失败，失败来自本轮未改动的 Windows 路径、符号链接和生成的 Python/清单同步基线。
   - 线上真实 Chromium 控制台为零错误、零警告；Models、Quota 和 Run 请求均返回 200。
   - 线上审计截图与中文验收记录位于 `audits/2026-08-01-guest-first-run-docs-models-online/`。
+  - 2026-08-12 案例库发布后，活动发布目录为 `20260812-131315-f4138476f82c`，`RELEASE_COMMIT` 为 `f4138476f82c04fda270555ef8baa9f3326f38f4`；`llm-space-web.service` 为 active、`NRestarts=0`，内网健康检查返回 `llm-space-guest-api` 与 `glm-4.5-air`。
 - 能力边界：未登录游客可管理多个浏览器本地 Thread，编辑 Prompt、消息、变量、工具和模型参数，选择服务端白名单内的智谱模型，完成安全工具/ReAct 闭环，查看 Run 历史和剩余额度，并通过 JSON 导入导出携带单个 Thread。Thread 与虚拟文件仍不在服务端同步或持久化。
 - 明确非目标：不宣称已经达到生产级多用户 SaaS；不暴露供应商或 Langfuse 密钥；不开放宿主 Bash、宿主文件系统、stdio MCP、Generator、原生菜单、更新器、窗口控制或系统文件选择器。
 - 可见缺口：三款可见模型普通 Run、GLM-4.6V 图片问答和“模型发起天气 Tool Call—自动执行—模型整理答案”的完整天气 ReAct 闭环均已在线验证。失败结果仍不跨刷新持久化，也没有失败时间线、后台重试或静默故障转移。公共远程 MCP 上线前还需腾讯云网络层出站限制；BYOK、登录激活、租户级 Thread CRUD、多标签 Workspace、分布式额度、审计监控、备份和更强滥用防护仍待开发。
 
 ## Web Agent 案例库
 
-- 状态：V1 已在本地实现并验证，Hosted Alpha 尚未部署验证
+- 状态：V1 已提交、推送并部署到腾讯云 Hosted Alpha，线上真实 Chromium 验收完成
 - 新鲜度：confirmed
 - 最后检查：2026-08-12
 - 证据：
@@ -55,13 +56,17 @@
   - 案例库保留 Web 天气 Agent，并迁移桌面共享层全部 8 个案例：Blank、General Agent、Deep Research、Translation、Deep Wiki、Compact Memory、Meta Prompt、Meta Image Prompt，共 9 个。
   - 选择案例会创建并切换到独立浏览器本地 Thread，不覆盖已有 Thread；`starterId` 随工作区记录持久化，复制保留来源，旧工作区和导入 Thread 继续兼容。
   - Deep Research 实际带入完整研究 Prompt、两条初始消息与 `web_search`、`web_fetch`、`todo_write`；General Agent 保留 Skills、Web 与浏览器虚拟文件工具，并剔除 Bash、不可执行提问工具和插件式子 Agent。
-  - 真实 Chromium 从天气 Thread 打开案例库、选择 Deep Research、刷新恢复、临时修改消息再按来源重置均通过；Thread 数量从 1 增至 2，原天气 Thread 保留。
-  - 1440px 与 768px 当前截图位于 `output/playwright/web-agent-examples-v1/`；768px 实测 `documentElement.scrollWidth === innerWidth === 768`，对话框无页面级横向溢出。
-  - 本地浏览器因未启动 Guest API 产生 `/models` 与 `/quota` 502 及预期回退警告；案例打开、创建、刷新和重置没有新增应用异常。
-  - 15 个聚焦测试通过，包含 9/9 案例可创建、Deep Research 种子、General Agent 工具安全裁剪和 Guest Workspace 生命周期；`mise run check:changed` 与 `mise run build:guest-web` 通过。构建仍输出仓库既有的 top-level await 与大 chunk 容忍警告。
+  - 线上真实 Chromium 从天气 Thread 打开案例库、选择 Deep Research、刷新恢复、临时修改消息再按来源重置均通过；Thread 数量从 1 增至 2，原天气 Thread 保留。
+  - 线上 1440px 与 768px 均通过；768px 实测 `documentElement.scrollWidth === innerWidth === 768`，案例对话框没有页面级横向溢出。
+  - 真实翻译案例 Run 返回“有志者，事竟成。”，`/api/guest/runs` 为 200，额度正确扣减并生成 Run 历史。
+  - 天气案例在默认逐步调试模式下正确停在 `weather_report` 结果输入阶段；启用 ReAct 后，线上 `/api/guest/tools/call` 与两个 `/api/guest/runs` 均返回 200，工具返回广州天气 JSON，模型续答生成最终天气与防暑建议，Run 历史记录完整 3 条消息。
+  - 线上验收结束时浏览器控制台为 0 错误、0 警告；Models、Quota、Run 与 Tools Call 均为 200。最终截图位于 `.playwright-cli/page-2026-08-12T13-33-30-298Z.png`。
+  - 功能提交 `f413847` 已推送；腾讯云发布 `20260812-131315-f4138476f82c` 通过原子切换、Nginx、静态资源、模型目录、工具、MCP、Web Fetch/Search 与远程 MCP 拒绝检查。
+  - 25 个游客端聚焦测试通过，包含 9/9 案例可创建、Deep Research 种子、General Agent 工具安全裁剪、Guest Workspace 生命周期及游客 API/工具/MCP；`mise run check:changed`、`mise run build:guest-web` 与 `mise run pack:guest-api` 通过。构建仍输出仓库既有的 top-level await 与大 chunk 容忍警告。
+  - 完整仓库测试为 795 通过、1 跳过、25 失败；失败来自本轮未改动的 Windows/POSIX 路径、权限、符号链接、SSH 子进程、生成文件换行同步和缺少 `python3` 的环境基线，不能据此宣称全仓测试全绿。
 - 能力边界：游客可从 9 个内置案例创建可编辑、可运行、可持久化的独立 Thread；案例复用桌面 Prompt 数据，但执行工具必须落在 Web 游客真实能力边界内。
 - 明确非目标：不提供远程案例市场、账号收藏、动态第三方模板、宿主 Bash、插件子 Agent、自动开启全局 ReAct 或服务端 Thread 同步。
-- 可见缺口：尚未部署到 Hosted Alpha，也没有案例选择/首次 Run 的匿名激活事件；案例执行仍继承当前全局 Run 模式，新访客的一键 ReAct 成功属于独立的“游客首次成功闭环”能力。
+- 可见缺口：尚未增加案例选择/首次 Run 的匿名激活事件；案例执行仍继承当前全局 Run 模式，新访客默认停在逐步工具调试阶段，一键 ReAct 成功仍属于独立的“游客首次成功闭环”能力。
 
 ## 游客核心迭代闭环
 
