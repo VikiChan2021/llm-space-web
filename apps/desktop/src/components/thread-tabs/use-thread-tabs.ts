@@ -9,11 +9,13 @@ import {
 } from "@llm-space/ui/lib/local-storage";
 import { threadTitleFromPath } from "@llm-space/ui/lib/thread-file";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { z } from "zod";
 
 import { createFileSystemClient, traceClient } from "@/client";
 import { listRuntimes } from "@/client/remote-servers";
 import type { RuntimeId } from "@/shared/runtime";
 
+import { pruneInvalidRestoredTabs } from "./restored-tab-pruning";
 import { removeTabsForRuntime } from "./tab-runtime-scope";
 
 /** An open workspace thread tab. `id` is stable as `thread:{path}`. */
@@ -51,6 +53,28 @@ type PersistedTab =
       title?: string;
       runtimeId?: RuntimeId;
     };
+
+const RuntimeIdSchema: z.ZodType<RuntimeId> = z.union([
+  z.literal("local"),
+  z.templateLiteral(["remote:", z.string()]),
+]);
+const PersistedTabsSchema: z.ZodType<PersistedTab[]> = z.array(
+  z.discriminatedUnion("type", [
+    z.object({
+      type: z.literal("thread"),
+      path: z.string(),
+      runtimeId: RuntimeIdSchema.optional(),
+    }),
+    z.object({
+      type: z.literal("trace"),
+      projectId: z.string(),
+      traceKey: z.string(),
+      title: z.string().optional(),
+      runtimeId: RuntimeIdSchema.optional(),
+    }),
+  ])
+);
+const LegacyTabsSchema = z.array(z.string());
 
 /** Derive a tab label from an app tab. */
 export function tabLabel(tab: AppTab): string {
@@ -209,30 +233,18 @@ function _loadPersistedTabs(): AppTab[] {
   try {
     const raw = readLocalStorage(LOCAL_STORAGE_KEYS.openAppTabs);
     if (raw !== null) {
-      const parsed: unknown = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return [];
+      const parsed = PersistedTabsSchema.parse(JSON.parse(raw));
       return _dedupeTabs(
         parsed
-          .map((item): PersistedTab | null => {
-            if (!item || typeof item !== "object") return null;
-            const t = item as PersistedTab;
-            return t.type === "thread" || t.type === "trace" ? t : null;
-          })
-          .map((item) => (item ? _fromPersisted(item) : null))
+          .map((item) => _fromPersisted(item))
           .filter((tab): tab is AppTab => tab !== null)
       );
     }
 
     const legacyRaw = readLocalStorage(LOCAL_STORAGE_KEYS.legacyOpenTabs);
     if (legacyRaw === null) return [];
-    const legacy: unknown = JSON.parse(legacyRaw);
-    return Array.isArray(legacy)
-      ? _dedupeTabs(
-          legacy
-            .filter((path): path is string => typeof path === "string")
-            .map((path) => _createThreadTab(path, "local"))
-        )
-      : [];
+    const legacy = LegacyTabsSchema.parse(JSON.parse(legacyRaw));
+    return _dedupeTabs(legacy.map((path) => _createThreadTab(path, "local")));
   } catch {
     return [];
   }
@@ -324,7 +336,9 @@ async function _availableRuntimeIds(): Promise<Set<RuntimeId> | undefined> {
   }
 }
 
-export function useThreadTabs(): ThreadTabs {
+export function useThreadTabs(
+  options: { canPruneRestoredTab?: (tab: AppTab) => boolean } = {}
+): ThreadTabs {
   const restoredTabs = useRef<AppTab[] | null>(null);
   if (restoredTabs.current === null) {
     restoredTabs.current = _loadPersistedTabs();
@@ -360,7 +374,6 @@ export function useThreadTabs(): ThreadTabs {
 
   useEffect(() => {
     const restored = tabsRef.current;
-    const restoredActive = activeId;
     if (restored.length === 0) return;
     let cancelled = false;
     void (async () => {
@@ -372,19 +385,29 @@ export function useThreadTabs(): ThreadTabs {
       );
     })().then((checked) => {
       if (cancelled) return;
-      const alive = checked.filter((tab): tab is AppTab => tab !== null);
-      if (alive.length !== restored.length) setTabs(alive);
-      const aliveIds = alive.map((tab) => tab.id);
-      setActiveId(
-        restoredActive !== null && aliveIds.includes(restoredActive)
-          ? restoredActive
-          : (alive[0]?.id ?? null)
+      const invalid = checked.flatMap((tab, index) =>
+        tab === null && restored[index] ? [restored[index]] : []
       );
+      setTabs((current) => {
+        const next = pruneInvalidRestoredTabs(
+          current,
+          invalid,
+          options.canPruneRestoredTab ?? (() => true)
+        );
+        if (next === current || next.length === current.length) return current;
+        setActiveId((currentActive) =>
+          currentActive !== null &&
+          next.some((tab) => tab.id === currentActive)
+            ? currentActive
+            : (next[0]?.id ?? null)
+        );
+        return next;
+      });
     });
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only restoration check; reads the initial activeId, must not re-run when it changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only restoration check; reads initial tabs/options and must not re-run when they change
   }, []);
 
   const open = useCallback((path: string, runtimeId: RuntimeId = "local") => {

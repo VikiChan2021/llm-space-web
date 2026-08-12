@@ -30,14 +30,20 @@ export async function readBuiltinToolSources(): Promise<Record<string, string>> 
   const sources: Record<string, string> = {};
   for (const file of pyFiles) {
     const name = file.slice(0, -".py".length);
-    sources[name] = await readFile(path.join(BUILTIN_DIR, file), "utf8");
+    sources[name] = _normalizeLineEndings(
+      await readFile(path.join(BUILTIN_DIR, file), "utf8")
+    );
   }
   return sources;
 }
 
 /** Read the shared `variables.py` (prompt-variable helpers) source. */
 export async function readVariablesSource(): Promise<string> {
-  return readFile(VARIABLES_PY, "utf8");
+  return _normalizeLineEndings(await readFile(VARIABLES_PY, "utf8"));
+}
+
+function _normalizeLineEndings(value: string): string {
+  return value.replaceAll("\r\n", "\n");
 }
 
 /** Render the generated TS module from a name→source map + variables.py. */

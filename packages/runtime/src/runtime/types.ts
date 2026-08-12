@@ -1,7 +1,9 @@
 import type {
   AgentEvent,
   AgentStreamRequest,
+  ArkImageGenerationConfig,
   BuiltinTool,
+  BuiltinToolCallResponse,
   CustomModel,
   FileNode,
   McpCallToolResponse,
@@ -11,12 +13,17 @@ import type {
   ModelConfig,
   ModelProviderGroup,
   NetworkSettings,
+  ProviderProfilePatch,
+  ProviderConnectionRef,
   SearchSettings,
   SkillContent,
   SkillInfo,
   SkillsSettings,
   SystemProxyDetection,
   Thread,
+  ThreadRunReference,
+  ThreadRunSnapshot,
+  ThreadSnapshot,
 } from "@llm-space/core";
 
 import type {
@@ -61,6 +68,12 @@ export interface RuntimeScopedParams {
 export interface RuntimeStreamRequestPayload extends RuntimeScopedParams {
   streamId: string;
   request: AgentStreamRequest;
+  connection?: ProviderConnectionRef;
+}
+
+export interface UpdateProviderProfileInput extends ProviderProfilePatch {
+  providerId: string;
+  profileId: string;
 }
 
 export interface RuntimeAbortStreamPayload extends RuntimeScopedParams {
@@ -87,15 +100,21 @@ export interface RuntimeClient {
     baseUrl: string;
     api?: "anthropic-messages" | "openai-completions" | "openai-responses";
   }): Promise<ModelProviderGroup[]>;
+  addProviderProfile(providerId: string): Promise<ModelProviderGroup[]>;
+  updateProviderProfile(
+    input: UpdateProviderProfileInput
+  ): Promise<ModelProviderGroup[]>;
+  removeProviderProfile(input: {
+    providerId: string;
+    profileId: string;
+  }): Promise<ModelProviderGroup[]>;
   updateProvider(input: {
     providerId: string;
-    apiKey?: string | null;
-    baseUrl?: string | null;
-    headers?: Record<string, string> | null;
     name?: string | null;
     api?:
       "anthropic-messages" | "openai-completions" | "openai-responses" | null;
     icon?: string | null;
+    imageGeneration?: ArkImageGenerationConfig;
   }): Promise<ModelProviderGroup[]>;
   setModelEnabled(input: {
     providerId: string;
@@ -110,10 +129,12 @@ export interface RuntimeClient {
   setDefaultModel(model: ModelConfig | null): Promise<ModelConfig | null>;
   resolveGeneratorEnv(input: {
     providerId: string;
+    profileId?: string;
     envNames: string[];
   }): Promise<{ modelApiKey: string; envValues: Record<string, string> }>;
   testModelConnection(input: {
     providerId: string;
+    profileId?: string;
     modelId: string;
     candidate?: CustomModel;
   }): Promise<void>;
@@ -134,7 +155,19 @@ export interface RuntimeClient {
   fsRm(path: string): Promise<void>;
   fsRead(path: string): Promise<Thread>;
   fsWrite(path: string, thread: Thread): Promise<void>;
+  fsArchiveRun(
+    path: string,
+    run: ThreadRunSnapshot & { id: string }
+  ): Promise<ThreadRunReference>;
+  fsReadRunSnapshot(
+    path: string,
+    snapshotRef: string
+  ): Promise<ThreadSnapshot>;
   fsRealpath(path: string): Promise<string>;
+  /** Read arbitrary prompt text (`~` expands on this runtime). */
+  readTextFile(path: string): Promise<string>;
+  /** Whether prompt text is a readable regular file on this runtime. */
+  textFileExists(path: string): Promise<boolean>;
 
   mcpListServers(): McpServerView[] | Promise<McpServerView[]>;
   mcpAddServer(
@@ -146,6 +179,7 @@ export interface RuntimeClient {
   ): Promise<McpServerView[]>;
   mcpRemoveServer(serverId: string): Promise<McpServerView[]>;
   mcpDisconnectServer(serverId: string): Promise<McpServerView[]>;
+  mcpCancelTest(serverId: string): Promise<McpServerView[]>;
   mcpListTools(serverId: string): Promise<McpServerToolsResponse>;
   mcpCallTool(input: {
     serverId: string;
@@ -157,7 +191,9 @@ export interface RuntimeClient {
   builtInCallTool(input: {
     name: string;
     arguments: Record<string, unknown>;
-  }): Promise<{ contentText: string }>;
+    config?: Record<string, unknown>;
+    connection?: ProviderConnectionRef;
+  }): Promise<BuiltinToolCallResponse>;
 
   getSearchSettings(): MaybePromise<SearchSettings>;
   setSearchSettings(settings: SearchSettings): MaybePromise<SearchSettings>;
@@ -173,10 +209,21 @@ export interface RuntimeClient {
     skillName: string;
     hidden: boolean;
   }): MaybePromise<SkillsSettings>;
+  skillsSetPluginSkillHidden(input: {
+    pluginId: string;
+    skillName: string;
+    hidden: boolean;
+  }): MaybePromise<SkillsSettings>;
+  skillsSetAllPluginSkillsHidden(input: {
+    pluginId: string;
+    hidden: boolean;
+  }): MaybePromise<SkillsSettings>;
   skillsSetAllSkillsHidden(input: {
     path: string;
     hidden: boolean;
   }): MaybePromise<SkillsSettings>;
+  skillsListAvailable(): MaybePromise<SkillInfo[]>;
+  skillsListPluginSkills(): MaybePromise<SkillInfo[]>;
   skillsListSkills(path: string): MaybePromise<SkillInfo[]>;
   skillsReadSkill(path: string): MaybePromise<SkillContent>;
 
@@ -198,7 +245,10 @@ export interface RuntimeClient {
     projectId: string;
     traceIds: string[];
   }): MaybePromise<TraceSyncResult>;
-  traceReadTrace(projectId: string, traceKey: string): MaybePromise<TraceRecord>;
+  traceReadTrace(
+    projectId: string,
+    traceKey: string
+  ): MaybePromise<TraceRecord>;
   traceReadOrCreateWorkbench(
     projectId: string,
     traceKey: string

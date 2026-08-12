@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+
 import {
   getMessageText,
   type AgentEvent,
@@ -11,8 +12,8 @@ const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
 const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
 
 beforeAll(() => {
-  globalThis.requestAnimationFrame = (callback) =>
-    setTimeout(() => callback(performance.now()), 0);
+  globalThis.requestAnimationFrame = ((callback: FrameRequestCallback) =>
+    setTimeout(() => callback(performance.now()), 0)) as never;
   globalThis.cancelAnimationFrame = (handle) => clearTimeout(handle);
 });
 
@@ -38,9 +39,9 @@ describe("Thread Run 错误恢复", () => {
       retryFromMessageId: "user-1",
     });
     expect(state.runHistory).toHaveLength(0);
-    expect(getMessageText(state.thread.context?.messages?.at(-1))).toBe(
-      "部分回答"
-    );
+    const lastMessage = state.thread.context?.messages?.at(-1);
+    if (!lastMessage) throw new Error("Expected a final message");
+    expect(getMessageText(lastMessage)).toBe("部分回答");
   });
 
   test("从原始用户消息重新运行并替换不完整输出", async () => {
@@ -64,9 +65,9 @@ describe("Thread Run 错误恢复", () => {
     expect(state.lastRunResult).toBeNull();
     expect(state.runHistory).toHaveLength(1);
     expect(state.thread.context?.messages).toHaveLength(2);
-    expect(getMessageText(state.thread.context?.messages?.at(-1))).toBe(
-      "完整回答"
-    );
+    const lastMessage = state.thread.context?.messages?.at(-1);
+    if (!lastMessage) throw new Error("Expected a final message");
+    expect(getMessageText(lastMessage)).toBe("完整回答");
   });
 
   test("主动停止与失败分开记录并保留部分输出", async () => {
@@ -78,7 +79,7 @@ describe("Thread Run 错误恢复", () => {
       yield* _partialEvents("停止前内容");
       markStreamingStarted?.();
       await new Promise<void>((resolve) => {
-        signal.addEventListener("abort", () => resolve(), { once: true });
+        signal?.addEventListener("abort", () => resolve(), { once: true });
       });
       throw new DOMException("Aborted", "AbortError");
     };
@@ -95,9 +96,9 @@ describe("Thread Run 错误恢复", () => {
       partialOutput: true,
       retryFromMessageId: "user-1",
     });
-    expect(getMessageText(state.thread.context?.messages?.at(-1))).toBe(
-      "停止前内容"
-    );
+    const lastMessage = state.thread.context?.messages?.at(-1);
+    if (!lastMessage) throw new Error("Expected a final message");
+    expect(getMessageText(lastMessage)).toBe("停止前内容");
     expect(state.runHistory).toHaveLength(0);
   });
 
@@ -118,7 +119,7 @@ describe("Thread Run 错误恢复", () => {
               id: "user-image",
               role: "user",
               content: [
-                { type: "image_data", mimeType: "image/png", data: "aA==" },
+                { type: "image", mimeType: "image/png", data: "aA==" },
                 { type: "text", text: "请描述图片" },
               ],
             },
@@ -138,7 +139,6 @@ describe("Thread Run 错误恢复", () => {
       {
         transport,
         resolveModel: () => ({ provider: "test", id: "text-only" }),
-        supportsImageInput: () => false,
         captureRunResults: true,
       }
     );
@@ -147,12 +147,11 @@ describe("Thread Run 错误恢复", () => {
 
     expect(transportCalled).toBe(true);
     expect(sentRequest).not.toContain("image_data");
-    expect(sentRequest).not.toContain("\"type\":\"image\"");
-    expect(sentRequest).toContain("图片未发送");
+    expect(sentRequest).toContain("\"type\":\"image\"");
     expect(sentRequest).toContain("你是谁？");
     expect(store.getState().lastRunResult).toBeNull();
     expect(store.getState().thread.context?.messages?.[0]?.content[0]?.type).toBe(
-      "image_data"
+      "image"
     );
   });
 });

@@ -1,8 +1,328 @@
 # Changelog
 
+English | [简体中文](./CHANGELOG.zh-CN.md)
+
 All notable changes to LLM Space are documented here. This project follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [4.11.0] - 2026-08-11
+
+This release makes local Plugins installable as ZIP packages, streamlines
+Plugin, MCP server, and model-provider management, and improves desktop
+responsiveness and interaction details.
+
+### Added
+
+- Plugin ZIP packages can be installed or updated by dragging them onto the
+  desktop window. Archives are validated and extracted with size, entry-count,
+  and path-safety limits before atomically replacing the installed package.
+- Installed Plugins can be revealed, reloaded, or uninstalled directly from
+  the Plugin list, with persistent Plugin data kept outside the replaceable
+  installation directory.
+
+### Changed
+
+- Model-provider connection profiles appear as nested sidebar items, making it
+  faster to switch, add, configure, and remove individual connections.
+- Plugin and MCP server rows expose contextual management menus, including
+  connection testing and removal without first opening the detail editor.
+- The bilingual Plugin guide now documents ZIP packaging, drag-and-drop
+  installation, archive safety limits, upgrades, and persistent data storage.
+- Sidebar resizing and onboarding transitions are smoother, while closed
+  Thread workspaces release retained state more aggressively.
+
+### Fixed
+
+- Update actions remain visible above the Settings dialog.
+- Selecting text in an expandable Tool-call argument no longer toggles the
+  argument open or closed when the pointer is released.
+
+## [4.10.0] - 2026-08-09
+
+This release adds preview-first progressive conversation compaction, makes long
+Threads easier to navigate, and connects major Thread workflows to expanded
+bilingual documentation.
+
+### Added
+
+- Threads can compact older turns into a structured, progressively updated
+  checkpoint while keeping a configurable number of recent turns verbatim.
+  Compaction renders prompt variables before summarizing, supports reusable
+  per-Thread instructions, previews the result before applying, and creates a
+  numbered `-compact-N.json` clone instead of overwriting the source Thread.
+- User and Assistant messages expose navigation anchors for moving quickly
+  through long conversations.
+- A complete Atlas Plugin example demonstrates multiple Skills, MCP servers,
+  model providers, Plugin Tools, Commands, Thread Storages, and Settings fields.
+
+### Changed
+
+- Compaction, Sharing, Generate Project, and Variables dialogs provide localized
+  Help links to new or expanded English and Chinese guides.
+- Sharing, project generation, compaction, and variables documentation is linked
+  from the user manual, quick start, core concepts, and repository guides.
+- The bundled pi packages are upgraded to `0.84.1`.
+
+### Fixed
+
+- HTML previews allow their embedded scripts to run as intended.
+- Bash tools start from the owning workspace root rather than an unrelated
+  process directory.
+- Message navigation controls stay below menus and dialogs instead of covering
+  higher-priority UI.
+
+## [4.9.0] - 2026-08-07
+
+This release adds Seedream image generation and provider connection profiles,
+makes local Plugin commands more transparent, and turns Plugin and MCP settings
+into clearer, more informative management surfaces.
+
+### Added
+
+- Volcengine Ark providers can configure Seedream image models and use the new
+  `generate_image` built-in Tool to create images with provider credentials.
+- Model providers support multiple named connection profiles, with profile-aware
+  model selection, connection testing, streaming, and built-in Tool execution.
+- Plugin commands can publish progress, success, and failure feedback while
+  they run, with lifecycle handling shared across the command palette and
+  desktop runtime.
+- Plugin settings group Commands, Tools, and MCP Servers into expandable
+  sections with type-specific icons and extension descriptions.
+- MCP settings expose the Plugin that owns each bundled server and cache Plugin
+  tool discovery to avoid repeated subprocess work.
+
+### Changed
+
+- Settings empty states use a reusable animated layout across Plugins, MCP
+  Servers, and Remote Servers, with refined selection, contrast, spacing, and
+  artwork treatment.
+- The onboarding experience has a smaller image payload and more polished
+  layout and interaction details.
+- The desktop and web builds now use Vite 8, alongside refreshed React,
+  Tailwind CSS, CodeMirror, MCP SDK, and UI dependencies.
+- Plugin development documentation now covers command feedback APIs.
+
+### Fixed
+
+- Opening a shared deep link reliably activates the desktop window before
+  navigating to its content.
+- Plugin artwork preserves native icon shapes, and long extension descriptions
+  stay within their settings rows.
+
+## [4.8.5] - 2026-08-06
+
+This patch release restores tool-call continuation for OpenAI Responses-compatible
+providers in packaged desktop builds.
+
+### Fixed
+
+- Tool results replay the provider's original call ID without the internal
+  response-item suffix, preventing `No tool call found for tool output` errors.
+- The local `pi-ai` patch now applies correctly during clean dependency installs,
+  matching development and release builds.
+
+## [4.8.4] - 2026-08-05
+
+This release expands local Plugins into first-class agent capabilities and
+refreshes the most important setup, sharing, and generation experiences.
+
+### Added
+
+- Local Plugins can contribute executable Tools that users add to Threads and
+  models invoke like built-in Tools, with stable identities, package icons,
+  lifecycle isolation, structured results, and owning-Thread variable context.
+- Plugin Commands accept quoted Command Palette arguments and can inspect the
+  active tab, filename, and Thread through an explicit context API.
+- Plugin development guides now document Commands and Tools in English and
+  Chinese, including discovery, context, variables, local-runtime limits, and
+  error behavior.
+
+### Changed
+
+- The new-Thread gallery, runnable-agent generator, and Thread-sharing flow now
+  use clearer, more focused layouts with polished Light and Dark appearances.
+- Account, Plugins, Skills, Models, MCP Servers, and Remote Servers settings now
+  have stronger navigation, purposeful empty states, and consistent list
+  headings.
+- Working-directory controls, Plugin discovery, and Tool selection provide more
+  direct feedback and actions, including revealing existing folders in Finder.
+
+### Fixed
+
+- Opening the local Plugins folder uses the native filesystem reveal path
+  instead of spawning an unavailable shell command.
+- Plugin Tool execution remains bound to the Thread that owns the call, even
+  when tabs change or multiple calls run concurrently.
+- Unsupported local Plugin Tools are rejected clearly on remote runtimes and
+  during LangGraph export instead of producing unusable output.
+
+## [4.8.3] - 2026-08-05
+
+This patch release streamlines the generated LangGraph project setup on macOS.
+
+### Changed
+
+- After explicitly creating a generated project's `.env`, macOS users now get
+  a Terminal window that starts the development server with `make dev`.
+- Other platforms, cancelled setup, and launch failures continue to reveal the
+  generated project without starting a process.
+
+### Fixed
+
+- Generated project paths with spaces or shell-special characters are safely
+  passed to Terminal, and only user-authorized generator directories can be
+  launched.
+
+## [4.8.2] - 2026-08-05
+
+This patch release makes filesystem tools handle home-relative paths reliably
+and improves the generated LangGraph development workflow.
+
+### Added
+
+- Generated LangGraph projects include a `Makefile`; run `make dev` to start
+  `uv run langgraph dev`.
+
+### Changed
+
+- Filesystem tool schemas and generated Python implementations consistently
+  document and expand leading `~/` paths.
+- MCP stdio commands and working directories expand home-relative paths in both
+  the desktop runtime and generated LangGraph projects.
+
+### Fixed
+
+- `write`, `edit`, `read`, `ls`, `tree`, `grep`, `glob`, and `present_files` no
+  longer interpret `~/...` relative to the desktop app bundle.
+- Home-relative artifact paths can be revealed from tool calls, including a
+  `glob` target directory.
+
+## [4.8.1] - 2026-08-05
+
+This patch release polishes Settings layout and makes Plugin documentation
+easier to reach.
+
+### Changed
+
+- Settings pages use consistent header dividers, content spacing, and concise
+  descriptions, while compact form rows retain their intended density.
+- Experimental settings now share the same labeled toggle layout as Network
+  settings.
+- Plugin settings link directly to the Plugin development guide.
+
+### Fixed
+
+- Remote Servers content aligns flush with its header, while other split-pane
+  Settings pages keep the correct top spacing.
+
+## [4.8.0] - 2026-08-05
+
+This release introduces trusted local Plugins that can extend LLM Space with
+agent capabilities, commands, model integrations, and custom Thread storage.
+
+### Added
+
+- Discover trusted local Plugins from `LLM_SPACE_HOME/plugins/`, with metadata,
+  settings, lifecycle controls, compatibility checks, and isolated diagnostics.
+- Plugins can contribute Skills, MCP servers, model providers, Command Palette
+  commands, and Thread Storages.
+- Plugin Skills are available to agents on local and remote runtimes and can be
+  enabled individually or per Plugin without modifying Plugin files.
+- Added English and Chinese Plugin development guides covering package layout,
+  Extensions, settings, lifecycle, diagnostics, and examples.
+
+### Changed
+
+- Settings navigation is grouped into App, Agent, and Connections, with clearer
+  names for Remote Servers, MCP Servers, and Web Search.
+- Plugin-provided MCP servers and Skills are identified separately in Settings,
+  and Plugin diagnostics can reveal the source of each Extension.
+- Imported Thread folders have a distinct treatment in the workspace tree.
+
+### Fixed
+
+- Replayed tool-call IDs are normalized correctly for non-OpenAI providers that
+  use the Responses API.
+- Plugin Skill conflicts identify every file involved, and long diagnostic paths
+  no longer overflow the Plugin settings panel.
+
+## [4.7.1] - 2026-08-04
+
+This release adds provider-hosted tools and makes MCP tool naming configurable.
+
+### Added
+
+- Configure provider-hosted tools, including provider-native search, and show
+  their activity and citations in the thread.
+- Optionally expose MCP tools with their original names instead of the
+  `mcp__{serverName}__` prefix.
+
+## [4.7.0] - 2026-08-03
+
+Remote runtimes get a thorough correctness pass — every thread operation now
+stays bound to the runtime that owns it — plus DeerFlow run-event imports and
+two security fixes.
+
+### Added
+
+- Import DeerFlow run-event JSONL files as threads.
+
+### Changed
+
+- Sharing, prompt-file resolution, and auxiliary generation are each scoped to
+  the runtime that owns the thread, instead of falling back to the local one.
+- Switching runtimes preserves thread state, and retained runtime panes no
+  longer re-render unnecessarily.
+
+### Fixed
+
+- SSH trust is bound to the approved host key, so a changed key no longer
+  silently passes.
+- Runtime bearer tokens are no longer passed through `argv`, where other local
+  processes could read them.
+- Stale-port recovery is ownership-aware and awaits its async cleanup, so it
+  can't reclaim a port that another runtime still holds.
+- Failed remote streams terminate cleanly instead of hanging the thread.
+- Cancelling GitHub Device Flow authentication is now authoritative — a
+  cancelled attempt can no longer complete in the background.
+- Disabled buttons apply their dimmed style based on status.
+
+## [4.6.3] - 2026-07-31
+
+A maintenance release with clipboard and tool-response improvements, refreshed
+MiniMax models, and a steadier streaming UI.
+
+### Added
+
+- Copy a file reference to the OS clipboard directly from a thread tab's context
+  menu.
+- Tool responses can now carry image content.
+
+### Changed
+
+- MiniMax providers now target their OpenAI-compatible chat endpoints. MiniMax-M3
+  is refreshed with updated pricing, a 1M-token context window, text/image/video
+  input, and adaptive/disabled thinking; MiniMax-M2.7 stays an always-on
+  reasoning model.
+- Codex CLI now supports API-key mode, with inline run-validation guidance and a
+  more explicit desktop startup order.
+
+### Fixed
+
+- `todo_write` rendering stays stable while streaming: incomplete items are kept
+  out of the preview, cancelled states are preserved, and its parsing is isolated
+  from generic tool-call rendering.
+
+## [4.6.2] - 2026-07-29
+
+A small quality-of-life release for inspecting tool calls.
+
+### Added
+
+- A preview button on tool call items opens all tool call arguments as
+  formatted JSON in a single view, alongside the existing "Copy arguments"
+  action.
 
 ## [4.6.1] - 2026-07-28
 

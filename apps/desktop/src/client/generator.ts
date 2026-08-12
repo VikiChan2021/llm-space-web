@@ -37,7 +37,12 @@ export function runUv(
   rootDir: string,
   args: string[],
   opts?: { timeoutMs?: number }
-): Promise<{ code: number; stdout: string; stderr: string; timedOut: boolean }> {
+): Promise<{
+  code: number;
+  stdout: string;
+  stderr: string;
+  timedOut: boolean;
+}> {
   return _rpc().request.generatorRunUv({
     rootDir,
     args,
@@ -62,11 +67,22 @@ export async function removeProjectFile(
   await _rpc().request.generatorRemoveFile({ rootDir, relativePath });
 }
 
+/** Open macOS Terminal in the generated project and run `make dev`. */
+export function openGeneratorDevTerminal(rootDir: string): Promise<boolean> {
+  return _rpc().request.generatorOpenDevTerminal({ rootDir });
+}
+
 /** Resolve the model's real API key + named environment variable values. */
 export function resolveGeneratorEnv(
   providerId: string,
   envNames: string[],
+  profileId?: string,
   runtimeId?: RuntimeId
 ): Promise<{ modelApiKey: string; envValues: Record<string, string> }> {
-  return _rpc().request.generatorResolveEnv({ runtimeId, providerId, envNames });
+  return _rpc().request.generatorResolveEnv({
+    runtimeId,
+    providerId,
+    profileId,
+    envNames,
+  });
 }

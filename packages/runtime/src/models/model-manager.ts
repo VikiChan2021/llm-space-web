@@ -1,5 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import os from "node:os";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { env } from "node:process";
 
@@ -11,24 +10,121 @@ import {
   type Provider,
 } from "@earendil-works/pi-ai";
 import {
-  type ModelProviderGroup,
+  DEFAULT_ARK_IMAGE_GENERATION_CONFIG,
+  getArkImageModelDefinitions,
+  ModelConfig,
+  SEEDREAM_IMAGE_MODELS,
+  SEEDREAM_IMAGE_SIZES,
+  type ArkImageGenerationConfig,
   type CustomModel,
-  type ModelConfig,
+  type ModelProviderGroup,
+  type ProviderConnectionRef,
+  type ProviderProfile,
+  type ProviderProfilePatch,
+  type SeedreamImageModelDefinition,
+  type SeedreamImageSize,
+  uuid,
 } from "@llm-space/core";
-import { getSettingsDir } from "@llm-space/core/server";
+import {
+  atomicWriteJsonFileSync,
+  getSettingsDir,
+  readJsonFileSync,
+} from "@llm-space/core/server";
+import { z } from "zod";
 
 import {
   BUILTIN_PROVIDER_META,
   BUILTIN_PROVIDERS,
 } from "./providers/builtin-providers";
 import { createCustomProvider } from "./providers/custom-provider";
+import { getCodexCredentials } from "./providers/openai-codex";
 import {
   DEFAULT_CUSTOM_PROVIDER_API,
   type CustomModelConfig,
   type CustomProviderApi,
   type ModelsConfig,
   type ProviderConfig,
+  type ProviderProfileConfig,
 } from "./types";
+
+const CustomModelFileSchema = z.looseObject({
+  id: z.string(),
+  name: z.string(),
+  api: z.enum(["anthropic-messages", "openai-completions", "openai-responses"]),
+  provider: z.string().optional(),
+  baseUrl: z.string().optional(),
+  icon: z.string().optional(),
+  reasoning: z.boolean(),
+  input: z.array(z.enum(["text", "image"])),
+  cost: z.object({
+    input: z.number(),
+    output: z.number(),
+    cacheRead: z.number(),
+    cacheWrite: z.number(),
+    tiers: z
+      .array(
+        z.object({
+          input: z.number(),
+          output: z.number(),
+          cacheRead: z.number(),
+          cacheWrite: z.number(),
+          inputTokensAbove: z.number(),
+        })
+      )
+      .optional(),
+  }),
+  contextWindow: z.number().positive(),
+  maxTokens: z.number().positive(),
+  headers: z.record(z.string(), z.string()).optional(),
+}) as unknown as z.ZodType<CustomModel>;
+const ModelConfigFileSchema = z.fromJSONSchema(
+  ModelConfig as unknown as Parameters<typeof z.fromJSONSchema>[0]
+);
+const PROVIDER_PROFILE_FILE_SCHEMA = z.object({
+  id: z.string(),
+  name: z.string(),
+  apiKey: z.string().optional(),
+  baseUrl: z.string().optional(),
+  headers: z.record(z.string(), z.string()).optional(),
+});
+const ARK_IMAGE_MODEL_FILE_SCHEMA = z.object({
+  id: z.string(),
+  name: z.string(),
+  supportedSizes: z.array(z.enum(SEEDREAM_IMAGE_SIZES)),
+  defaultSize: z.enum(SEEDREAM_IMAGE_SIZES),
+  icon: z.string().optional(),
+});
+const ARK_IMAGE_GENERATION_FILE_SCHEMA = z.object({
+  models: z.array(ARK_IMAGE_MODEL_FILE_SCHEMA).optional(),
+  disabledModels: z.array(z.string()).optional(),
+});
+const ProviderConfigFileSchema = z.object({
+  id: z.string(),
+  name: z.string().optional(),
+  builtin: z.boolean().optional(),
+  apiKey: z.string().optional(),
+  baseUrl: z.string().optional(),
+  headers: z.record(z.string(), z.string()).optional(),
+  profiles: z.array(PROVIDER_PROFILE_FILE_SCHEMA).optional(),
+  api: z
+    .enum(["anthropic-messages", "openai-completions", "openai-responses"])
+    .optional(),
+  icon: z.string().optional(),
+  disabledModels: z.array(z.string()).optional(),
+  models: z.array(CustomModelFileSchema).optional(),
+  customModels: z.array(z.string()).optional(),
+  imageGeneration: ARK_IMAGE_GENERATION_FILE_SCHEMA.optional(),
+});
+const ModelsConfigFileSchema = z.object({
+  providers: z.array(ProviderConfigFileSchema),
+  defaultModel: ModelConfigFileSchema.optional(),
+});
+
+export interface ResolvedProviderConnection {
+  apiKey?: string;
+  baseUrl?: string;
+  headers?: Record<string, string>;
+}
 
 /**
  * Owns `settings/models.json`: the single in-memory source of truth for the
@@ -42,16 +138,30 @@ import {
  * next access.
  */
 export class ModelManager {
+  private readonly _settingsDir: string;
   private readonly _config: ModelsConfig;
+  private _pluginProviders: {
+    pluginId: string;
+    provider: ProviderConfig;
+  }[] = [];
   private _models: Models | null = null;
 
-  constructor() {
+  /** Load model settings from the normal app directory or an isolated test root. */
+  constructor(options: { settingsDir?: string } = {}) {
+    this._settingsDir = options.settingsDir ?? getSettingsDir();
     this._config = this._loadConfig();
     // Keep each provider's `customModels` in sync with its `models` list so the
     // renderer always sees which models are user-added, then persist any change.
     const providersChanged = this._normalizeCustomProviders();
     const modelsChanged = this._normalizeCustomModels();
-    if (providersChanged || modelsChanged) {
+    const imageGenerationChanged = this._normalizeArkImageGeneration();
+    const profilesChanged = this._normalizeProviderProfiles();
+    if (
+      providersChanged ||
+      modelsChanged ||
+      imageGenerationChanged ||
+      profilesChanged
+    ) {
       this._saveConfig();
     }
   }
@@ -59,6 +169,34 @@ export class ModelManager {
   /** The `Models` registry of configured providers. Built once, then cached. */
   async getAvailableModels(): Promise<Models> {
     return (this._models ??= await Promise.resolve(this._buildModels()));
+  }
+
+  setPluginProviders(
+    entries: { pluginId: string; provider: ProviderConfig }[]
+  ): void {
+    const userIds = new Set(this._config.providers.map((entry) => entry.id));
+    const counts = new Map<string, number>();
+    for (const entry of entries) {
+      counts.set(entry.provider.id, (counts.get(entry.provider.id) ?? 0) + 1);
+    }
+    this._pluginProviders = entries.filter(
+      (entry) =>
+        !userIds.has(entry.provider.id) && counts.get(entry.provider.id) === 1
+    );
+    this._models = null;
+  }
+
+  getProviderSource(providerId: string): {
+    source: "user" | "plugin";
+    readOnly: boolean;
+    pluginId?: string;
+  } {
+    const plugin = this._pluginProviders.find(
+      (entry) => entry.provider.id === providerId
+    );
+    return plugin
+      ? { source: "plugin", readOnly: true, pluginId: plugin.pluginId }
+      : { source: "user", readOnly: false };
   }
 
   /**
@@ -111,6 +249,7 @@ export class ModelManager {
       id: provider.id,
       name: provider.name,
       models: [],
+      profiles: [],
       apiKeyDetected: detected.includes(provider.id),
       websiteURL: this.getWebsiteLink(provider.id),
     }));
@@ -129,7 +268,16 @@ export class ModelManager {
     this._config.providers.push({
       id,
       builtin: true,
-      ...(apiKey !== undefined ? { apiKey } : {}),
+      ...(id === "ark"
+        ? { imageGeneration: { ...DEFAULT_ARK_IMAGE_GENERATION_CONFIG } }
+        : {}),
+      profiles: [
+        {
+          id: uuid(),
+          name: "Default",
+          ...(apiKey !== undefined ? { apiKey } : {}),
+        },
+      ],
     });
 
     this._models = null;
@@ -152,7 +300,18 @@ export class ModelManager {
       throw new Error(`Provider already configured: ${id}`);
     }
 
-    this._config.providers.push({ id, name, baseUrl, api });
+    this._config.providers.push({
+      id,
+      name,
+      api,
+      profiles: [
+        {
+          id: uuid(),
+          name: "Default",
+          ...(baseUrl ? { baseUrl } : {}),
+        },
+      ],
+    });
 
     this._models = null;
     this._saveConfig();
@@ -167,19 +326,15 @@ export class ModelManager {
   updateProvider(
     providerId: string,
     {
-      apiKey,
-      baseUrl,
-      headers,
       name,
       api,
       icon,
+      imageGeneration,
     }: {
-      apiKey?: string | null;
-      baseUrl?: string | null;
-      headers?: Record<string, string> | null;
       name?: string | null;
       api?: CustomProviderApi | null;
       icon?: string | null;
+      imageGeneration?: ArkImageGenerationConfig;
     }
   ): void {
     const entry = this._config.providers.find(
@@ -187,21 +342,6 @@ export class ModelManager {
     );
     if (!entry) {
       throw new Error(`Provider not configured: ${providerId}`);
-    }
-    if (apiKey !== undefined) {
-      if (apiKey === null) delete entry.apiKey;
-      else entry.apiKey = apiKey;
-    }
-    if (baseUrl !== undefined) {
-      if (baseUrl === null) delete entry.baseUrl;
-      else entry.baseUrl = baseUrl;
-    }
-    if (headers !== undefined) {
-      if (headers === null || Object.keys(headers).length === 0) {
-        delete entry.headers;
-      } else {
-        entry.headers = headers;
-      }
     }
     if (name !== undefined) {
       if (name === null) delete entry.name;
@@ -215,29 +355,161 @@ export class ModelManager {
       if (icon === null) delete entry.icon;
       else entry.icon = icon;
     }
+    if (imageGeneration !== undefined) {
+      if (providerId !== "ark" || entry.builtin !== true) {
+        throw new Error(
+          "Image generation can only be configured on the builtin Ark provider."
+        );
+      }
+      _assertArkImageGenerationConfig(imageGeneration);
+      entry.imageGeneration = { ...imageGeneration };
+    }
     // Rebuild the registry so a cleared baseUrl restores the model's default
     // (the cached model instance would otherwise keep the mutated value).
     this._models = null;
     this._saveConfig();
   }
 
+  /** Add a custom connection profile, cloning the default endpoint and headers. */
+  addProfile(providerId: string): string {
+    const entry = this._providerEntry(providerId);
+    const profiles = this._profilesFor(entry);
+    const first = profiles[0];
+    const id = uuid();
+    profiles.push({
+      id,
+      name: this._nextProfileName(profiles),
+      ...(first.baseUrl ? { baseUrl: first.baseUrl } : {}),
+      ...(first.headers ? { headers: { ...first.headers } } : {}),
+    });
+    this._saveConfig();
+    return id;
+  }
+
+  /** Update one profile without changing its stable identity or position. */
+  updateProfile(
+    providerId: string,
+    profileId: string,
+    fields: ProviderProfilePatch
+  ): void {
+    const entry = this._providerEntry(providerId);
+    const profiles = this._profilesFor(entry);
+    const profile = profiles.find((candidate) => candidate.id === profileId);
+    if (!profile) {
+      throw new Error(
+        `Provider profile not configured: ${providerId}/${profileId}`
+      );
+    }
+    const profileIndex = profiles.findIndex(
+      (candidate) => candidate.id === profileId
+    );
+    if (
+      entry.builtin === true &&
+      profileIndex === 0 &&
+      (fields.baseUrl !== undefined || fields.headers !== undefined)
+    ) {
+      throw new Error(
+        "The official provider profile only supports an API key. Use a custom profile for base URLs or headers."
+      );
+    }
+    if (fields.name !== undefined) {
+      const name = fields.name.trim();
+      if (!name) {
+        throw new Error("Profile name is required.");
+      }
+      const duplicate = profiles.some(
+        (candidate) =>
+          candidate.id !== profileId &&
+          candidate.name.toLocaleLowerCase() === name.toLocaleLowerCase()
+      );
+      if (duplicate) {
+        throw new Error(`Profile name already exists: ${name}`);
+      }
+      profile.name = name;
+    }
+    if (fields.apiKey !== undefined) {
+      if (fields.apiKey === null) delete profile.apiKey;
+      else profile.apiKey = fields.apiKey;
+    }
+    if (fields.baseUrl !== undefined) {
+      if (fields.baseUrl === null) delete profile.baseUrl;
+      else profile.baseUrl = fields.baseUrl;
+    }
+    if (fields.headers !== undefined) {
+      if (fields.headers === null || Object.keys(fields.headers).length === 0) {
+        delete profile.headers;
+      } else {
+        profile.headers = { ...fields.headers };
+      }
+    }
+    this._models = null;
+    this._saveConfig();
+  }
+
+  /** Remove a non-default profile. The first profile is intentionally fixed. */
+  removeProfile(providerId: string, profileId: string): void {
+    const entry = this._providerEntry(providerId);
+    const profiles = this._profilesFor(entry);
+    const index = profiles.findIndex((profile) => profile.id === profileId);
+    if (index === -1) {
+      throw new Error(
+        `Provider profile not configured: ${providerId}/${profileId}`
+      );
+    }
+    if (index === 0) {
+      throw new Error("The default provider profile cannot be removed.");
+    }
+    profiles.splice(index, 1);
+    this._saveConfig();
+  }
+
+  /** Renderer-safe copies of a provider's profiles in creation order. */
+  getProfiles(providerId: string): ProviderProfile[] {
+    const entry = this._findProvider(providerId);
+    if (!entry) {
+      throw new Error(`Provider not configured: ${providerId}`);
+    }
+    return this._profilesFor(entry).map((profile) => ({
+      ...profile,
+      ...(profile.headers ? { headers: { ...profile.headers } } : {}),
+    }));
+  }
+
+  /** Resolve one immutable connection snapshot for a model or tool invocation. */
+  async resolveConnection(
+    connection: ProviderConnectionRef,
+    options: { fallbackApiKey?: string } = {}
+  ): Promise<ResolvedProviderConnection> {
+    const { providerId, profileId } = connection;
+    const configuredApiKey = await this.getApiKey(providerId, false, profileId);
+    const apiKey =
+      configuredApiKey === undefined
+        ? options.fallbackApiKey
+        : await this.getApiKey(providerId, true, profileId);
+    return {
+      apiKey,
+      baseUrl: this.getBaseUrl(providerId, profileId),
+      headers: this.getHeaders(providerId, profileId),
+    };
+  }
+
   /** The custom base URL override for a provider, if configured. */
-  getBaseUrl(providerId: string): string | undefined {
-    return this._config.providers.find((entry) => entry.id === providerId)
-      ?.baseUrl;
+  getBaseUrl(providerId: string, profileId?: string): string | undefined {
+    return this._profileFor(providerId, profileId).baseUrl;
   }
 
   /** The extra HTTP headers configured for a provider, if any. */
-  getHeaders(providerId: string): Record<string, string> | undefined {
-    return this._config.providers.find((entry) => entry.id === providerId)
-      ?.headers;
+  getHeaders(
+    providerId: string,
+    profileId?: string
+  ): Record<string, string> | undefined {
+    const headers = this._profileFor(providerId, profileId).headers;
+    return headers ? { ...headers } : undefined;
   }
 
   /** The selected API compatibility mode for a custom provider. */
   getApi(providerId: string): CustomProviderApi | undefined {
-    const entry = this._config.providers.find(
-      (provider) => provider.id === providerId
-    );
+    const entry = this._findProvider(providerId);
     if (!entry || entry.builtin === true) {
       return undefined;
     }
@@ -246,10 +518,7 @@ export class ModelManager {
 
   /** The model ids the user has disabled for a provider (empty by default). */
   getDisabledModels(providerId: string): string[] {
-    return (
-      this._config.providers.find((entry) => entry.id === providerId)
-        ?.disabledModels ?? []
-    );
+    return this._findProvider(providerId)?.disabledModels ?? [];
   }
 
   /**
@@ -258,24 +527,25 @@ export class ModelManager {
    * id/name.
    */
   getProviderIcon(providerId: string): string | undefined {
-    return this._config.providers.find((entry) => entry.id === providerId)
-      ?.icon;
+    return this._findProvider(providerId)?.icon;
+  }
+
+  /** The saved Ark image-model inventory, or undefined without Ark. */
+  getArkImageGenerationConfig(): ArkImageGenerationConfig | undefined {
+    const config = this._config.providers.find(
+      (entry) => entry.id === "ark" && entry.builtin === true
+    )?.imageGeneration;
+    return config ? { ...config } : undefined;
   }
 
   /** The ids of the user-added models for a provider (empty by default). */
   getCustomModels(providerId: string): string[] {
-    return (
-      this._config.providers.find((entry) => entry.id === providerId)
-        ?.customModels ?? []
-    );
+    return this._findProvider(providerId)?.customModels ?? [];
   }
 
   /** Whether a configured provider is one of the shipped builtin providers. */
   isBuiltin(providerId: string): boolean {
-    return (
-      this._config.providers.find((entry) => entry.id === providerId)
-        ?.builtin === true
-    );
+    return this._findProvider(providerId)?.builtin === true;
   }
 
   /**
@@ -450,11 +720,10 @@ export class ModelManager {
    */
   async getApiKey(
     providerId: string,
-    resolved = true
+    resolved = true,
+    profileId?: string
   ): Promise<string | undefined> {
-    const apiKey = this._config.providers.find(
-      (entry) => entry.id === providerId
-    )?.apiKey;
+    const apiKey = this._profileFor(providerId, profileId).apiKey;
     if (!resolved) {
       return apiKey;
     }
@@ -506,13 +775,24 @@ export class ModelManager {
    */
   private _buildProviders(): Provider[] {
     const seen = new Set<string>();
-    return this._config.providers
+    return this._effectiveProviders()
       .filter((entry) =>
         seen.has(entry.id) ? false : (seen.add(entry.id), true)
       )
       .sort((a, b) => a.id.localeCompare(b.id))
       .map((entry) => this._buildProvider(entry))
       .filter((provider): provider is Provider => provider !== null);
+  }
+
+  private _findProvider(providerId: string): ProviderConfig | undefined {
+    return this._effectiveProviders().find((entry) => entry.id === providerId);
+  }
+
+  private _effectiveProviders(): ProviderConfig[] {
+    return [
+      ...this._config.providers,
+      ...this._pluginProviders.map((entry) => entry.provider),
+    ];
   }
 
   /**
@@ -526,7 +806,7 @@ export class ModelManager {
       return createCustomProvider({
         id: entry.id,
         name: entry.name ?? entry.id,
-        baseUrl: entry.baseUrl ?? "",
+        baseUrl: this._profilesFor(entry)[0]?.baseUrl ?? "",
         api: entry.api ?? DEFAULT_CUSTOM_PROVIDER_API,
         models: this._customModelsFor(entry),
       });
@@ -549,6 +829,7 @@ export class ModelManager {
    */
   private _customModelsFor(entry: ProviderConfig): Model<Api>[] {
     const base = BUILTIN_PROVIDERS[entry.id];
+    const defaultBaseUrl = this._profilesFor(entry)[0]?.baseUrl;
     return (entry.models ?? []).map((model) => ({
       ...model,
       api:
@@ -556,7 +837,7 @@ export class ModelManager {
           ? model.api
           : (entry.api ?? DEFAULT_CUSTOM_PROVIDER_API),
       provider: entry.id,
-      baseUrl: model.baseUrl ?? base?.baseUrl ?? entry.baseUrl ?? "",
+      baseUrl: model.baseUrl ?? base?.baseUrl ?? defaultBaseUrl ?? "",
     }));
   }
 
@@ -602,17 +883,139 @@ export class ModelManager {
     return changed;
   }
 
+  /**
+   * Normalize Ark's image-model inventory and remove legacy provider defaults.
+   * This keeps upgrades readable without treating image models as chat models
+   * or rejecting the whole settings file.
+   */
+  private _normalizeArkImageGeneration(): boolean {
+    const entry = this._config.providers.find(
+      (provider) => provider.id === "ark" && provider.builtin === true
+    );
+    if (!entry) {
+      return false;
+    }
+    const normalized = _normalizeArkImageGenerationConfig(
+      entry.imageGeneration
+    );
+    if (JSON.stringify(entry.imageGeneration) === JSON.stringify(normalized)) {
+      return false;
+    }
+    entry.imageGeneration = normalized;
+    return true;
+  }
+
+  /**
+   * Migrate legacy connection fields into profiles and keep builtin defaults
+   * pinned to their official service. Older configs could put a custom URL or
+   * headers on that default; preserve those credentials in a custom profile.
+   */
+  private _normalizeProviderProfiles(): boolean {
+    let changed = false;
+    for (const entry of this._config.providers) {
+      if (!entry.profiles || entry.profiles.length === 0) {
+        entry.profiles = [{ id: uuid(), name: "Default" }];
+        changed = true;
+      }
+      const first = entry.profiles[0];
+      if (entry.apiKey !== undefined) {
+        first.apiKey = entry.apiKey;
+        delete entry.apiKey;
+        changed = true;
+      }
+      if (entry.baseUrl !== undefined) {
+        first.baseUrl = entry.baseUrl;
+        delete entry.baseUrl;
+        changed = true;
+      }
+      if (entry.headers !== undefined) {
+        first.headers = { ...entry.headers };
+        delete entry.headers;
+        changed = true;
+      }
+      if (
+        entry.builtin === true &&
+        (first.baseUrl !== undefined || first.headers !== undefined)
+      ) {
+        entry.profiles.splice(1, 0, {
+          id: uuid(),
+          name: this._nextProfileName(entry.profiles),
+          ...(first.apiKey !== undefined ? { apiKey: first.apiKey } : {}),
+          ...(first.baseUrl !== undefined ? { baseUrl: first.baseUrl } : {}),
+          ...(first.headers !== undefined
+            ? { headers: { ...first.headers } }
+            : {}),
+        });
+        delete first.apiKey;
+        delete first.baseUrl;
+        delete first.headers;
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  private _providerEntry(providerId: string): ProviderConfig {
+    const entry = this._config.providers.find(
+      (provider) => provider.id === providerId
+    );
+    if (!entry) {
+      throw new Error(`Provider not configured: ${providerId}`);
+    }
+    return entry;
+  }
+
+  private _profilesFor(entry: ProviderConfig): ProviderProfileConfig[] {
+    return (entry.profiles ??= [
+      {
+        id: uuid(),
+        name: "Default",
+        ...(entry.apiKey !== undefined ? { apiKey: entry.apiKey } : {}),
+        ...(entry.baseUrl !== undefined ? { baseUrl: entry.baseUrl } : {}),
+        ...(entry.headers !== undefined
+          ? { headers: { ...entry.headers } }
+          : {}),
+      },
+    ]);
+  }
+
+  private _profileFor(
+    providerId: string,
+    profileId?: string
+  ): ProviderProfileConfig {
+    const entry = this._findProvider(providerId);
+    if (!entry) {
+      throw new Error(`Provider not configured: ${providerId}`);
+    }
+    const profiles = this._profilesFor(entry);
+    const profile = profileId
+      ? profiles.find((candidate) => candidate.id === profileId)
+      : profiles[0];
+    if (!profile) {
+      throw new Error(
+        `Provider profile not configured: ${providerId}/${profileId}`
+      );
+    }
+    return profile;
+  }
+
+  private _nextProfileName(profiles: ProviderProfileConfig[]): string {
+    const names = new Set(
+      profiles.map((profile) => profile.name.toLocaleLowerCase())
+    );
+    let index = 1;
+    while (names.has(`custom profile ${index}`)) {
+      index += 1;
+    }
+    return `Custom profile ${index}`;
+  }
+
   private get _configPath(): string {
-    return path.join(getSettingsDir(), "models.json");
+    return path.join(this._settingsDir, "models.json");
   }
 
   private _saveConfig(): void {
-    mkdirSync(getSettingsDir(), { recursive: true });
-    writeFileSync(
-      this._configPath,
-      `${JSON.stringify(this._config, null, 2)}\n`,
-      "utf8"
-    );
+    atomicWriteJsonFileSync(this._configPath, this._config);
   }
 
   /**
@@ -620,27 +1023,12 @@ export class ModelManager {
    * config on disk so the app has something to edit, and report no providers.
    */
   private _loadConfig(): ModelsConfig {
-    try {
-      const parsed = JSON.parse(
-        readFileSync(this._configPath, "utf8")
-      ) as ModelsConfig;
-      return {
-        providers: Array.isArray(parsed.providers) ? parsed.providers : [],
-        defaultModel: parsed.defaultModel,
-      };
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-        throw error;
-      }
-      const empty: ModelsConfig = { providers: [] };
-      mkdirSync(getSettingsDir(), { recursive: true });
-      writeFileSync(
-        this._configPath,
-        `${JSON.stringify(empty, null, 2)}\n`,
-        "utf8"
-      );
-      return empty;
-    }
+    return readJsonFileSync(this._configPath, {
+      schema: ModelsConfigFileSchema as z.ZodType<ModelsConfig>,
+      recovery: "best-effort",
+      fallback: (): ModelsConfig => ({ providers: [] }),
+      seedMissing: true,
+    }).value;
   }
 
   private async _detectProviders() {
@@ -656,6 +1044,7 @@ export class ModelManager {
             env: (name) => Promise.resolve(env[name]),
             fileExists: (path) => Promise.resolve(existsSync(path)),
           },
+          signal: new AbortController().signal,
         });
         if (res?.auth.apiKey) {
           potentialProviders.push(provider.id);
@@ -666,18 +1055,157 @@ export class ModelManager {
   }
 
   private _getCodexApiKey(): string | undefined {
-    const authPath = path.join(os.homedir(), ".codex", "auth.json");
-    if (!existsSync(authPath)) {
-      return undefined;
+    return getCodexCredentials()?.apiKey;
+  }
+}
+
+/** Validate a renderer-supplied Ark image configuration before persisting it. */
+function _assertArkImageGenerationConfig(
+  config: ArkImageGenerationConfig
+): void {
+  _assertCustomArkImageModels(config.models);
+  const models = getArkImageModelDefinitions(config);
+  const modelIds = new Set(models.map((model) => model.id));
+  const disabledModels = config.disabledModels ?? [];
+  if (
+    disabledModels.some((modelId) => !modelIds.has(modelId)) ||
+    new Set(disabledModels).size !== disabledModels.length
+  ) {
+    throw new Error(
+      "Disabled Ark image models must reference unique model ids."
+    );
+  }
+}
+
+/** Normalize untrusted JSON from older or manually edited settings files. */
+function _normalizeArkImageGenerationConfig(
+  value: unknown
+): ArkImageGenerationConfig {
+  const candidate =
+    value && typeof value === "object"
+      ? (value as Partial<ArkImageGenerationConfig>)
+      : {};
+  const models = _normalizeCustomArkImageModels(candidate.models);
+  const withModels: ArkImageGenerationConfig = {
+    ...(models.length > 0 ? { models } : {}),
+  };
+  const modelIds = new Set(
+    getArkImageModelDefinitions(withModels).map((model) => model.id)
+  );
+  const disabledModels = Array.isArray(candidate.disabledModels)
+    ? [
+        ...new Set(
+          candidate.disabledModels.filter(
+            (modelId): modelId is string =>
+              typeof modelId === "string" && modelIds.has(modelId)
+          )
+        ),
+      ]
+    : [];
+  return {
+    ...(models.length > 0 ? { models } : {}),
+    ...(disabledModels.length > 0 ? { disabledModels } : {}),
+  };
+}
+
+/** Reject invalid custom model definitions supplied through renderer RPC. */
+function _assertCustomArkImageModels(
+  models: ArkImageGenerationConfig["models"]
+): void {
+  if (models === undefined) {
+    return;
+  }
+  if (!Array.isArray(models)) {
+    throw new Error("Custom Ark image models must be an array.");
+  }
+  const seen = new Set<string>(SEEDREAM_IMAGE_MODELS.map((model) => model.id));
+  for (const model of models) {
+    if (
+      !model ||
+      typeof model.id !== "string" ||
+      model.id.trim() !== model.id ||
+      model.id === "" ||
+      typeof model.name !== "string" ||
+      model.name.trim() !== model.name ||
+      model.name === ""
+    ) {
+      throw new Error("Custom Ark image models require a valid id and name.");
     }
-    try {
-      const parsed = JSON.parse(readFileSync(authPath, "utf8")) as {
-        tokens?: { access_token?: unknown };
-      };
-      const accessToken = parsed?.tokens?.access_token;
-      return typeof accessToken === "string" ? accessToken : undefined;
-    } catch {
-      return undefined;
+    if (seen.has(model.id)) {
+      throw new Error(`Duplicate Ark image model id: ${model.id}`);
+    }
+    seen.add(model.id);
+    const sizes = model.supportedSizes;
+    if (
+      !Array.isArray(sizes) ||
+      sizes.length === 0 ||
+      sizes.some((size) => !_isSeedreamImageSize(size)) ||
+      new Set(sizes).size !== sizes.length ||
+      !sizes.includes(model.defaultSize)
+    ) {
+      throw new Error(
+        `Custom Ark image model ${model.id} has invalid size presets.`
+      );
+    }
+    if (model.icon !== undefined && typeof model.icon !== "string") {
+      throw new Error(
+        `Custom Ark image model ${model.id} has an invalid icon.`
+      );
     }
   }
+}
+
+/** Repair user-edited JSON by keeping only complete, unique custom models. */
+function _normalizeCustomArkImageModels(
+  value: unknown
+): SeedreamImageModelDefinition[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const seen = new Set<string>(SEEDREAM_IMAGE_MODELS.map((model) => model.id));
+  const models: SeedreamImageModelDefinition[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") {
+      continue;
+    }
+    const candidate = raw as Partial<SeedreamImageModelDefinition>;
+    const id = typeof candidate.id === "string" ? candidate.id.trim() : "";
+    const name =
+      typeof candidate.name === "string" ? candidate.name.trim() : "";
+    if (!id || !name || seen.has(id)) {
+      continue;
+    }
+    const supportedSizes = Array.isArray(candidate.supportedSizes)
+      ? [...new Set(candidate.supportedSizes.filter(_isSeedreamImageSize))]
+      : [];
+    if (supportedSizes.length === 0) {
+      continue;
+    }
+    const defaultSize =
+      _isSeedreamImageSize(candidate.defaultSize) &&
+      supportedSizes.includes(candidate.defaultSize)
+        ? candidate.defaultSize
+        : supportedSizes[0];
+    const icon =
+      typeof candidate.icon === "string" && candidate.icon.trim()
+        ? candidate.icon.trim()
+        : undefined;
+    seen.add(id);
+    models.push({
+      id,
+      name,
+      supportedSizes,
+      defaultSize,
+      ...(icon ? { icon } : {}),
+    });
+  }
+  return models;
+}
+
+/** Narrow unknown persisted values to Ark's supported size presets. */
+function _isSeedreamImageSize(value: unknown): value is SeedreamImageSize {
+  return (
+    typeof value === "string" &&
+    (SEEDREAM_IMAGE_SIZES as readonly string[]).includes(value)
+  );
 }

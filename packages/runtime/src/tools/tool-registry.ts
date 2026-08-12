@@ -1,8 +1,22 @@
-import type { BuiltinTool } from "@llm-space/core";
+import type {
+  BuiltinTool,
+  BuiltinToolCallResponse,
+  ProviderConnectionRef,
+} from "@llm-space/core";
 
 export interface ToolEntry {
   tool: BuiltinTool;
-  execute(this: void, args: Record<string, unknown>): Promise<unknown>;
+  execute(
+    this: void,
+    args: Record<string, unknown>,
+    config?: Record<string, unknown>,
+    context?: ToolExecutionContext
+  ): Promise<unknown>;
+}
+
+export interface ToolExecutionContext {
+  /** Ephemeral provider connection selected for this invocation. */
+  connection?: ProviderConnectionRef;
 }
 
 export interface ToolContribution {
@@ -10,8 +24,26 @@ export interface ToolContribution {
   entries: readonly ToolEntry[];
 }
 
-export interface ToolCallResponse {
-  contentText: string;
+export type ToolCallResponse = BuiltinToolCallResponse;
+
+const STRUCTURED_TOOL_CALL_RESPONSE = Symbol("structuredToolCallResponse");
+
+interface StructuredToolCallResponse extends ToolCallResponse {
+  [STRUCTURED_TOOL_CALL_RESPONSE]: true;
+}
+
+/**
+ * Mark model-facing content explicitly so an ordinary JSON `content` property
+ * cannot be mistaken for the runtime response contract.
+ */
+export function createToolCallResponse(
+  content: ToolCallResponse["content"]
+): ToolCallResponse {
+  const response: StructuredToolCallResponse = {
+    [STRUCTURED_TOOL_CALL_RESPONSE]: true,
+    content,
+  };
+  return response;
 }
 
 export class ToolRegistry {
@@ -78,15 +110,33 @@ export class ToolRegistry {
   async call({
     name,
     arguments: args,
+    config,
+    connection,
   }: {
     name: string;
     arguments: Record<string, unknown>;
+    config?: Record<string, unknown>;
+    connection?: ProviderConnectionRef;
   }): Promise<ToolCallResponse> {
     const entry = this._entriesByName.get(name);
     if (!entry) {
       throw new Error(`Built-in tool not found: ${name}`);
     }
-    return { contentText: _serializeToolResult(await entry.execute(args)) };
+    if (
+      connection &&
+      entry.tool.connection?.providerId !== connection.providerId
+    ) {
+      throw new Error(
+        `Built-in tool ${name} does not use provider: ${connection.providerId}`
+      );
+    }
+    const result = await entry.execute(args, config, { connection });
+    if (_isToolCallResponse(result)) {
+      return { content: result.content };
+    }
+    return {
+      content: [{ type: "text", text: _serializeToolResult(result) }],
+    };
   }
 }
 
@@ -109,4 +159,16 @@ function _serializeToolResult(result: unknown): string {
     return result;
   }
   return JSON.stringify(result, null, 2);
+}
+
+/** Recognize only responses created explicitly by {@link createToolCallResponse}. */
+function _isToolCallResponse(
+  result: unknown
+): result is StructuredToolCallResponse {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    STRUCTURED_TOOL_CALL_RESPONSE in result &&
+    result[STRUCTURED_TOOL_CALL_RESPONSE] === true
+  );
 }

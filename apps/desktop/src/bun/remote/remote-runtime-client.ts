@@ -1,4 +1,5 @@
 import type {
+  ArkImageGenerationConfig,
   AgentEvent,
   BuiltinTool,
   CustomModel,
@@ -10,6 +11,7 @@ import type {
   ModelConfig,
   ModelProviderGroup,
   NetworkSettings,
+  ProviderConnectionRef,
   SearchSettings,
   SkillContent,
   SkillInfo,
@@ -114,10 +116,10 @@ export class RemoteRuntimeClient implements RuntimeClient {
   resolveGeneratorEnv(
     input: Parameters<RuntimeClient["resolveGeneratorEnv"]>[0]
   ) {
-    return this._rpc<{ modelApiKey: string; envValues: Record<string, string> }>(
-      "models.resolveGeneratorEnv",
-      input
-    );
+    return this._rpc<{
+      modelApiKey: string;
+      envValues: Record<string, string>;
+    }>("models.resolveGeneratorEnv", input);
   }
 
   fsLs(path: string) {
@@ -136,9 +138,34 @@ export class RemoteRuntimeClient implements RuntimeClient {
     await this._rpc<null>("fs.write", { path, thread });
   }
 
+  fsArchiveRun(
+    path: string,
+    run: Parameters<RuntimeClient["fsArchiveRun"]>[1]
+  ) {
+    return this._rpc<Awaited<ReturnType<RuntimeClient["fsArchiveRun"]>>>(
+      "fs.archiveRun",
+      { path, run }
+    );
+  }
+
+  fsReadRunSnapshot(path: string, snapshotRef: string) {
+    return this._rpc<Awaited<ReturnType<RuntimeClient["fsReadRunSnapshot"]>>>(
+      "fs.readRunSnapshot",
+      { path, snapshotRef }
+    );
+  }
+
   async fsRealpath(path: string) {
     const result = await this._rpc<{ path: string }>("fs.realpath", { path });
     return result.path;
+  }
+
+  readTextFile(path: string) {
+    return this._rpc<string>("fs.readText", { path });
+  }
+
+  textFileExists(path: string) {
+    return this._rpc<boolean>("fs.textFileExists", { path });
   }
 
   mcpListServers() {
@@ -171,7 +198,10 @@ export class RemoteRuntimeClient implements RuntimeClient {
       const response = await fetch(`${this._baseUrl}/stream`, {
         method: "POST",
         headers: this._headers(),
-        body: JSON.stringify({ request: payload.request }),
+        body: JSON.stringify({
+          request: payload.request,
+          ...(payload.connection ? { connection: payload.connection } : {}),
+        }),
         signal: controller.signal,
       });
       if (!response.ok) {
@@ -196,11 +226,12 @@ export class RemoteRuntimeClient implements RuntimeClient {
             type: "error",
             message: event.message,
           });
+          return;
         } else {
           send({ streamId: payload.streamId, type: "event", event });
         }
       }
-      send({ streamId: payload.streamId, type: "done" });
+      throw new Error("Remote runtime stream ended before [DONE].");
     } finally {
       this._activeStreams.delete(payload.streamId);
     }
@@ -249,15 +280,34 @@ export class RemoteRuntimeClient implements RuntimeClient {
   }) {
     return this._rpc<ModelProviderGroup[]>("models.addCustomProvider", input);
   }
+  addProviderProfile(providerId: string) {
+    return this._rpc<ModelProviderGroup[]>("models.addProviderProfile", {
+      providerId,
+    });
+  }
+  updateProviderProfile(
+    input: Parameters<RuntimeClient["updateProviderProfile"]>[0]
+  ) {
+    return this._rpc<ModelProviderGroup[]>(
+      "models.updateProviderProfile",
+      input
+    );
+  }
+  removeProviderProfile(
+    input: Parameters<RuntimeClient["removeProviderProfile"]>[0]
+  ) {
+    return this._rpc<ModelProviderGroup[]>(
+      "models.removeProviderProfile",
+      input
+    );
+  }
   updateProvider(input: {
     providerId: string;
-    apiKey?: string | null;
-    baseUrl?: string | null;
-    headers?: Record<string, string> | null;
     name?: string | null;
     api?:
       "anthropic-messages" | "openai-completions" | "openai-responses" | null;
     icon?: string | null;
+    imageGeneration?: ArkImageGenerationConfig;
   }) {
     return this._rpc<ModelProviderGroup[]>("models.updateProvider", input);
   }
@@ -274,11 +324,9 @@ export class RemoteRuntimeClient implements RuntimeClient {
   setDefaultModel(model: ModelConfig | null) {
     return this._rpc<ModelConfig | null>("models.setDefault", { model });
   }
-  async testModelConnection(input: {
-    providerId: string;
-    modelId: string;
-    candidate?: CustomModel;
-  }) {
+  async testModelConnection(
+    input: Parameters<RuntimeClient["testModelConnection"]>[0]
+  ) {
     await this._rpc<null>("models.testConnection", input);
   }
   removeCustomModel(input: { providerId: string; modelId: string }) {
@@ -312,6 +360,9 @@ export class RemoteRuntimeClient implements RuntimeClient {
   mcpDisconnectServer(serverId: string) {
     return this._rpc<McpServerView[]>("mcp.disconnectServer", { serverId });
   }
+  mcpCancelTest(serverId: string) {
+    return this._rpc<McpServerView[]>("mcp.cancelTest", { serverId });
+  }
   mcpListTools(serverId: string) {
     return this._rpc<McpServerToolsResponse>("mcp.listTools", { serverId });
   }
@@ -322,8 +373,16 @@ export class RemoteRuntimeClient implements RuntimeClient {
   }) {
     return this._rpc<McpCallToolResponse>("mcp.callTool", input);
   }
-  builtInCallTool(input: { name: string; arguments: Record<string, unknown> }) {
-    return this._rpc<{ contentText: string }>("builtinTools.call", input);
+  builtInCallTool(input: {
+    name: string;
+    arguments: Record<string, unknown>;
+    config?: Record<string, unknown>;
+    connection?: ProviderConnectionRef;
+  }) {
+    return this._rpc<Awaited<ReturnType<RuntimeClient["builtInCallTool"]>>>(
+      "builtinTools.call",
+      input
+    );
   }
   setSearchSettings(settings: SearchSettings) {
     return this._rpc<SearchSettings>("search.set", { settings });
@@ -347,8 +406,24 @@ export class RemoteRuntimeClient implements RuntimeClient {
   }) {
     return this._rpc<SkillsSettings>("skills.setSkillHidden", input);
   }
+  skillsSetPluginSkillHidden(input: {
+    pluginId: string;
+    skillName: string;
+    hidden: boolean;
+  }) {
+    return this._rpc<SkillsSettings>("skills.setPluginSkillHidden", input);
+  }
+  skillsSetAllPluginSkillsHidden(input: { pluginId: string; hidden: boolean }) {
+    return this._rpc<SkillsSettings>("skills.setAllPluginSkillsHidden", input);
+  }
   skillsSetAllSkillsHidden(input: { path: string; hidden: boolean }) {
     return this._rpc<SkillsSettings>("skills.setAllSkillsHidden", input);
+  }
+  skillsListAvailable() {
+    return this._rpc<SkillInfo[]>("skills.listAvailable");
+  }
+  skillsListPluginSkills() {
+    return this._rpc<SkillInfo[]>("skills.listPluginSkills");
   }
   skillsListSkills(path: string) {
     return this._rpc<SkillInfo[]>("skills.listSkills", { path });
@@ -403,7 +478,11 @@ export class RemoteRuntimeClient implements RuntimeClient {
       title,
     });
   }
-  async traceWriteWorkbench(projectId: string, traceKey: string, thread: Thread) {
+  async traceWriteWorkbench(
+    projectId: string,
+    traceKey: string,
+    thread: Thread
+  ) {
     await this._rpc<null>("trace.writeWorkbench", {
       projectId,
       traceKey,

@@ -1,5 +1,6 @@
 import {
   isExecutableTool,
+  type ImageContent,
   type ThreadContext,
   type ToolCall,
   type ToolCallInput,
@@ -19,7 +20,10 @@ import {
 import { memo, useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { CodeEditor, type CodeEditorProps } from "@llm-space/ui/components/code-editor";
+import {
+  CodeEditor,
+  type CodeEditorProps,
+} from "@llm-space/ui/components/code-editor";
 import { openFirecrawlLimitDialog } from "@llm-space/ui/components/firecrawl-limit-dialog";
 import { PreviewDialog } from "@llm-space/ui/components/preview-dialog-lazy";
 import { useRenderingFidelity } from "@llm-space/ui/components/theme-provider";
@@ -28,11 +32,11 @@ import { useHostServices } from "@llm-space/ui/host";
 import { cn } from "@llm-space/ui/lib/utils";
 import { Button } from "@llm-space/ui/ui/button";
 import { Input } from "@llm-space/ui/ui/input";
-import { Marker, MarkerContent } from "@llm-space/ui/ui/marker";
 
-import { useThreadStoreActions } from "../stores";
+import { useThreadStore, useThreadStoreActions } from "../stores";
 import { usePromptVariableExtensionForContext } from "../variable/use-prompt-variable-extension";
 
+import { ImageContentView } from "./image-content-view";
 import { ToolCallInputView } from "./tool-call-input-view";
 import { useToolCallRunner } from "./use-tool-call-runner";
 import {
@@ -47,6 +51,7 @@ function _ToolCallListItem({
   canContinue,
   onContinue,
   readonly = false,
+  streaming,
 }: {
   context?: ThreadContext;
   messageId: string;
@@ -54,6 +59,7 @@ function _ToolCallListItem({
   canContinue: boolean;
   onContinue: () => void;
   readonly?: boolean;
+  streaming: boolean;
 }) {
   const { fidelity } = useRenderingFidelity();
   const { presentational } = useHostServices();
@@ -66,8 +72,22 @@ function _ToolCallListItem({
   const tool = resolveTool(toolCall.input.name);
   const executable = tool !== undefined && isExecutableTool(tool);
   const [calling, setCalling] = useState(false);
+  const autoCalling = useThreadStore((state) =>
+    state.executingToolCallIds.includes(toolCall.id)
+  );
+  const isCalling = calling || autoCalling;
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [argsPreviewOpen, setArgsPreviewOpen] = useState(false);
   const outputText = useMemo(() => getToolCallOutputText(toolCall), [toolCall]);
+  const outputImages = useMemo(() => {
+    const images: { content: ImageContent; contentIndex: number }[] = [];
+    toolCall.output?.content.forEach((content, contentIndex) => {
+      if (content.type === "image") {
+        images.push({ content, contentIndex });
+      }
+    });
+    return images;
+  }, [toolCall.output?.content]);
   const isError = toolCall.output?.isError ?? false;
   const handleOutputChange = useCallback(
     (value: string) => {
@@ -93,7 +113,7 @@ function _ToolCallListItem({
   ]);
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" && e.metaKey) {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         e.stopPropagation();
         if (canContinue) {
@@ -135,8 +155,21 @@ function _ToolCallListItem({
   return (
     <div className="bg-foreground/4 flex w-full flex-col gap-2 rounded-md px-3 pt-2 pb-3">
       <div className="relative flex min-w-0 items-start">
-        <ToolCallInputView input={toolCall.input} />
+        <ToolCallInputView
+          input={toolCall.input}
+          streaming={streaming && toolCall.output === undefined}
+        />
         <div className="absolute top-0 right-0 flex items-center">
+          <Tooltip content="Preview arguments">
+            <Button
+              className="invisible shrink-0 group-hover/message:visible"
+              size="icon"
+              variant="secondary"
+              onClick={() => setArgsPreviewOpen(true)}
+            >
+              <EyeIcon className="size-3" />
+            </Button>
+          </Tooltip>
           <Tooltip content="Copy arguments">
             <Button
               className="invisible shrink-0 group-hover/message:visible"
@@ -148,16 +181,19 @@ function _ToolCallListItem({
             </Button>
           </Tooltip>
           {executable && !presentational ? (
-            <Tooltip content="Call this tool">
+            <Tooltip content={isCalling ? "Calling tool" : "Call this tool"}>
               <Button
-                className="invisible shrink-0 group-hover/message:visible"
+                className={cn(
+                  "shrink-0",
+                  !isCalling && "invisible group-hover/message:visible"
+                )}
                 size="icon"
                 variant="secondary"
-                disabled={readonly || calling}
+                disabled={readonly || isCalling}
                 onClick={() => void handleCall()}
               >
-                {calling ? (
-                  <Loader2 className="animate-spin" />
+                {isCalling ? (
+                  <Loader2 className="size-3 animate-spin" />
                 ) : (
                   <PlayIcon className="size-3" />
                 )}
@@ -169,22 +205,17 @@ function _ToolCallListItem({
       <hr />
       <div className="flex w-full flex-col gap-1">
         <div className="text-muted-foreground flex min-w-0 items-center justify-between gap-2 text-xs">
-          <Marker role="status" className="gap-1">
-            <MarkerContent className="flex items-center text-xs">
-              Response
-              <Tooltip content="Preview response">
-                <Button
-                  className="invisible shrink-0 group-hover/message:visible"
-                  size="xs"
-                  variant="ghost"
-                  disabled={outputText === ""}
-                  onClick={() => setPreviewOpen(true)}
-                >
-                  <EyeIcon className="size-3" />
-                </Button>
-              </Tooltip>
-            </MarkerContent>
-          </Marker>
+          <Tooltip content="Preview response">
+            <Button
+              className="invisible shrink-0 group-hover/message:visible"
+              size="xs"
+              variant="ghost"
+              disabled={outputText === ""}
+              onClick={() => setPreviewOpen(true)}
+            >
+              <EyeIcon className="size-3" />
+            </Button>
+          </Tooltip>
           {!presentational && (
             <div className="flex items-center">
               <Button
@@ -201,6 +232,13 @@ function _ToolCallListItem({
           )}
         </div>
         <PreviewDialog
+          open={argsPreviewOpen}
+          title={`Arguments of ${toolCall.input.name}()`}
+          type="json"
+          value={formatJson(toolCall.input.arguments)}
+          onOpenChange={setArgsPreviewOpen}
+        />
+        <PreviewDialog
           open={previewOpen}
           title={`Response of ${toolCall.input.name}()`}
           value={outputText}
@@ -209,12 +247,24 @@ function _ToolCallListItem({
         <ToolCallResponseEditor
           input={toolCall.input}
           plain={fidelity === "lite"}
-          readonly={readonly}
+          readonly={readonly || isCalling}
           value={outputText}
           extraExtensions={variableExtension}
           onChange={handleOutputChange}
           onKeyDown={handleKeyDown}
         />
+        {outputImages.length > 0 ? (
+          <div className="flex flex-wrap gap-2 pt-1">
+            {outputImages.map(({ content, contentIndex }) => (
+              <ImageContentView
+                key={`${content.mimeType}-${contentIndex}`}
+                image={content}
+                readonly
+                className="size-24 shadow-sm"
+              />
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   );

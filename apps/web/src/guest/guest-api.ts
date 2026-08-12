@@ -56,6 +56,7 @@ export const GUEST_FALLBACK_PROVIDER: ModelProviderGroup = {
   name: "智谱 BigModel",
   builtin: true,
   apiKeyDetected: true,
+  profiles: [{ id: "guest-default", name: "游客服务器 Key" }],
   models: [
     _createFallbackModel(GUEST_MODEL_ID, "GLM-4.5-Air（推荐）", 128_000),
     _createFallbackModel("glm-4.7", "GLM-4.7", 200_000),

@@ -102,6 +102,7 @@ export function createGuestModelProvider(
     name: "智谱 BigModel",
     builtin: true,
     apiKeyDetected: true,
+    profiles: [{ id: "guest-default", name: "游客服务器 Key" }],
     models: createGuestModels(maxOutputTokens),
   };
 }

@@ -1,3 +1,4 @@
+import type { ToolCallOutput } from "./messages";
 import type { JSONSchema } from "./shared";
 
 export type McpTransportType = "stdio" | "streamableHttp" | "sse";
@@ -5,6 +6,8 @@ export type McpRemoteTransportType = Exclude<McpTransportType, "stdio">;
 
 export interface McpServerDraft {
   name: string;
+  /** Expose tools without the `mcp__{serverName}__` prefix. */
+  useOriginalToolNames?: boolean;
   transport: McpTransportType;
   command?: string;
   args?: string[];
@@ -82,6 +85,9 @@ export interface McpServerView extends McpServerConfig {
   connected: boolean;
   toolCount: number | null;
   lastError?: string;
+  source?: "user" | "plugin";
+  readOnly?: boolean;
+  pluginId?: string;
 }
 
 export interface McpToolView {
@@ -105,7 +111,7 @@ export interface McpServerToolsResponse {
 }
 
 export interface McpCallToolResponse {
-  contentText: string;
+  content: ToolCallOutput["content"];
   isError?: boolean;
 }
 
@@ -127,10 +133,15 @@ export function normalizeMcpName(value: string): string {
 export function buildMcpToolName({
   serverName,
   toolName,
+  useOriginalToolNames = false,
 }: {
   serverName: string;
   toolName: string;
+  useOriginalToolNames?: boolean;
 }): string {
+  if (useOriginalToolNames) {
+    return toolName;
+  }
   return `mcp__${serverName}__${toolName}`;
 }
 

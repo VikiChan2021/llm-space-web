@@ -78,8 +78,13 @@ export class GistThreadWriter implements WritableThreadStorage {
 
     const normalized = normalizeThread(thread);
     // Publish a clean thread: local run history is per-machine debug state, not
-    // part of what's shared, so upload it with an empty `runHistory`.
-    const published: Thread = { ...normalized, runHistory: [] };
+    // part of what's shared, so upload it without inline or referenced runs.
+    const published: Thread = {
+      ...normalized,
+      runHistory: [],
+      runHistoryVersion: undefined,
+      runHistoryIndex: [],
+    };
     const content = JSON.stringify(published, null, 2);
     const description = options?.description ?? normalized.title ?? "";
 
@@ -129,6 +134,9 @@ export class GistThreadWriter implements WritableThreadStorage {
       token
     );
     const filename = existing.filename;
+    if (!filename) {
+      throw new Error(`Gist ${id} did not resolve to a thread filename.`);
+    }
     const gist = await gistRequest<GistResponse>(
       this._fetch,
       this._baseUrl,

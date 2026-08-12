@@ -2,8 +2,12 @@ import {
   getMessageText,
   type AssistantMessage,
   type Message,
+  type ThreadRunPreview,
   type ThreadSnapshot,
 } from "../types";
+
+import { isRunSnapshot, type RunHistoryEntry } from "./run-history-entry";
+import { getToolResultText } from "./tool-call-status";
 
 /**
  * A short summary of a run's resulting thread, derived from its last message.
@@ -19,12 +23,23 @@ export function summarizeRun(thread: ThreadSnapshot): string {
       .map((toolCall) => `${toolCall.input.name}()`)
       .join(", ");
   }
-  const imageCount = last.content.filter((c) => c.type === "image_data").length;
+  const imageCount = last.content.filter((c) => c.type === "image").length;
   if (imageCount > 0) {
     return `[${imageCount} image${imageCount > 1 ? "s" : ""}]`;
   }
   const text = getMessageText(last).trim();
-  return text || "Empty message";
+  if (text) {
+    return text;
+  }
+  if (
+    last.role === "assistant" &&
+    last.providerHostedToolActivities?.length
+  ) {
+    return last.providerHostedToolActivities
+      .map((activity) => activity.type)
+      .join(", ");
+  }
+  return "Empty message";
 }
 
 /** The model label for a run snapshot, separated so it can truncate safely. */
@@ -38,6 +53,34 @@ export function runModelLabel(thread: ThreadSnapshot): string {
 export function runMessageCountLabel(thread: ThreadSnapshot): string {
   const messageCount = thread.context?.messages?.length ?? 0;
   return `${messageCount} message${messageCount === 1 ? "" : "s"}`;
+}
+
+/** Build the metadata displayed without loading a persisted run sidecar. */
+export function createRunPreview(thread: ThreadSnapshot): ThreadRunPreview {
+  return {
+    summary: summarizeRun(thread),
+    modelLabel: runModelLabel(thread),
+    messageCountLabel: runMessageCountLabel(thread),
+  };
+}
+
+/** Summary for either a loaded run or a lightweight persisted reference. */
+export function runEntrySummary(run: RunHistoryEntry): string {
+  return isRunSnapshot(run) ? summarizeRun(run.thread) : run.preview.summary;
+}
+
+/** Model label for either a loaded run or a persisted reference. */
+export function runEntryModelLabel(run: RunHistoryEntry): string {
+  return isRunSnapshot(run)
+    ? runModelLabel(run.thread)
+    : run.preview.modelLabel;
+}
+
+/** Message count for either a loaded run or a persisted reference. */
+export function runEntryMessageCountLabel(run: RunHistoryEntry): string {
+  return isRunSnapshot(run)
+    ? runMessageCountLabel(run.thread)
+    : run.preview.messageCountLabel;
 }
 
 /** Return the last message for a given role in a snapshot. */
@@ -62,7 +105,7 @@ export function runLastUserText(thread: ThreadSnapshot): string {
     return "No user message";
   }
   const text = getMessageText(message).trim();
-  const imageCount = message.content.filter((c) => c.type === "image_data")
+  const imageCount = message.content.filter((c) => c.type === "image")
     .length;
   if (text && imageCount > 0) {
     return `${text}\n[${imageCount} image${imageCount > 1 ? "s" : ""}]`;
@@ -83,7 +126,20 @@ export function runResultText(thread: ThreadSnapshot): string {
   }
   const toolText = _toolResultText(message);
   const assistantText = getMessageText(message).trim();
-  return [assistantText, toolText].filter(Boolean).join("\n\n") || "Empty result";
+  const providerHostedText =
+    message.providerHostedToolActivities
+      ?.map((activity) =>
+        activity.status
+          ? `${activity.type} (${activity.status})`
+          : activity.type
+      )
+      .join("\n") ?? "";
+  return (
+    [assistantText, providerHostedText, toolText]
+      .filter(Boolean)
+      .join("\n\n") ||
+    "Empty result"
+  );
 }
 
 /** Compactly format tool calls and outputs inside an assistant result. */
@@ -93,10 +149,7 @@ function _toolResultText(message: AssistantMessage): string {
   }
   return message.toolCalls
     .map((toolCall) => {
-      const output = toolCall.output?.content
-        ?.map((content) => content.text)
-        .join("\n")
-        .trim();
+      const output = getToolResultText(toolCall.output?.content).trim();
       const args = JSON.stringify(toolCall.input.arguments);
       return output
         ? `${toolCall.input.name}(${args})\n${output}`

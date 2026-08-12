@@ -1,12 +1,23 @@
 "use client";
 
-import type { AgentTransport, Thread } from "@llm-space/core";
+import type {
+  AgentTransport,
+  Thread,
+  ThreadRunReference,
+  ThreadRunSnapshot,
+  ThreadSnapshot,
+} from "@llm-space/core";
+import { isMetaUserMessage } from "@llm-space/core/generator";
+import { planCompaction } from "@llm-space/core/thread";
 import {
   ChevronDownIcon,
+  EllipsisIcon,
+  FileArchiveIcon,
   HistoryIcon,
   PlayIcon,
   Redo2Icon,
   Share2Icon,
+  SparklesIcon,
   Undo2Icon,
 } from "lucide-react";
 import {
@@ -26,7 +37,10 @@ import {
   useModels,
 } from "@llm-space/ui/components/model-provider";
 import { Tooltip } from "@llm-space/ui/components/tooltip";
-import { useHostServices } from "@llm-space/ui/host";
+import {
+  createShareThreadAction,
+  useHostServices,
+} from "@llm-space/ui/host";
 import { threadTitleFromPath } from "@llm-space/ui/lib/thread-file";
 import { cn } from "@llm-space/ui/lib/utils";
 import { Button } from "@llm-space/ui/ui/button";
@@ -39,7 +53,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@llm-space/ui/ui/dropdown-menu";
-import { Kbd, KbdGroup } from "@llm-space/ui/ui/kbd";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -53,12 +66,18 @@ import { MessageListView } from "./message/message-list-view";
 import { ThreadPlaygroundSkeleton } from "./misc/skeleton";
 import { TitleEditor, type TitleValidator } from "./misc/title-editor";
 import { ModelConfigEditor } from "./model/model-config-editor";
+import {
+  ProviderProfileSelectionProvider,
+  useGetProviderProfileId,
+  useProviderProfileSelections,
+} from "./model/provider-profile-selection-provider";
 import { SystemPromptEditor } from "./prompt/system-prompt-editor";
 import { RunHistoryListView } from "./run-history-list-view";
 import {
   RunRecoveryBanner,
   type ThreadRunRecoveryConfig,
 } from "./run-recovery-banner";
+import { createRuntimePromptFiles } from "./runtime-prompt-files";
 import {
   canRedo,
   canUndo,
@@ -70,7 +89,9 @@ import {
   useThreadStore,
   useThreadStoreActions,
 } from "./stores";
+import { ThreadCompactionDialog } from "./thread-compaction-dialog";
 import { ToolListView } from "./tool/tool-list-view";
+import { useToolExecutor } from "./tool/use-tool-executor";
 import { useShortcuts } from "./use-shortcuts";
 import { useThreadPlaygroundEvents } from "./use-thread-playground-events";
 import { listEnabledPromptVariableSkills } from "./variable/prompt-variable-skills";
@@ -97,16 +118,26 @@ export interface ThreadPlaygroundProps {
    * single handler per type), so a global run always targets the active tab.
    */
   active?: boolean;
+  /** Mount the visual workbench while keeping its owner and store alive. */
+  viewMounted?: boolean;
   /** The streaming transport used by runs (e.g. HTTP or Electrobun RPC). */
   transport?: AgentTransport;
   /** Runtime that owns this playground. Used to route tool calls. */
   runtimeId?: string;
+  /** Recreate only the thread store while preserving per-tab UI selections. */
+  storeKey?: string | number;
 
   onChange?: (thread: Thread) => void;
+  /** Persist and open a compacted clone instead of replacing this thread. */
+  onApplyCompaction?: (thread: Thread) => Promise<void>;
   onRenameTitle?: (title: string) => Promise<boolean>;
   validateTitle?: TitleValidator;
-  onStreamingStart?: () => void;
-  onStreamingEnd?: () => void;
+  onStreamingStart?: (runId: string) => boolean | void;
+  onStreamingEnd?: (runId: string) => void;
+  archiveRunSnapshot?: (
+    run: ThreadRunSnapshot & { id: string }
+  ) => Promise<ThreadRunReference>;
+  readRunSnapshot?: (snapshotRef: string) => Promise<ThreadSnapshot>;
   runRecovery?: ThreadRunRecoveryConfig;
 }
 
@@ -114,11 +145,15 @@ export function ThreadPlayground({
   loading,
   initialValue,
   className,
+  viewMounted = true,
   ...props
 }: Omit<ThreadPlaygroundProps, "initialValue"> & {
   loading?: boolean;
   initialValue?: Thread | null;
 }) {
+  if (!viewMounted && (loading || !initialValue)) {
+    return null;
+  }
   if (loading) {
     return <ThreadPlaygroundSkeleton className={className} />;
   }
@@ -129,21 +164,37 @@ export function ThreadPlayground({
     <_ThreadPlayground
       className={className}
       initialValue={initialValue}
+      viewMounted={viewMounted}
       {...props}
     />
   );
 }
 
-function _ThreadPlayground({
+function _ThreadPlayground({ storeKey, ...props }: ThreadPlaygroundProps) {
+  const providers = useModels();
+  const profileSelections = useProviderProfileSelections(providers);
+  return (
+    <ProviderProfileSelectionProvider value={profileSelections}>
+      <_ThreadPlaygroundStore key={storeKey} {...props} />
+    </ProviderProfileSelectionProvider>
+  );
+}
+
+function _ThreadPlaygroundStore({
   initialValue,
   transport,
   runtimeId,
+  onApplyCompaction,
+  viewMounted = true,
   onChange,
   onStreamingStart,
   onStreamingEnd,
+  archiveRunSnapshot,
+  readRunSnapshot,
   runRecovery,
   ...props
 }: ThreadPlaygroundProps) {
+  const [ownerRuntimeId] = useState(() => runtimeId ?? "local");
   // Keep live refs to the provider list and default model so the store can
   // resolve a thread's model (its own, else the default/first available) at
   // run/edit time without being recreated.
@@ -153,10 +204,12 @@ function _ThreadPlayground({
   const defaultModel = useDefaultModel();
   const defaultModelRef = useRef(defaultModel);
   defaultModelRef.current = defaultModel;
-  const { executeTool, toolExecutionPolicy, skills, files } =
-    useHostServices();
-  const [store] = useState(() =>
-    createThreadStore(initialValue, {
+  const getProfileId = useGetProviderProfileId();
+  const { skills, files, toolExecutionPolicy } = useHostServices();
+  const toolExecutor = useToolExecutor(ownerRuntimeId);
+  const [store] = useState(() => {
+    const promptFiles = createRuntimePromptFiles(files, ownerRuntimeId);
+    return createThreadStore(initialValue, {
       transport,
       resolveModel: (saved) =>
         resolveModelConfig(
@@ -164,28 +217,28 @@ function _ThreadPlayground({
           saved,
           defaultModelRef.current
         ),
-      supportsImageInput: (model) =>
-        providersRef.current
-          .find((provider) => provider.id === model.provider)
-          ?.models.find((candidate) => candidate.id === model.id)
-          ?.input.includes("image") ?? false,
       getAutoRunTools,
       getReactLoop,
-      runtimeId,
-      executeTool: executeTool
-        ? (tool, args) => executeTool(tool, args, { runtimeId })
-        : undefined,
+      getProfileId,
+      runtimeId: ownerRuntimeId,
+      executeTool: toolExecutor ?? undefined,
       canAutoExecuteTool: toolExecutionPolicy
-        ? (tool) => toolExecutionPolicy.canAutoExecute(tool)
+        ? (tool) =>
+            tool.type !== "plugin" && toolExecutionPolicy.canAutoExecute(tool)
         : undefined,
       maxAutoToolTurns: toolExecutionPolicy?.maxAutoTurns,
       maxAutoToolCalls: toolExecutionPolicy?.maxAutoToolCalls,
-      loadSkills: () => listEnabledPromptVariableSkills(skills, { runtimeId }),
-      loadFile: (path) => files.readText(path),
-      fileExists: (path) => files.exists(path),
+      loadSkills: () =>
+        listEnabledPromptVariableSkills(skills, {
+          runtimeId: ownerRuntimeId,
+        }),
+      loadFile: promptFiles.loadFile,
+      fileExists: promptFiles.fileExists,
+      archiveRunSnapshot,
+      readRunSnapshot,
       captureRunResults: Boolean(runRecovery),
-    })
-  );
+    });
+  });
   useThreadPlaygroundEvents(store, {
     onChange,
     onStreamingStart,
@@ -193,11 +246,14 @@ function _ThreadPlayground({
   });
   return (
     <ThreadStoreContext.Provider value={store}>
-      <ThreadPlaygroundContent
-        runtimeId={runtimeId}
-        runRecovery={runRecovery}
-        {...props}
-      />
+      {viewMounted ? (
+        <ThreadPlaygroundContent
+          runtimeId={ownerRuntimeId}
+          onApplyCompaction={onApplyCompaction}
+          runRecovery={runRecovery}
+          {...props}
+        />
+      ) : null}
     </ThreadStoreContext.Provider>
   );
 }
@@ -211,6 +267,8 @@ function ThreadPlaygroundContent({
   title: titleFromProps,
   headerDetails,
   headerActions,
+  runtimeId,
+  onApplyCompaction,
   onRenameTitle,
   validateTitle,
   readonly: readonlyFromProps = false,
@@ -222,7 +280,6 @@ function ThreadPlaygroundContent({
   "initialValue" | "onChange" | "onStreamingStart" | "onStreamingEnd"
 >) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { toolExecutionPolicy } = useHostServices();
   const status = useThreadStore((s) => s.status);
   const lastRunResult = useThreadStore((s) => s.lastRunResult);
   const savedModel = useThreadStore((s) => s.thread.model);
@@ -231,6 +288,15 @@ function ThreadPlaygroundContent({
   const hasModel = Boolean(savedModel ?? fallbackModel);
   const undoable = useThreadStore((s) => canUndo(s.changeHistory));
   const redoable = useThreadStore((s) => canRedo(s.changeHistory));
+  const messages = useThreadStore((s) => s.thread.context?.messages ?? []);
+  const hasMetaUserPrompt = useThreadStore((s) =>
+    isMetaUserMessage(s.thread.context)
+  );
+  const canCompact = useMemo(
+    () =>
+      planCompaction(messages, 0, { hasMetaUserPrompt }).turnCount >= 2,
+    [hasMetaUserPrompt, messages]
+  );
   const { effectiveAutoRunTools, reactLoop, setAutoRunTools, setReactLoop } =
     useRunMode();
   const { run, abort, undo, redo, syncTitle, dismissRunResult } =
@@ -243,9 +309,9 @@ function ThreadPlaygroundContent({
   useEffect(() => {
     syncTitle(title);
   }, [syncTitle, title]);
-  const { presentational } = useHostServices();
+  const { presentational, generator, toolExecutionPolicy } = useHostServices();
   const readonly = useMemo(() => {
-    return readonlyFromProps || presentational || status === "running";
+    return readonlyFromProps || presentational || status !== "idle";
   }, [readonlyFromProps, presentational, status]);
   const handleRun = useCallback(async () => {
     await run();
@@ -257,7 +323,7 @@ function ThreadPlaygroundContent({
   useEffect(() => {
     if (!active) return;
     return actions.registerRunThread(() => {
-      if (status !== "running") void run();
+      if (status === "idle") void run();
     });
   }, [actions, active, run, status]);
   const handleStop = useCallback(() => {
@@ -281,6 +347,8 @@ function ThreadPlaygroundContent({
   }, [lastRunResult, runRecovery]);
   const runHistoryPanelRef = usePanelRef();
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [compactDialogOpen, setCompactDialogOpen] = useState(false);
+  const [generateProjectOpen, setGenerateProjectOpen] = useState(false);
   const toggleHistory = useCallback(() => {
     const panel = runHistoryPanelRef.current;
     if (!panel) {
@@ -353,32 +421,70 @@ function ThreadPlaygroundContent({
                   <Redo2Icon className="size-4" />
                 </Button>
               </Tooltip>
-              <Tooltip content="View run history">
-                <Button
-                  variant="ghost"
-                  size="icon-lg"
-                  aria-label={
-                    historyOpen ? "Hide run history" : "View run history"
-                  }
-                  aria-expanded={historyOpen}
-                  disabled={status === "running"}
-                  onClick={toggleHistory}
-                >
-                  <HistoryIcon className="size-4" />
-                </Button>
-              </Tooltip>
-              <Tooltip content="Share thread">
-                <Button
-                  variant="ghost"
-                  size="icon-lg"
-                  aria-label="Share thread"
-                  disabled={status === "running"}
-                  onClick={() => actions.shareThread(path)}
-                >
-                  <Share2Icon className="size-4" />
-                </Button>
-              </Tooltip>
-              <GenerateProjectButton disabled={status === "running"} />
+              <DropdownMenu>
+                <Tooltip content="More actions">
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-lg"
+                      aria-label="More actions"
+                    >
+                      <EllipsisIcon className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </Tooltip>
+                <DropdownMenuContent align="end" className="min-w-52">
+                  <DropdownMenuItem
+                    disabled={status !== "idle"}
+                    onSelect={toggleHistory}
+                  >
+                    <HistoryIcon />
+                    {historyOpen ? "Hide Run History" : "View Run History"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={status !== "idle" || !canCompact}
+                    onSelect={() => setCompactDialogOpen(true)}
+                  >
+                    <FileArchiveIcon />
+                    Compact Conversation
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={status !== "idle" || !hasModel || !generator}
+                    onSelect={() => setGenerateProjectOpen(true)}
+                  >
+                    <SparklesIcon />
+                    <span className="flex-1">Generate Project</span>
+                    <span className="bg-primary/15 text-primary rounded px-1.5 py-0.5 text-[0.625rem] font-semibold tracking-wide uppercase">
+                      Beta
+                    </span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    disabled={status !== "idle"}
+                    onSelect={() =>
+                      actions.shareThread(
+                        createShareThreadAction(path, runtimeId)
+                      )
+                    }
+                  >
+                    <Share2Icon />
+                    Share Thread
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <GenerateProjectButton
+                disabled={status !== "idle"}
+                open={generateProjectOpen}
+                onOpenChange={setGenerateProjectOpen}
+                showTrigger={false}
+              />
+              <ThreadCompactionDialog
+                disabled={status !== "idle"}
+                open={compactDialogOpen}
+                onOpenChange={setCompactDialogOpen}
+                onApplyCompaction={onApplyCompaction}
+                showTrigger={false}
+              />
             </div>
             <div className="flex items-center gap-1 px-3">
               <ButtonGroup
@@ -392,10 +498,9 @@ function ThreadPlaygroundContent({
                     <div>
                       {status === "running"
                         ? "Stop running"
-                        : "Run this thread"}
-                      <KbdGroup>
-                        <Kbd className="text-foreground!">⌘ Enter</Kbd>
-                      </KbdGroup>
+                        : status === "preparing"
+                          ? "Preparing thread"
+                          : "Run this thread"}
                     </div>
                   }
                 >
@@ -404,28 +509,39 @@ function ThreadPlaygroundContent({
                     aria-label={
                       status === "running"
                         ? "Stop running thread"
-                        : "Run thread"
+                        : status === "preparing"
+                          ? "Preparing thread"
+                          : "Run thread"
                     }
                     disabled={
-                      readonlyFromProps || (status !== "running" && !hasModel)
+                      readonlyFromProps ||
+                      status === "preparing" ||
+                      (status === "idle" && !hasModel)
                     }
                     onClick={status === "running" ? handleStop : handleRun}
                   >
-                    {status === "running" ? (
+                    {status !== "idle" ? (
                       <Spinner className="size-3" />
                     ) : (
                       <PlayIcon className="size-3" />
                     )}
-                    {status === "running" ? "Stop" : "Run"}
+                    {status === "running"
+                      ? "Stop"
+                      : status === "preparing"
+                        ? "Preparing"
+                        : "Run"}
                   </Button>
                 </Tooltip>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
-                      className="border-none pr-1.5 pl-0.5 active:translate-y-0!"
+                      className={cn(
+                        "border-none pr-1.5 pl-0.5 active:translate-y-0!",
+                        status === "running" && "disabled:opacity-100"
+                      )}
                       aria-label="Run settings"
                       disabled={
-                        readonlyFromProps || (status !== "running" && !hasModel)
+                        readonlyFromProps || status !== "idle" || !hasModel
                       }
                     >
                       <ChevronDownIcon className="size-3" />
@@ -540,6 +656,7 @@ function ThreadPlaygroundContent({
               <MessageListView
                 readonly={readonly}
                 compactImages={compactImages}
+                measurementsFrozen={!active && !presentational}
               />
             </ResizablePanel>
           </ResizablePanelGroup>
