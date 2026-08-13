@@ -93,7 +93,7 @@
 
 ## Agent 学习导师与页面协作
 
-- 状态：Phase 0 已在本地完成并通过真实浏览器验收，等待腾讯云发布；完整主动辅导与 Weather 学习闭环仍未实现
+- 状态：Phase 0 已提交、推送并部署到腾讯云 Hosted Alpha，线上真实浏览器验收完成；完整主动辅导与 Weather 学习闭环仍未实现
 - 新鲜度：confirmed
 - 最后检查：2026-08-13
 - 证据：
@@ -106,6 +106,9 @@
   - Variables 通过现有 HostServices 业务桥打开；Run 通过 AG-UI Interrupt 暂停并要求显式确认，确认后才调用当前工作台注册的 Run 命令。取消分支不消耗工作台 Run。
   - 本地 Chromium 已验证桌面和 390px 窄屏、解释/高亮、Variables、Run 取消与确认、确认后仅消耗一次额度、无横向溢出；证据位于 `output/playwright/agent-learning-copilot-phase0/`。
   - 23 个直接相关测试、changed lint/typecheck、Guest Web 构建和 Guest API 打包通过；全仓 Windows 测试 803 通过、1 跳过、25 个既有平台相关失败，不能宣称全仓测试全绿。
+  - 功能提交 `89f23e6` 对应腾讯云发布 `20260813-143211-89f23e6d60f2`；服务 active，Web/API 软链接一致，Nginx 检查通过。
+  - 线上全新 Chrome 已验证快捷解释和 Variables 不消耗额度；开放问题真实流式返回非空中文答案且额度 `20/20 → 19/20`；Run 取消不消耗额度，确认后恰好 `19/20 → 18/20` 并生成天气工具调用与 Run history。
+  - 线上 390×844 下文档滚动宽高与视口一致，无页面溢出；全部 Coach/Run 网络请求为 200，控制台 0 error / 0 warning。
 - 能力边界：Phase 0 已能按需解释已注册页面元素、回答开放 Agent 学习问题、执行 Variables 低风险动作，并对 Run 实施确认后执行；其余页面行为默认拒绝。
 - 明确非目标：不让模型直接执行任意 JavaScript、查询任意 DOM 选择器、模拟鼠标键盘、读取原始按键/鼠标轨迹、默认上传完整 Prompt/回答/图片/文件、绕过现有工具权限、自动执行删除/重置/Run 等高影响动作，也不把助手变成全站无边界自治代理。
 - 可见缺口：尚未建立学习事件总线、主动提示策略、学习进度与 Weather Track；生产北极星“首次 Agent 学习闭环完成率”仍无真实样本基线。CopilotKit React Core 尖峰确认 React 19 可装载，但生产入口与包体不适合 Phase 0，因此只保留 `@ag-ui/client` 和自有 UI。
