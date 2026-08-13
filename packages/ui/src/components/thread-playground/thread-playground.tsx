@@ -488,6 +488,7 @@ function ThreadPlaygroundContent({
             </div>
             <div className="flex items-center gap-1 px-3">
               <ButtonGroup
+                data-coach-element-id="run-settings"
                 className={cn(
                   "transition-transform active:translate-y-px",
                   readonlyFromProps && "hidden"
@@ -612,7 +613,10 @@ function ThreadPlaygroundContent({
             <ResizablePanel className="pb-3" defaultSize="50%" minSize="300px">
               <div className="flex size-full flex-col">
                 <div className="px-3">
-                  <div className={"flex w-full border-b py-2"}>
+                  <div
+                    data-coach-element-id="models"
+                    className={"flex w-full border-b py-2"}
+                  >
                     <div className="text-muted-foreground w-20 shrink-0 text-sm">
                       Models
                     </div>
@@ -620,7 +624,10 @@ function ThreadPlaygroundContent({
                       <ModelConfigEditor readonly={readonly} />
                     </div>
                   </div>
-                  <div className={"flex w-full border-b py-2"}>
+                  <div
+                    data-coach-element-id="tools"
+                    className={"flex w-full border-b py-2"}
+                  >
                     <div className="text-muted-foreground w-20 shrink-0 text-sm">
                       Tools
                     </div>
@@ -629,7 +636,10 @@ function ThreadPlaygroundContent({
                       <ToolListView readonly={readonly} />
                     </div>
                   </div>
-                  <div className={"flex w-full border-b py-2"}>
+                  <div
+                    data-coach-element-id="variables"
+                    className={"flex w-full border-b py-2"}
+                  >
                     <div className="text-muted-foreground w-20 shrink-0 text-sm">
                       Variables
                     </div>
@@ -642,7 +652,10 @@ function ThreadPlaygroundContent({
                     </div>
                   </div>
                 </div>
-                <div className="flex min-h-0 w-full grow flex-col">
+                <div
+                  data-coach-element-id="system-prompt"
+                  className="flex min-h-0 w-full grow flex-col"
+                >
                   <SystemPromptEditor
                     className="size-full min-h-0 px-3"
                     readonly={readonly}

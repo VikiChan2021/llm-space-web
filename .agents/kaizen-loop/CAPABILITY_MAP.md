@@ -91,6 +91,25 @@
 - 明确非目标：本能力本身不新增分享、登录、BYOK、团队协作、批量数据集、自动评审器、Bash、stdio MCP、Generator 或服务端 Thread 同步；游客可执行工具改由独立的“游客安全工具闭环 V1”能力承接。
 - 可见缺口：默认示例虽然已经展示工具调用，却不能让新访客一键获得最终答案；“首次完整答案—修改—第二次运行—检查/比较—保存评估”的渐进式闭环缺少界面内引导和可观测漏斗。历史图标可发现性及 Run history、Compare、Inspect、Evaluate 等流程中文化仍待处理。
 
+## Agent 学习导师与页面协作
+
+- 状态：Phase 0 已在本地完成并通过真实浏览器验收，等待腾讯云发布；完整主动辅导与 Weather 学习闭环仍未实现
+- 新鲜度：confirmed
+- 最后检查：2026-08-13
+- 证据：
+  - 线上全新浏览器首屏同时暴露 Models、Tools、Variables、System prompt、Run settings、Run history、案例与 Threads 等概念；现有“使用说明”会离开当前工作流打开文档，无法解释用户此刻聚焦的元素，也不会根据运行状态主动介入。
+  - `GuestWorkbench` 已增加懒加载“学习助手”sidecar；首屏不加载 AG-UI 客户端，打开助手后才加载约 48 KB gzip 的独立 chunk。
+  - `HostServices.actions` 已提供打开设置、变量、分享和注册 Run 等少量语义动作，桌面端还有强类型 Command 层；它们证明应扩展语义动作注册表，而不是让模型依赖 DOM 选择器或截图点击。
+  - Guest API 已增加独立 `/api/guest/coach` AG-UI SSE 适配：固定概念解释与受控动作不消耗额度，开放问题复用现有模型执行器、并发限制和每日额度。
+  - Phase 0 页面上下文只允许 Thread 标题、案例 ID、运行状态、模型 ID、工具数和消息数；不发送完整 Prompt、回答、图片、文件、工具结果或密钥。
+  - 页面端只识别注册的 `models`、`tools`、`variables`、`run-settings`、`system-prompt` 语义元素；模型不能提供任意 DOM 选择器、JavaScript 或鼠标键盘动作。
+  - Variables 通过现有 HostServices 业务桥打开；Run 通过 AG-UI Interrupt 暂停并要求显式确认，确认后才调用当前工作台注册的 Run 命令。取消分支不消耗工作台 Run。
+  - 本地 Chromium 已验证桌面和 390px 窄屏、解释/高亮、Variables、Run 取消与确认、确认后仅消耗一次额度、无横向溢出；证据位于 `output/playwright/agent-learning-copilot-phase0/`。
+  - 23 个直接相关测试、changed lint/typecheck、Guest Web 构建和 Guest API 打包通过；全仓 Windows 测试 803 通过、1 跳过、25 个既有平台相关失败，不能宣称全仓测试全绿。
+- 能力边界：Phase 0 已能按需解释已注册页面元素、回答开放 Agent 学习问题、执行 Variables 低风险动作，并对 Run 实施确认后执行；其余页面行为默认拒绝。
+- 明确非目标：不让模型直接执行任意 JavaScript、查询任意 DOM 选择器、模拟鼠标键盘、读取原始按键/鼠标轨迹、默认上传完整 Prompt/回答/图片/文件、绕过现有工具权限、自动执行删除/重置/Run 等高影响动作，也不把助手变成全站无边界自治代理。
+- 可见缺口：尚未建立学习事件总线、主动提示策略、学习进度与 Weather Track；生产北极星“首次 Agent 学习闭环完成率”仍无真实样本基线。CopilotKit React Core 尖峰确认 React 19 可装载，但生产入口与包体不适合 Phase 0，因此只保留 `@ag-ui/client` 和自有 UI。
+
 ## 游客 Prompt 辅助与多模态输入
 
 - 状态：已提交、推送并部署到腾讯云 Hosted Alpha，线上真实浏览器验收完成

@@ -27,7 +27,10 @@ import {
   GUEST_BUILTIN_TOOLS,
 } from "@/guest/guest-tools";
 
-import { createOpenVariablesBridge } from "./web-action-bridge";
+import {
+  createOpenVariablesBridge,
+  createRunThreadBridge,
+} from "./web-action-bridge";
 
 export const GUEST_WORKBENCH_ENABLED =
   import.meta.env.VITE_GUEST_WORKBENCH === "1";
@@ -35,6 +38,11 @@ export const GUEST_WORKBENCH_ENABLED =
 export const OPEN_GUEST_SETTINGS_EVENT = "llm-space:guest-open-settings";
 
 const openVariablesBridge = createOpenVariablesBridge();
+const runThreadBridge = createRunThreadBridge();
+
+export function requestGuestThreadRun(): boolean {
+  return runThreadBridge.run();
+}
 
 /** Unavailable in the display-only viewer; never called while presentational. */
 function unavailable(): never {
@@ -128,9 +136,7 @@ export const webHost: HostServices = {
     openVariables: (variableName) => openVariablesBridge.open(variableName),
     registerOpenVariables: (handler) =>
       openVariablesBridge.register(handler),
-    registerRunThread: () => () => {
-      /* nothing to unregister */
-    },
+    registerRunThread: (run) => runThreadBridge.register(run),
   },
 };
 

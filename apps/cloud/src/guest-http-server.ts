@@ -4,6 +4,13 @@ import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { AgentStreamRequest } from "@llm-space/core/types";
 
 import { readCookie, serializeCookie } from "./cookies";
+import {
+  createGuestCoachPlan,
+  GuestCoachRequestError,
+  readGuestCoachRequest,
+  streamGuestCoachModelEvents,
+  type GuestCoachEvent,
+} from "./guest-coach";
 import type { GuestCloudConfig } from "./guest-config";
 import {
   createGuestModelProvider,
@@ -214,6 +221,72 @@ export function createGuestFetchHandler(
             : undefined,
         });
       }
+      if (request.method === "POST" && url.pathname === "/api/guest/coach") {
+        _assertSameOrigin(request, dependencies.config.publicUrl);
+        _assertJsonRequest(request);
+        const input = await readGuestCoachRequest(request);
+        const identity = _guestIdentity(request, dependencies.config);
+        const plan = createGuestCoachPlan(input, dependencies.config.modelId);
+
+        if (plan.kind === "shortcut") {
+          const response = _streamCoachResponse(
+            plan.events,
+            requestId
+          );
+          if (identity.setCookie) {
+            response.headers.append("Set-Cookie", identity.setCookie);
+          }
+          return response;
+        }
+
+        const guestHash = dependencies.quotaStore.hashIdentity(
+          "guest",
+          identity.id
+        );
+        const active = activeRuns.get(guestHash) ?? 0;
+        if (active >= dependencies.config.maxConcurrentPerGuest) {
+          throw new GuestHttpError(
+            429,
+            "guest_concurrency_limit",
+            "当前已有一次模型运行，请先停止或等待它完成。"
+          );
+        }
+        const quota = dependencies.quotaStore.consume({
+          guestId: identity.id,
+          ip: _sourceIp(request, dependencies.config),
+          now: now(),
+          browserDailyLimit: dependencies.config.browserDailyLimit,
+          ipDailyLimit: dependencies.config.ipDailyLimit,
+        });
+        if (!quota.allowed) {
+          throw new GuestHttpError(
+            429,
+            "guest_daily_limit",
+            "今日免费体验额度已用完。核心页面解释和受控快捷操作仍可继续使用。",
+            quota
+          );
+        }
+
+        activeRuns.set(guestHash, active + 1);
+        const response = _streamCoachResponse(
+          streamGuestCoachModelEvents(
+            input,
+            dependencies.execute(plan.request, request.signal)
+          ),
+          requestId,
+          () => {
+            const next = (activeRuns.get(guestHash) ?? 1) - 1;
+            if (next <= 0) activeRuns.delete(guestHash);
+            else activeRuns.set(guestHash, next);
+          },
+          quota,
+          dependencies.config
+        );
+        if (identity.setCookie) {
+          response.headers.append("Set-Cookie", identity.setCookie);
+        }
+        return response;
+      }
       if (request.method === "POST" && url.pathname === "/api/guest/runs") {
         _assertSameOrigin(request, dependencies.config.publicUrl);
         _assertJsonRequest(request);
@@ -279,6 +352,8 @@ export function createGuestFetchHandler(
       const known =
         error instanceof GuestHttpError
           ? error
+          : error instanceof GuestCoachRequestError
+            ? new GuestHttpError(error.status, error.code, error.message)
           : error instanceof GuestToolError
             ? new GuestHttpError(error.status, error.code, error.message)
           : new GuestHttpError(
@@ -746,6 +821,65 @@ function _streamResponse(
   headers.set("X-Accel-Buffering", "no");
   headers.set("X-Request-Id", requestId);
   _setQuotaHeaders(headers, quota, config);
+  return new Response(body, { headers });
+}
+
+function _streamCoachResponse(
+  events: Iterable<GuestCoachEvent> | AsyncIterable<GuestCoachEvent>,
+  requestId: string,
+  release?: () => void,
+  quota?: GuestQuotaDecision,
+  config?: GuestCloudConfig
+): Response {
+  const encoder = new TextEncoder();
+  let released = false;
+  let cancelled = false;
+  const finish = () => {
+    if (released) return;
+    released = true;
+    release?.();
+  };
+  const body = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        for await (const event of events) {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
+          );
+        }
+        controller.close();
+      } catch (error) {
+        if (cancelled) return;
+        console.error(
+          "Guest coach stream failed.",
+          requestId,
+          error instanceof Error ? error.name : "UnknownError"
+        );
+        controller.enqueue(
+          encoder.encode(
+            `data: ${JSON.stringify({
+              type: "RUN_ERROR",
+              message: "学习助手暂时无法回答，请稍后重试。",
+              code: "coach_model_unavailable",
+            })}\n\n`
+          )
+        );
+        controller.close();
+      } finally {
+        finish();
+      }
+    },
+    cancel() {
+      cancelled = true;
+      finish();
+    },
+  });
+  const headers = _securityHeaders();
+  headers.set("Content-Type", "text/event-stream; charset=utf-8");
+  headers.set("Connection", "keep-alive");
+  headers.set("X-Accel-Buffering", "no");
+  headers.set("X-Request-Id", requestId);
+  if (quota && config) _setQuotaHeaders(headers, quota, config);
   return new Response(body, { headers });
 }
 

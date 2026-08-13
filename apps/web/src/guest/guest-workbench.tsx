@@ -14,17 +14,31 @@ import {
 } from "@llm-space/ui/ui/popover";
 import {
   CircleHelpIcon,
+  BotIcon,
   InfoIcon,
   LibraryIcon,
   RotateCcwIcon,
   SettingsIcon,
   SparklesIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 
-import { OPEN_GUEST_SETTINGS_EVENT, webHost } from "@/host/web-host";
+import {
+  OPEN_GUEST_SETTINGS_EVENT,
+  requestGuestThreadRun,
+  webHost,
+} from "@/host/web-host";
 
+import type { LearningCoachContext } from "./coach/learning-coach";
 import {
   createGuestTransport,
   readGuestQuota,
@@ -62,6 +76,8 @@ import {
   type GuestWorkspaceStorage,
 } from "./guest-workspace";
 
+const LearningCoach = lazy(() => import("./coach/learning-coach"));
+
 const BROWSER_WORKSPACE_FACTORY: GuestWorkspaceFactory = {
   createId: () => crypto.randomUUID(),
   now: () => new Date().toISOString(),
@@ -96,6 +112,8 @@ export function GuestWorkbench() {
   const [mcpSettingsOpen, setMcpSettingsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exampleDialogOpen, setExampleDialogOpen] = useState(false);
+  const [coachLoaded, setCoachLoaded] = useState(false);
+  const [coachOpen, setCoachOpen] = useState(false);
   const [creatingExample, setCreatingExample] = useState(false);
   const [settingsTab, setSettingsTab] =
     useState<GuestSettingsTab>("appearance");
@@ -252,6 +270,19 @@ export function GuestWorkbench() {
       }
     },
     [commitWorkspace, creatingExample, defaultModel, guestHost, running]
+  );
+  const coachContext = useMemo<LearningCoachContext>(
+    () => ({
+      page: "guest-workbench",
+      activeThreadTitle: activeRecord.thread.title || "未命名 Thread",
+      starterId: activeRecord.starterId ?? null,
+      running,
+      selectedModel:
+        activeRecord.thread.model?.id ?? defaultModel?.id ?? "glm-4.5-air",
+      toolCount: activeRecord.thread.context?.tools?.length ?? 0,
+      messageCount: activeRecord.thread.context?.messages?.length ?? 0,
+    }),
+    [activeRecord, defaultModel?.id, running]
   );
   const handleSelect = useCallback(
     (recordId: string) => {
@@ -417,6 +448,20 @@ export function GuestWorkbench() {
                 : "正在读取额度…"}
           </div>
           <Button
+            data-coach-element-id="learning-coach"
+            variant={coachOpen ? "secondary" : "outline"}
+            size="sm"
+            aria-label="打开 Agent 学习助手"
+            aria-expanded={coachOpen}
+            onClick={() => {
+              setCoachLoaded(true);
+              setCoachOpen(true);
+            }}
+          >
+            <BotIcon className="size-3.5" />
+            <span className="hidden lg:inline">学习助手</span>
+          </Button>
+          <Button
             variant="outline"
             size="sm"
             aria-label="打开使用说明"
@@ -553,6 +598,18 @@ export function GuestWorkbench() {
         confirmLabel="重置"
         onConfirm={() => void handleReset()}
       />
+      {coachLoaded ? (
+        <Suspense fallback={null}>
+          <LearningCoach
+            open={coachOpen}
+            context={coachContext}
+            onOpenChange={setCoachOpen}
+            onOpenVariables={() => guestHost.actions.openVariables()}
+            onRequestRun={() => !running && requestGuestThreadRun()}
+            onRunCompleted={() => void refreshQuota()}
+          />
+        </Suspense>
+      ) : null}
       </div>
     </HostServicesProvider>
   );

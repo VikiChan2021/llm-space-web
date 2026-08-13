@@ -154,6 +154,10 @@ export async function readGuestQuota(): Promise<GuestQuota> {
   return response.json() as Promise<GuestQuota>;
 }
 
+export function guestCoachApiUrl(): string {
+  return _apiUrl("api/guest/coach");
+}
+
 export function createGuestTransport(
   onQuotaChanged: (quota: GuestQuota | null) => void
 ): AgentTransport {

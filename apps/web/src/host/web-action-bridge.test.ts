@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import { createOpenVariablesBridge } from "./web-action-bridge";
+import {
+  createOpenVariablesBridge,
+  createRunThreadBridge,
+} from "./web-action-bridge";
 
 describe("Web Variables 动作桥", () => {
   test("把芯片和 Add 请求转发给当前活动工作台", () => {
@@ -27,5 +30,24 @@ describe("Web Variables 动作桥", () => {
     bridge.open();
 
     expect(received).toEqual(["new"]);
+  });
+});
+
+describe("Web Run 动作桥", () => {
+  test("只运行当前活动工作台处理器", () => {
+    const bridge = createRunThreadBridge();
+    let firstRuns = 0;
+    let secondRuns = 0;
+    const unregisterFirst = bridge.register(() => firstRuns++);
+    const unregisterSecond = bridge.register(() => secondRuns++);
+
+    expect(bridge.run()).toBe(true);
+    expect(firstRuns).toBe(0);
+    expect(secondRuns).toBe(1);
+
+    unregisterFirst();
+    expect(bridge.run()).toBe(true);
+    unregisterSecond();
+    expect(bridge.run()).toBe(false);
   });
 });

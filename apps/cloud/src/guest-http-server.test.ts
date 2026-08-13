@@ -93,7 +93,12 @@ describe("guest HTTP API", () => {
       yield { type: "agent_start" };
     };
     const quotaStore = new GuestQuotaStore(":memory:", CONFIG.hmacSecret);
-    const handler = createGuestFetchHandler({ config: CONFIG, quotaStore, execute });
+    const handler = createGuestFetchHandler({
+      config: CONFIG,
+      quotaStore,
+      execute,
+      now: () => new Date("2026-07-29T12:00:00.000Z"),
+    });
 
     const accepted = await handler(
       _runRequest(GUEST_ID, CONFIG.publicUrl.origin, "hello", [], "glm-4.6v")
@@ -512,6 +517,183 @@ describe("guest HTTP API", () => {
     expect(body).not.toContain(CONFIG.apiKey);
     quotaStore.close();
   });
+
+  test("streams registered coach explanations without consuming model quota", async () => {
+    let executed = false;
+    const execute: GuestModelExecutor = async function* () {
+      executed = true;
+      yield { type: "agent_end", messages: [] };
+    };
+    const quotaStore = new GuestQuotaStore(":memory:", CONFIG.hmacSecret);
+    const handler = createGuestFetchHandler({
+      config: CONFIG,
+      quotaStore,
+      execute,
+      now: () => new Date("2026-07-29T12:00:00.000Z"),
+    });
+
+    const response = await handler(_coachRequest("解释 Models"));
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/event-stream");
+    expect(body).toContain('"type":"RUN_STARTED"');
+    expect(body).toContain('"toolCallName":"highlight_element"');
+    expect(body).toContain('\\"elementId\\":\\"models\\"');
+    expect(body).toContain('"type":"RUN_FINISHED"');
+    expect(executed).toBe(false);
+    expect(
+      quotaStore.read(
+        GUEST_ID,
+        "1.2.3.4",
+        new Date("2026-07-29T12:00:00.000Z"),
+        CONFIG.browserDailyLimit,
+        CONFIG.ipDailyLimit
+      ).browserRemaining
+    ).toBe(CONFIG.browserDailyLimit);
+    quotaStore.close();
+  });
+
+  test("pauses coach Run actions and emits the command only after approval", async () => {
+    const quotaStore = new GuestQuotaStore(":memory:", CONFIG.hmacSecret);
+    const handler = createGuestFetchHandler({
+      config: CONFIG,
+      quotaStore,
+      execute: _completedExecutor,
+    });
+
+    const interrupted = await handler(_coachRequest("运行当前 Thread", "run-1"));
+    const interruptedBody = await interrupted.text();
+    expect(interruptedBody).toContain('"type":"interrupt"');
+    expect(interruptedBody).toContain('"action":"request_run"');
+    expect(interruptedBody).not.toContain('"toolCallName":"request_run"');
+
+    const resumed = await handler(
+      _coachRequest("运行当前 Thread", "run-2", [
+        {
+          interruptId: "run-current-thread:run-1",
+          status: "resolved",
+          payload: { approved: true },
+        },
+      ])
+    );
+    const resumedBody = await resumed.text();
+    expect(resumedBody).toContain('"toolCallName":"request_run"');
+    expect(resumedBody).toContain('"outcome":{"type":"success"}');
+    quotaStore.close();
+  });
+
+  test("keeps conceptual run questions in the explanatory model path", async () => {
+    let executed = false;
+    const execute: GuestModelExecutor = async function* () {
+      executed = true;
+      yield { type: "agent_end", messages: [] };
+    };
+    const quotaStore = new GuestQuotaStore(":memory:", CONFIG.hmacSecret);
+    const handler = createGuestFetchHandler({
+      config: CONFIG,
+      quotaStore,
+      execute,
+    });
+
+    const response = await handler(_coachRequest("Agent 的运行机制是什么？"));
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).not.toContain('"type":"interrupt"');
+    expect(executed).toBe(true);
+    quotaStore.close();
+  });
+
+  test("accepts the AG-UI assistant tool-call message on a follow-up", async () => {
+    const quotaStore = new GuestQuotaStore(":memory:", CONFIG.hmacSecret);
+    const handler = createGuestFetchHandler({
+      config: CONFIG,
+      quotaStore,
+      execute: _completedExecutor,
+    });
+    const request = _coachRequest("打开 Variables");
+    const payload = (await request.json()) as Record<string, unknown>;
+    payload.messages = [
+      { id: "user-1", role: "user", content: "解释 Models" },
+      {
+        id: "assistant-tool-1",
+        role: "assistant",
+        toolCalls: [
+          {
+            id: "call-1",
+            type: "function",
+            function: {
+              name: "highlight_element",
+              arguments: '{"elementId":"models"}',
+            },
+          },
+        ],
+      },
+      { id: "user-2", role: "user", content: "打开 Variables" },
+    ];
+    const response = await handler(
+      new Request(request.url, {
+        method: request.method,
+        headers: request.headers,
+        body: JSON.stringify(payload),
+      })
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain('"toolCallName":"open_variables"');
+    quotaStore.close();
+  });
+
+  test("uses the existing model executor for open coach questions", async () => {
+    let systemPrompt = "";
+    const execute: GuestModelExecutor = async function* (request) {
+      systemPrompt = request.context.systemPrompt ?? "";
+      yield {
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "先观察 Trace，再修改一个变量。" }],
+          api: "openai-completions",
+          provider: "bigmodel",
+          model: "glm-4.5-air",
+          usage: {
+            input: 1,
+            output: 1,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: 2,
+            cost: {
+              input: 0,
+              output: 0,
+              cacheRead: 0,
+              cacheWrite: 0,
+              total: 0,
+            },
+          },
+          stopReason: "stop",
+          timestamp: Date.now(),
+        },
+      };
+      yield { type: "agent_end", messages: [] };
+    };
+    const quotaStore = new GuestQuotaStore(":memory:", CONFIG.hmacSecret);
+    const handler = createGuestFetchHandler({ config: CONFIG, quotaStore, execute });
+
+    const response = await handler(_coachRequest("怎样调试一个 Agent？"));
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("X-Guest-Quota-Remaining")).toBe(
+      String(CONFIG.browserDailyLimit - 1)
+    );
+    expect(body).toContain('"type":"TEXT_MESSAGE_CONTENT"');
+    expect(body).toContain("先观察 Trace，再修改一个变量。");
+    expect(systemPrompt).toContain("页面动作只由前端白名单注册表执行");
+    expect(systemPrompt).not.toContain("rawPrompt");
+    quotaStore.close();
+  });
 });
 
 async function* _completedExecutor(): AsyncIterable<AgentEvent> {
@@ -548,6 +730,46 @@ function _runRequest(
           },
         ],
       },
+    }),
+  });
+}
+
+function _coachRequest(
+  message: string,
+  runId = "coach-run",
+  resume?: Record<string, unknown>[]
+): Request {
+  return new Request("http://internal/api/guest/coach", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: CONFIG.publicUrl.origin,
+      Cookie: `llm_space_guest=${GUEST_ID}`,
+      "X-Real-IP": "1.2.3.4",
+    },
+    body: JSON.stringify({
+      threadId: "coach-thread",
+      runId,
+      state: {},
+      messages: [{ id: `message:${runId}`, role: "user", content: message }],
+      tools: [],
+      context: [
+        {
+          description: "llm-space guest workbench context",
+          value: JSON.stringify({
+            page: "guest-workbench",
+            activeThreadTitle: "查询天气",
+            starterId: "weather",
+            running: false,
+            selectedModel: "glm-4.5-air",
+            toolCount: 3,
+            messageCount: 1,
+            rawPrompt: "must not leave the browser",
+          }),
+        },
+      ],
+      forwardedProps: {},
+      ...(resume ? { resume } : {}),
     }),
   });
 }

@@ -11,6 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ag-ui/client": "0.0.57",
     "@codemirror/autocomplete": "6.20.3",
     "@codemirror/language": "6.12.4",
     "@codemirror/state": "6.7.1",
