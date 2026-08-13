@@ -52,7 +52,13 @@ const VERDICT_LABELS: Record<EvaluationRecord["verdict"], string> = {
   fail: "Fail",
 };
 
-function _RunHistoryListView({ onClose }: { onClose: () => void }) {
+function _RunHistoryListView({
+  onClose,
+  onComparisonOpen,
+}: {
+  onClose: () => void;
+  onComparisonOpen?: () => void;
+}) {
   const [containerRef] = useAutoAnimation();
   const runHistory = useThreadStore((s) => s.runHistory);
   const evaluations = useThreadStore((s) => s.evaluations);
@@ -165,6 +171,7 @@ function _RunHistoryListView({ onClose }: { onClose: () => void }) {
         const loaded = await Promise.all(entries.map(loadRunSnapshot));
         setComparisonRuns([loaded[0], loaded[1]]);
         setEvaluationOpen(true);
+        onComparisonOpen?.();
       } catch (error) {
         toast.error("Failed to load run snapshots", {
           description:
@@ -174,7 +181,7 @@ function _RunHistoryListView({ onClose }: { onClose: () => void }) {
         setComparisonLoading(false);
       }
     },
-    [loadRunSnapshot]
+    [loadRunSnapshot, onComparisonOpen]
   );
   const openEvaluation = useCallback(
     (leftRunId: string, rightRunId: string) => {

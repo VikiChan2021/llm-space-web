@@ -93,9 +93,9 @@
 
 ## Agent 学习导师与页面协作
 
-- 状态：Phase 0 已提交、推送并部署到腾讯云 Hosted Alpha，线上真实浏览器验收完成；完整主动辅导与 Weather 学习闭环仍未实现
+- 状态：Weather Learning Track V1 已实现，等待提交、腾讯云部署与线上真实浏览器验收
 - 新鲜度：confirmed
-- 最后检查：2026-08-13
+- 最后检查：2026-08-14
 - 证据：
   - 线上全新浏览器首屏同时暴露 Models、Tools、Variables、System prompt、Run settings、Run history、案例与 Threads 等概念；现有“使用说明”会离开当前工作流打开文档，无法解释用户此刻聚焦的元素，也不会根据运行状态主动介入。
   - `GuestWorkbench` 已增加懒加载“学习助手”sidecar；首屏不加载 AG-UI 客户端，打开助手后才加载约 48 KB gzip 的独立 chunk。
@@ -109,9 +109,12 @@
   - 功能提交 `89f23e6` 对应腾讯云发布 `20260813-143211-89f23e6d60f2`；服务 active，Web/API 软链接一致，Nginx 检查通过。
   - 线上全新 Chrome 已验证快捷解释和 Variables 不消耗额度；开放问题真实流式返回非空中文答案且额度 `20/20 → 19/20`；Run 取消不消耗额度，确认后恰好 `19/20 → 18/20` 并生成天气工具调用与 Run history。
   - 线上 390×844 下文档滚动宽高与视口一致，无页面溢出；全部 Coach/Run 网络请求为 200，控制台 0 error / 0 warning。
-- 能力边界：Phase 0 已能按需解释已注册页面元素、回答开放 Agent 学习问题、执行 Variables 低风险动作，并对 Run 实施确认后执行；其余页面行为默认拒绝。
+  - Weather Learning Track V1 新增独立版本化本地状态机与 6 步任务卡，串联 Tool/ReAct、两次真实 Run、天气 Tool trace、修改输入、Run Compare 与结构化复盘；刷新可恢复，暂停/重置不改 Thread。
+  - Track 只接收 Run 数量、天气工具调用/完成/待处理数量、输入是否变化、运行状态、历史/Compare 是否打开等内容无关摘要；analytics 白名单不含 Thread ID、Prompt、回答、城市或工具参数/结果。
+  - 主动提示仅在用户已开始 Track、步骤边界、页面空闲且无 Dialog 时触发，每会话最多 3 次、至少间隔 90 秒，并提供稍后/暂停。
+- 能力边界：Phase 0 按需问答与受控动作继续保留；Weather Track V1 仅能驱动当前天气案例的学习闭环，Run 仍要求 Interrupt 确认，第二次输入必须由用户亲手修改。
 - 明确非目标：不让模型直接执行任意 JavaScript、查询任意 DOM 选择器、模拟鼠标键盘、读取原始按键/鼠标轨迹、默认上传完整 Prompt/回答/图片/文件、绕过现有工具权限、自动执行删除/重置/Run 等高影响动作，也不把助手变成全站无边界自治代理。
-- 可见缺口：尚未建立学习事件总线、主动提示策略、学习进度与 Weather Track；生产北极星“首次 Agent 学习闭环完成率”仍无真实样本基线。CopilotKit React Core 尖峰确认 React 19 可装载，但生产入口与包体不适合 Phase 0，因此只保留 `@ag-ui/client` 和自有 UI。
+- 可见缺口：生产北极星“首次 Agent 学习闭环完成率”仍无真实样本基线；需完成本地/线上验收并上线采样。Deep Research Track、跨设备进度、更多语义动作与策略校准仍未实现。CopilotKit React Core 尖峰确认 React 19 可装载，但当前仍保留 `@ag-ui/client` 和自有 UI。
 
 ## 游客 Prompt 辅助与多模态输入
 

@@ -579,6 +579,13 @@ describe("guest HTTP API", () => {
     );
     const resumedBody = await resumed.text();
     expect(resumedBody).toContain('"toolCallName":"request_run"');
+
+    const rerunInterrupted = await handler(
+      _coachRequest("从第一条用户消息运行当前 Thread", "run-3")
+    );
+    expect(await rerunInterrupted.text()).toContain(
+      '"action":"request_run"'
+    );
     expect(resumedBody).toContain('"outcome":{"type":"success"}');
     quotaStore.close();
   });

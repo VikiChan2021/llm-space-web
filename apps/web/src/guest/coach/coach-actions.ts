@@ -4,6 +4,7 @@ export const COACH_ELEMENT_IDS = [
   "variables",
   "run-settings",
   "system-prompt",
+  "message-input",
 ] as const;
 
 export type CoachElementId = (typeof COACH_ELEMENT_IDS)[number];

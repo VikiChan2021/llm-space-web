@@ -134,12 +134,22 @@ export interface ThreadPlaygroundProps {
   validateTitle?: TitleValidator;
   onStreamingStart?: (runId: string) => boolean | void;
   onStreamingEnd?: (runId: string) => void;
+  /** A monotonic request token used by guided-learning hosts to open Run history. */
+  openRunHistoryRequest?: number;
+  /** Run from a known semantic message after an external confirmation flow. */
+  runFromMessageRequest?: { token: number; messageId: string } | null;
+  /** Content-free learning signals emitted after the user opens history/compare. */
+  onLearningEvent?: (event: ThreadPlaygroundLearningEvent) => void;
   archiveRunSnapshot?: (
     run: ThreadRunSnapshot & { id: string }
   ) => Promise<ThreadRunReference>;
   readRunSnapshot?: (snapshotRef: string) => Promise<ThreadSnapshot>;
   runRecovery?: ThreadRunRecoveryConfig;
 }
+
+export type ThreadPlaygroundLearningEvent =
+  | { type: "run_history_opened" }
+  | { type: "run_comparison_opened" };
 
 export function ThreadPlayground({
   loading,
@@ -275,6 +285,9 @@ function ThreadPlaygroundContent({
   active = false,
   compactImages = false,
   runRecovery,
+  openRunHistoryRequest,
+  runFromMessageRequest,
+  onLearningEvent,
 }: Omit<
   ThreadPlaygroundProps,
   "initialValue" | "onChange" | "onStreamingStart" | "onStreamingEnd"
@@ -363,6 +376,22 @@ function ThreadPlaygroundContent({
   const closeHistory = useCallback(() => {
     runHistoryPanelRef.current?.collapse();
   }, [runHistoryPanelRef]);
+  useEffect(() => {
+    if (!openRunHistoryRequest) return;
+    runHistoryPanelRef.current?.resize(RUN_HISTORY_PANEL_SIZE);
+    onLearningEvent?.({ type: "run_history_opened" });
+  }, [onLearningEvent, openRunHistoryRequest, runHistoryPanelRef]);
+  const handledRunFromMessageTokenRef = useRef(0);
+  useEffect(() => {
+    if (
+      !runFromMessageRequest ||
+      runFromMessageRequest.token === handledRunFromMessageTokenRef.current
+    ) {
+      return;
+    }
+    handledRunFromMessageTokenRef.current = runFromMessageRequest.token;
+    if (status === "idle") void run(runFromMessageRequest.messageId);
+  }, [run, runFromMessageRequest, status]);
   const handleShortcuts = useShortcuts({ readonly: readonlyFromProps });
   return (
     <div
@@ -685,7 +714,12 @@ function ThreadPlaygroundContent({
             setHistoryOpen(size.inPixels > 0);
           }}
         >
-          <RunHistoryListView onClose={closeHistory} />
+          <RunHistoryListView
+            onClose={closeHistory}
+            onComparisonOpen={() =>
+              onLearningEvent?.({ type: "run_comparison_opened" })
+            }
+          />
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>

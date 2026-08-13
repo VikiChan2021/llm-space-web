@@ -1,7 +1,10 @@
 import type { Thread } from "@llm-space/core";
 import { ConfirmDialog } from "@llm-space/ui/components/confirm-dialog";
 import { useDefaultModel } from "@llm-space/ui/components/model-provider";
-import { ThreadPlayground } from "@llm-space/ui/components/thread-playground";
+import {
+  ThreadPlayground,
+  type ThreadPlaygroundLearningEvent,
+} from "@llm-space/ui/components/thread-playground";
 import { HostServicesProvider } from "@llm-space/ui/host";
 import { Button } from "@llm-space/ui/ui/button";
 import {
@@ -39,6 +42,7 @@ import {
 } from "@/host/web-host";
 
 import type { LearningCoachContext } from "./coach/learning-coach";
+import { observeWeatherLearning } from "./coach/weather-learning-observation";
 import {
   createGuestTransport,
   readGuestQuota,
@@ -114,6 +118,12 @@ export function GuestWorkbench() {
   const [exampleDialogOpen, setExampleDialogOpen] = useState(false);
   const [coachLoaded, setCoachLoaded] = useState(false);
   const [coachOpen, setCoachOpen] = useState(false);
+  const [openRunHistoryRequest, setOpenRunHistoryRequest] = useState(0);
+  const [runFromMessageRequest, setRunFromMessageRequest] = useState<{
+    token: number;
+    messageId: string;
+  } | null>(null);
+  const [comparisonOpenedToken, setComparisonOpenedToken] = useState(0);
   const [creatingExample, setCreatingExample] = useState(false);
   const [settingsTab, setSettingsTab] =
     useState<GuestSettingsTab>("appearance");
@@ -283,6 +293,18 @@ export function GuestWorkbench() {
       messageCount: activeRecord.thread.context?.messages?.length ?? 0,
     }),
     [activeRecord, defaultModel?.id, running]
+  );
+  const weatherObservation = useMemo(
+    () => observeWeatherLearning(activeRecord.id, activeRecord.thread, running),
+    [activeRecord.id, activeRecord.thread, running]
+  );
+  const handleLearningEvent = useCallback(
+    (event: ThreadPlaygroundLearningEvent) => {
+      if (event.type === "run_comparison_opened") {
+        setComparisonOpenedToken((value) => value + 1);
+      }
+    },
+    []
   );
   const handleSelect = useCallback(
     (recordId: string) => {
@@ -547,6 +569,11 @@ export function GuestWorkbench() {
             setRunning(false);
             void refreshQuota();
           }}
+          openRunHistoryRequest={
+            coachLoaded ? openRunHistoryRequest : undefined
+          }
+          runFromMessageRequest={runFromMessageRequest}
+          onLearningEvent={handleLearningEvent}
           runRecovery={GUEST_RUN_RECOVERY}
         />
       </main>
@@ -605,8 +632,34 @@ export function GuestWorkbench() {
             context={coachContext}
             onOpenChange={setCoachOpen}
             onOpenVariables={() => guestHost.actions.openVariables()}
-            onRequestRun={() => !running && requestGuestThreadRun()}
+            onRequestRun={(options) => {
+              if (running) return false;
+              if (options?.fromFirstUserMessage) {
+                const firstUserMessage = activeRecord.thread.context?.messages?.find(
+                  (message) => message.role === "user"
+                );
+                if (!firstUserMessage) return false;
+                setRunFromMessageRequest((current) => ({
+                  token: (current?.token ?? 0) + 1,
+                  messageId: firstUserMessage.id,
+                }));
+                return true;
+              }
+              return requestGuestThreadRun();
+            }}
             onRunCompleted={() => void refreshQuota()}
+            weatherObservation={weatherObservation}
+            interactionBlocked={
+              settingsOpen ||
+              mcpSettingsOpen ||
+              exampleDialogOpen ||
+              libraryOpen ||
+              resetConfirmOpen
+            }
+            onOpenRunHistory={() =>
+              setOpenRunHistoryRequest((value) => value + 1)
+            }
+            comparisonOpenedToken={comparisonOpenedToken}
           />
         </Suspense>
       ) : null}

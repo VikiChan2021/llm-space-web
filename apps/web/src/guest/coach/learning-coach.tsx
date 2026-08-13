@@ -9,6 +9,7 @@ import { Textarea } from "@llm-space/ui/ui/textarea";
 import {
   BotIcon,
   CheckCircle2Icon,
+  ChevronRightIcon,
   SendIcon,
   ShieldCheckIcon,
   SparklesIcon,
@@ -32,6 +33,21 @@ import {
   parseCoachAction,
   type CoachActionEnvironment,
 } from "./coach-actions";
+import {
+  captureWeatherLearningEvent,
+  type WeatherLearningAnalyticsEvent,
+} from "./learning-analytics";
+import { WeatherLearningCard } from "./weather-learning-card";
+import {
+  canShowWeatherLearningPrompt,
+  clearWeatherLearningProgress,
+  loadWeatherLearningProgress,
+  reduceWeatherLearningProgress,
+  saveWeatherLearningProgress,
+  type WeatherLearningEvent,
+  type WeatherLearningObservation,
+  type WeatherLearningProgress,
+} from "./weather-learning-track";
 
 const COACH_AGENT_ID = "llm-space-learning-coach";
 const COACH_TOOLS = [
@@ -85,8 +101,12 @@ export interface LearningCoachProps {
   context: LearningCoachContext;
   onOpenChange: (open: boolean) => void;
   onOpenVariables: () => void;
-  onRequestRun: () => boolean;
+  onRequestRun: (options?: { fromFirstUserMessage: boolean }) => boolean;
   onRunCompleted: () => void;
+  weatherObservation: WeatherLearningObservation;
+  interactionBlocked: boolean;
+  onOpenRunHistory: () => void;
+  comparisonOpenedToken: number;
 }
 
 export default function LearningCoach({
@@ -96,6 +116,10 @@ export default function LearningCoach({
   onOpenVariables,
   onRequestRun,
   onRunCompleted,
+  weatherObservation,
+  interactionBlocked,
+  onOpenRunHistory,
+  comparisonOpenedToken,
 }: LearningCoachProps) {
   const [agent] = useState(
     () =>
@@ -118,12 +142,25 @@ export default function LearningCoach({
   const [pendingInterrupt, setPendingInterrupt] = useState<Interrupt | null>(
     null
   );
+  const [weatherProgress, setWeatherProgress] =
+    useState<WeatherLearningProgress | null>(() =>
+      loadWeatherLearningProgress(window.localStorage)
+    );
+  const [nudgeStage, setNudgeStage] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const runFromFirstUserMessageRef = useRef(false);
+  const previousWeatherStageRef = useRef(weatherProgress?.stage);
   const contextValue = useMemo(() => JSON.stringify(context), [context]);
   const actionEnvironment = useMemo<CoachActionEnvironment>(
     () => ({
       openVariables: () => onOpenVariables(),
-      requestRun: () => onRequestRun(),
+      requestRun: () => {
+        const result = onRequestRun({
+          fromFirstUserMessage: runFromFirstUserMessageRef.current,
+        });
+        runFromFirstUserMessageRef.current = false;
+        return result;
+      },
     }),
     [onOpenVariables, onRequestRun]
   );
@@ -256,6 +293,108 @@ export default function LearningCoach({
     [agent, runAgent, running]
   );
 
+  const updateWeatherProgress = useCallback(
+    (
+      event: WeatherLearningEvent,
+      analyticsEvent?: WeatherLearningAnalyticsEvent
+    ) => {
+      setWeatherProgress((current) => {
+        const next = reduceWeatherLearningProgress(current, event);
+        if (!next) return current;
+        saveWeatherLearningProgress(window.localStorage, next);
+        if (analyticsEvent) captureWeatherLearningEvent(analyticsEvent, next);
+        return next;
+      });
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!weatherProgress) return;
+    updateWeatherProgress({
+      type: "observation",
+      observation: weatherObservation,
+      now: new Date().toISOString(),
+    });
+  }, [updateWeatherProgress, weatherObservation, weatherProgress]);
+
+  useEffect(() => {
+    if (!comparisonOpenedToken) return;
+    updateWeatherProgress({
+      type: "comparison_opened",
+      now: new Date().toISOString(),
+    });
+  }, [comparisonOpenedToken, updateWeatherProgress]);
+
+  useEffect(() => {
+    const previousStage = previousWeatherStageRef.current;
+    const nextStage = weatherProgress?.stage;
+    previousWeatherStageRef.current = nextStage;
+    if (!weatherProgress || !previousStage || previousStage === nextStage) return;
+    captureWeatherLearningEvent(
+      nextStage === "completed" ? "track_completed" : "step_completed",
+      weatherProgress
+    );
+    if (
+      !open &&
+      !interactionBlocked &&
+      !context.running &&
+      !pendingInterrupt &&
+      canShowWeatherLearningPrompt(weatherProgress, new Date().toISOString())
+    ) {
+      setNudgeStage(nextStage ?? null);
+      updateWeatherProgress(
+        { type: "prompt_shown", now: new Date().toISOString() },
+        "proactive_prompt_shown"
+      );
+    }
+  }, [
+    context.running,
+    interactionBlocked,
+    open,
+    pendingInterrupt,
+    updateWeatherProgress,
+    weatherProgress,
+  ]);
+
+  const startWeatherLearning = useCallback(() => {
+    const now = new Date().toISOString();
+    const event: WeatherLearningEvent = {
+      type: "start",
+      threadRecordId: weatherObservation.threadRecordId,
+      runCount: weatherObservation.runCount,
+      now,
+      sessionId: crypto.randomUUID(),
+    };
+    const next = reduceWeatherLearningProgress(null, event);
+    if (!next) return;
+    setWeatherProgress(next);
+    saveWeatherLearningProgress(window.localStorage, next);
+    captureWeatherLearningEvent("track_started", next);
+  }, [weatherObservation]);
+
+  const resetWeatherLearning = useCallback(() => {
+    if (weatherProgress) {
+      captureWeatherLearningEvent("track_reset", weatherProgress);
+    }
+    clearWeatherLearningProgress(window.localStorage);
+    setWeatherProgress(null);
+    setNudgeStage(null);
+  }, [weatherProgress]);
+
+  const dispatchWeatherLearning = useCallback(
+    (event: WeatherLearningEvent) => {
+      const analyticsEvent =
+        event.type === "pause"
+          ? "track_paused"
+          : event.type === "resume"
+            ? "track_resumed"
+            : undefined;
+      updateWeatherProgress(event, analyticsEvent);
+    },
+    [updateWeatherProgress]
+  );
+
   const handleSubmit = useCallback(
     (event: FormEvent) => {
       event.preventDefault();
@@ -288,7 +427,52 @@ export default function LearningCoach({
     [pendingInterrupt, runAgent, running]
   );
 
-  if (!open) return null;
+  if (!open) {
+    if (!nudgeStage || !weatherProgress || interactionBlocked) return null;
+    return (
+      <div className="bg-popover text-popover-foreground fixed right-3 bottom-3 z-40 w-[min(22rem,calc(100vw-1.5rem))] rounded-xl border p-3 shadow-xl">
+        <div className="flex items-start gap-2.5">
+          <div className="bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-lg">
+            <BotIcon className="size-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-semibold">学习轨道有了新进展</div>
+            <p className="text-muted-foreground mt-1 text-[0.6875rem] leading-relaxed">
+              因为刚完成了一个可观测步骤，现在适合查看下一项任务。
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <Button
+                size="sm"
+                onClick={() => {
+                  setNudgeStage(null);
+                  onOpenChange(true);
+                }}
+              >
+                查看下一步
+                <ChevronRightIcon />
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setNudgeStage(null)}>
+                稍后
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setNudgeStage(null);
+                  dispatchWeatherLearning({
+                    type: "pause",
+                    now: new Date().toISOString(),
+                  });
+                }}
+              >
+                暂停引导
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -308,11 +492,11 @@ export default function LearningCoach({
                 Agent 学习助手
               </h2>
               <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[0.625rem] font-medium text-violet-700 dark:text-violet-200">
-                Phase 0
+                Learning V1
               </span>
             </div>
             <p className="text-muted-foreground mt-0.5 text-xs">
-              按需模式 · 页面动作受安全策略控制
+              学习轨道 + 按需问答 · 页面动作受安全策略控制
             </p>
           </div>
           <Button
@@ -324,6 +508,32 @@ export default function LearningCoach({
             <XIcon />
           </Button>
         </header>
+
+        <WeatherLearningCard
+          available={context.starterId === "weather"}
+          observation={weatherObservation}
+          progress={weatherProgress}
+          coachRunning={running}
+          onStart={startWeatherLearning}
+          onDispatch={dispatchWeatherLearning}
+          onAskRun={(fromFirstUserMessage) => {
+            runFromFirstUserMessageRef.current = fromFirstUserMessage;
+            ask(
+              fromFirstUserMessage
+                ? "从第一条用户消息运行当前 Thread"
+                : "运行当前 Thread"
+            );
+          }}
+          onHighlight={(elementId) => {
+            const receipt = executeCoachAction(
+              { name: "highlight_element", elementId },
+              actionEnvironment
+            );
+            addReceipt(receipt.message, !receipt.success);
+          }}
+          onOpenRunHistory={onOpenRunHistory}
+          onReset={resetWeatherLearning}
+        />
 
         <div className="border-b px-4 py-3">
           <div className="mb-2 flex items-center gap-1.5 text-xs font-medium">
