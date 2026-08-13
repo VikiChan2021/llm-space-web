@@ -149,6 +149,7 @@ export default function LearningCoach({
   const [nudgeStage, setNudgeStage] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const runFromFirstUserMessageRef = useRef(false);
+  const handledComparisonTokenRef = useRef(0);
   const previousWeatherStageRef = useRef(weatherProgress?.stage);
   const contextValue = useMemo(() => JSON.stringify(context), [context]);
   const actionEnvironment = useMemo<CoachActionEnvironment>(
@@ -319,12 +320,37 @@ export default function LearningCoach({
   }, [updateWeatherProgress, weatherObservation, weatherProgress]);
 
   useEffect(() => {
-    if (!comparisonOpenedToken) return;
+    if (
+      !comparisonOpenedToken ||
+      comparisonOpenedToken === handledComparisonTokenRef.current
+    ) {
+      return;
+    }
+    handledComparisonTokenRef.current = comparisonOpenedToken;
+    const now = new Date().toISOString();
     updateWeatherProgress({
       type: "comparison_opened",
-      now: new Date().toISOString(),
+      now,
     });
-  }, [comparisonOpenedToken, updateWeatherProgress]);
+    if (
+      weatherProgress &&
+      !open &&
+      !interactionBlocked &&
+      canShowWeatherLearningPrompt(weatherProgress, now)
+    ) {
+      setNudgeStage("comparison_opened");
+      updateWeatherProgress(
+        { type: "prompt_shown", now },
+        "proactive_prompt_shown"
+      );
+    }
+  }, [
+    comparisonOpenedToken,
+    interactionBlocked,
+    open,
+    updateWeatherProgress,
+    weatherProgress,
+  ]);
 
   useEffect(() => {
     const previousStage = previousWeatherStageRef.current;

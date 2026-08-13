@@ -656,9 +656,10 @@ export function GuestWorkbench() {
               libraryOpen ||
               resetConfirmOpen
             }
-            onOpenRunHistory={() =>
-              setOpenRunHistoryRequest((value) => value + 1)
-            }
+            onOpenRunHistory={() => {
+              setOpenRunHistoryRequest((value) => value + 1);
+              setCoachOpen(false);
+            }}
             comparisonOpenedToken={comparisonOpenedToken}
           />
         </Suspense>
