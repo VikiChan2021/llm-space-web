@@ -93,7 +93,7 @@
 
 ## Agent 学习导师与页面协作
 
-- 状态：Weather Learning Track V1 已线上验收；常驻 Agent 学习助手布局 V1 已实现并完成本地真实浏览器验收，等待提交部署
+- 状态：Weather Learning Track V1 与常驻 Agent 学习助手布局 V1 均已提交、推送、部署到腾讯云并完成线上真实浏览器验收
 - 新鲜度：confirmed
 - 最后检查：2026-08-14
 - 证据：
@@ -122,9 +122,13 @@
   - Variables 概念问题走确定性知识解释，明确它们是在 Run 前渲染到 Prompt/消息/工具结果模板的命名值，而不是 Agent 步骤间自动共享的可变内存。
   - 本地 Chromium 已验证 1440px 三栏工作台 1056px、助手 384px、几何重叠 0；关闭后工作台恢复 1440px。Variables/设置在助手关闭时仍有 Launcher，Variables 内助手与原 Dialog 同时可操作；1024/390 降级正常，390px 滚动宽度等于视口。
   - 本轮 19 个 Coach 聚焦测试、changed lint/typecheck、Guest Web 生产构建与 Guest API 打包通过；助手 chunk 为 215.87 KB / 52.83 KB gzip。
+  - 常驻布局功能提交 `6db0aaa`、Variables 知识修复 `9f61d81` 已推送；腾讯云当前发布 `20260814-031704-9f61d8120065`，服务 active，Web/API 软链接一致，Nginx 检查通过。
+  - 线上全新 1440×900 浏览器默认三栏，工作台 1056px、助手 384px、重叠 0；关闭并刷新后保持两栏，重新开启恢复三栏。Variables Dialog 内 Launcher、助手和输入框均可操作。
+  - 线上 Dialog 内开放问题真实返回、Coach 200，额度 `20/20 → 19/20`；Variables 修正后的确定性解释不消耗额度，保持 `19/20`。390×844 Launcher/overlay 无横向溢出，最终控制台 0 error / 0 warning。
+  - 当前审计证据位于 `audits/2026-08-14-113417-persistent-learning-coach-layout-v1/`。
 - 能力边界：Phase 0 按需问答与受控动作继续保留；Weather Track V1 仅能驱动当前天气案例的学习闭环，Run 仍要求 Interrupt 确认，第二次输入必须由用户亲手修改。
 - 明确非目标：不让模型直接执行任意 JavaScript、查询任意 DOM 选择器、模拟鼠标键盘、读取原始按键/鼠标轨迹、默认上传完整 Prompt/回答/图片/文件、绕过现有工具权限、自动执行删除/重置/Run 等高影响动作，也不把助手变成全站无边界自治代理。
-- 可见缺口：常驻布局 V1 尚待腾讯云线上验收；生产北极星“首次 Agent 学习闭环完成率”已具备采样事件，但仍无真实用户样本基线。助手栏暂不支持拖拽调宽，Deep Research Track、跨设备进度、更多语义动作与策略校准仍未实现。CopilotKit React Core 尖峰确认 React 19 可装载，但当前仍保留 `@ag-ui/client` 和自有 UI。
+- 可见缺口：生产北极星“首次 Agent 学习闭环完成率”已具备采样事件，但仍无真实用户样本基线。助手栏暂不支持拖拽调宽，Deep Research Track、跨设备进度、更多语义动作与策略校准仍未实现。CopilotKit React Core 尖峰确认 React 19 可装载，但当前仍保留 `@ag-ui/client` 和自有 UI。
 
 ## 游客 Prompt 辅助与多模态输入
 
