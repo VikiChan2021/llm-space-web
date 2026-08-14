@@ -69,7 +69,7 @@ export function GuestMcpSettingsDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent data-coach-surface="mcp" className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>游客 MCP 设置</DialogTitle>
             <DialogDescription>

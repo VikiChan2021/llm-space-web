@@ -85,6 +85,7 @@ export function GuestThreadLibrary({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
+          data-coach-surface="threads"
           aria-describedby="guest-thread-library-description"
           className="top-0 left-0 flex h-dvh w-[min(22rem,calc(100vw-1rem))] max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-r p-0 sm:max-w-[22rem]"
         >

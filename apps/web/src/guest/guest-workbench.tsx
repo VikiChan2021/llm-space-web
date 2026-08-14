@@ -41,6 +41,14 @@ import {
   webHost,
 } from "@/host/web-host";
 
+import { CoachLauncher } from "./coach/coach-launcher";
+import {
+  normalizeCoachSurface,
+  readGuestCoachEnabled,
+  resolveCoachPresentation,
+  saveGuestCoachEnabled,
+  type CoachSurfaceId,
+} from "./coach/coach-layout";
 import type { LearningCoachContext } from "./coach/learning-coach";
 import { observeWeatherLearning } from "./coach/weather-learning-observation";
 import {
@@ -88,6 +96,7 @@ const BROWSER_WORKSPACE_FACTORY: GuestWorkspaceFactory = {
 };
 const BROWSER_STORAGE = _browserStorage();
 const WEB_APP_TITLE = "LLM Space — Build, trace, and debug agents in one place";
+const WIDE_COACH_QUERY = "(min-width: 1280px)";
 
 interface GuestWorkspaceState {
   workspace: GuestWorkspace;
@@ -116,8 +125,13 @@ export function GuestWorkbench() {
   const [mcpSettingsOpen, setMcpSettingsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exampleDialogOpen, setExampleDialogOpen] = useState(false);
-  const [coachLoaded, setCoachLoaded] = useState(false);
-  const [coachOpen, setCoachOpen] = useState(false);
+  const [coachEnabled, setCoachEnabled] = useState(() =>
+    readGuestCoachEnabled(BROWSER_STORAGE)
+  );
+  const [coachLoaded, setCoachLoaded] = useState(() =>
+    readGuestCoachEnabled(BROWSER_STORAGE)
+  );
+  const [floatingCoachOpen, setFloatingCoachOpen] = useState(false);
   const [openRunHistoryRequest, setOpenRunHistoryRequest] = useState(0);
   const [runFromMessageRequest, setRunFromMessageRequest] = useState<{
     token: number;
@@ -129,15 +143,38 @@ export function GuestWorkbench() {
     useState<GuestSettingsTab>("appearance");
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [running, setRunning] = useState(false);
+  const wideCoachLayout = useWideCoachLayout();
+  const activeDialogSurface = useActiveDialogSurface();
+  const previousDialogTargetRef = useRef<Element | null>(null);
   const workspaceRef = useRef(workspaceState.workspace);
   const { workspace, storageError } = workspaceState;
   const activeRecord =
     workspace.threads.find(
       (record) => record.id === workspace.activeThreadId
     ) ?? workspace.threads[0];
+  const coachPresentation = resolveCoachPresentation({
+    enabled: coachEnabled,
+    wide: wideCoachLayout,
+    dialogOpen: Boolean(activeDialogSurface),
+    floatingOpen: floatingCoachOpen,
+  });
+  const coachSurface = activeDialogSurface?.surface ?? "workbench";
 
   useEffect(() => {
     document.title = WEB_APP_TITLE;
+  }, []);
+  useEffect(() => {
+    const nextTarget = activeDialogSurface?.target ?? null;
+    if (previousDialogTargetRef.current !== nextTarget) {
+      previousDialogTargetRef.current = nextTarget;
+      setFloatingCoachOpen(false);
+    }
+  }, [activeDialogSurface]);
+
+  const setCoachEnabledPreference = useCallback((enabled: boolean) => {
+    setCoachEnabled(enabled);
+    saveGuestCoachEnabled(BROWSER_STORAGE, enabled);
+    if (enabled) setCoachLoaded(true);
   }, []);
 
   const refreshQuota = useCallback(async () => {
@@ -471,13 +508,23 @@ export function GuestWorkbench() {
           </div>
           <Button
             data-coach-element-id="learning-coach"
-            variant={coachOpen ? "secondary" : "outline"}
+            variant={coachEnabled ? "secondary" : "outline"}
             size="sm"
-            aria-label="打开 Agent 学习助手"
-            aria-expanded={coachOpen}
+            aria-label={
+              coachEnabled && wideCoachLayout
+                ? "关闭 Agent 学习助手三栏"
+                : "打开 Agent 学习助手"
+            }
+            aria-expanded={
+              coachPresentation === "docked" || coachPresentation === "overlay"
+            }
             onClick={() => {
               setCoachLoaded(true);
-              setCoachOpen(true);
+              if (wideCoachLayout && !activeDialogSurface) {
+                setCoachEnabledPreference(!coachEnabled);
+                return;
+              }
+              setFloatingCoachOpen(true);
             }}
           >
             <BotIcon className="size-3.5" />
@@ -552,31 +599,92 @@ export function GuestWorkbench() {
         </div>
       ) : null}
 
-      <main className="min-h-0 min-w-0 flex-1 p-2 sm:p-4">
-        <ThreadPlayground
-          key={`${activeRecord.id}:${revision}`}
-          active
-          className="size-full min-w-0 overflow-hidden rounded-xl border shadow-lg"
-          path={`guest/${activeRecord.id}.json`}
-          title={activeRecord.thread.title}
-          initialValue={activeRecord.thread}
-          transport={transport}
-          runtimeId={activeRecord.id}
-          onChange={handleChange}
-          onRenameTitle={handleRename}
-          onStreamingStart={() => setRunning(true)}
-          onStreamingEnd={() => {
-            setRunning(false);
-            void refreshQuota();
-          }}
-          openRunHistoryRequest={
-            coachLoaded ? openRunHistoryRequest : undefined
-          }
-          runFromMessageRequest={runFromMessageRequest}
-          onLearningEvent={handleLearningEvent}
-          runRecovery={GUEST_RUN_RECOVERY}
-        />
-      </main>
+      <div className="flex min-h-0 min-w-0 flex-1">
+        <main className="min-h-0 min-w-0 flex-1 p-2 sm:p-4">
+          <ThreadPlayground
+            key={`${activeRecord.id}:${revision}`}
+            active
+            className="size-full min-w-0 overflow-hidden rounded-xl border shadow-lg"
+            path={`guest/${activeRecord.id}.json`}
+            title={activeRecord.thread.title}
+            initialValue={activeRecord.thread}
+            transport={transport}
+            runtimeId={activeRecord.id}
+            onChange={handleChange}
+            onRenameTitle={handleRename}
+            onStreamingStart={() => setRunning(true)}
+            onStreamingEnd={() => {
+              setRunning(false);
+              void refreshQuota();
+            }}
+            openRunHistoryRequest={
+              coachLoaded ? openRunHistoryRequest : undefined
+            }
+            runFromMessageRequest={runFromMessageRequest}
+            onLearningEvent={handleLearningEvent}
+            runRecovery={GUEST_RUN_RECOVERY}
+          />
+        </main>
+
+        {coachLoaded ? (
+          <Suspense fallback={null}>
+            <LearningCoach
+              open={
+                coachPresentation === "docked" ||
+                coachPresentation === "overlay"
+              }
+              variant={coachPresentation === "docked" ? "docked" : "overlay"}
+              portalTarget={activeDialogSurface?.target ?? null}
+              surface={coachSurface}
+              showCollapsedNudge={false}
+              context={coachContext}
+              onOpenChange={(open) => {
+                if (open) {
+                  setCoachLoaded(true);
+                  setFloatingCoachOpen(true);
+                } else if (coachPresentation === "docked") {
+                  setCoachEnabledPreference(false);
+                } else {
+                  setFloatingCoachOpen(false);
+                }
+              }}
+              onOpenVariables={() => guestHost.actions.openVariables()}
+              onRequestRun={(options) => {
+                if (running) return false;
+                if (options?.fromFirstUserMessage) {
+                  const firstUserMessage =
+                    activeRecord.thread.context?.messages?.find(
+                      (message) => message.role === "user"
+                    );
+                  if (!firstUserMessage) return false;
+                  setRunFromMessageRequest((current) => ({
+                    token: (current?.token ?? 0) + 1,
+                    messageId: firstUserMessage.id,
+                  }));
+                  return true;
+                }
+                return requestGuestThreadRun();
+              }}
+              onRunCompleted={() => void refreshQuota()}
+              weatherObservation={weatherObservation}
+              interactionBlocked={
+                settingsOpen ||
+                mcpSettingsOpen ||
+                exampleDialogOpen ||
+                libraryOpen ||
+                resetConfirmOpen
+              }
+              onOpenRunHistory={() => {
+                setOpenRunHistoryRequest((value) => value + 1);
+                if (coachPresentation === "overlay") {
+                  setFloatingCoachOpen(false);
+                }
+              }}
+              comparisonOpenedToken={comparisonOpenedToken}
+            />
+          </Suspense>
+        ) : null}
+      </div>
 
       <GuestThreadLibrary
         open={libraryOpen}
@@ -623,50 +731,82 @@ export function GuestWorkbench() {
         description={`“${activeRecord.thread.title || "未命名 Thread"}”的当前内容、Run 历史和评估会被示例内容替换。此操作无法撤销。`}
         cancelLabel="取消"
         confirmLabel="重置"
+        coachSurface="confirmation"
         onConfirm={() => void handleReset()}
       />
-      {coachLoaded ? (
-        <Suspense fallback={null}>
-          <LearningCoach
-            open={coachOpen}
-            context={coachContext}
-            onOpenChange={setCoachOpen}
-            onOpenVariables={() => guestHost.actions.openVariables()}
-            onRequestRun={(options) => {
-              if (running) return false;
-              if (options?.fromFirstUserMessage) {
-                const firstUserMessage = activeRecord.thread.context?.messages?.find(
-                  (message) => message.role === "user"
-                );
-                if (!firstUserMessage) return false;
-                setRunFromMessageRequest((current) => ({
-                  token: (current?.token ?? 0) + 1,
-                  messageId: firstUserMessage.id,
-                }));
-                return true;
-              }
-              return requestGuestThreadRun();
-            }}
-            onRunCompleted={() => void refreshQuota()}
-            weatherObservation={weatherObservation}
-            interactionBlocked={
-              settingsOpen ||
-              mcpSettingsOpen ||
-              exampleDialogOpen ||
-              libraryOpen ||
-              resetConfirmOpen
-            }
-            onOpenRunHistory={() => {
-              setOpenRunHistoryRequest((value) => value + 1);
-              setCoachOpen(false);
-            }}
-            comparisonOpenedToken={comparisonOpenedToken}
-          />
-        </Suspense>
+      {coachPresentation === "launcher" ? (
+        <CoachLauncher
+          surface={coachSurface}
+          portalTarget={activeDialogSurface?.target ?? null}
+          onOpen={() => {
+            setCoachLoaded(true);
+            setFloatingCoachOpen(true);
+          }}
+        />
       ) : null}
       </div>
     </HostServicesProvider>
   );
+}
+
+interface ActiveDialogSurface {
+  target: Element;
+  surface: CoachSurfaceId;
+}
+
+function useWideCoachLayout(): boolean {
+  const [wide, setWide] = useState(() =>
+    window.matchMedia(WIDE_COACH_QUERY).matches
+  );
+
+  useEffect(() => {
+    const query = window.matchMedia(WIDE_COACH_QUERY);
+    const update = () => setWide(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  return wide;
+}
+
+function useActiveDialogSurface(): ActiveDialogSurface | null {
+  const [activeSurface, setActiveSurface] =
+    useState<ActiveDialogSurface | null>(null);
+  const currentRef = useRef<ActiveDialogSurface | null>(null);
+
+  useEffect(() => {
+    const update = () => {
+      const dialogs = document.querySelectorAll(
+        '[data-slot="dialog-content"][data-state="open"]:not([data-coach-owner="learning-coach"])'
+      );
+      const target = dialogs.item(dialogs.length - 1);
+      const surface = target
+        ? normalizeCoachSurface((target as HTMLElement).dataset.coachSurface)
+        : null;
+      if (
+        currentRef.current?.target === target &&
+        currentRef.current?.surface === surface
+      ) {
+        return;
+      }
+      const next = target && surface ? { target, surface } : null;
+      currentRef.current = next;
+      setActiveSurface(next);
+    };
+
+    update();
+    const observer = new MutationObserver(update);
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ["data-state", "data-coach-surface"],
+      childList: true,
+      subtree: true,
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  return activeSurface;
 }
 
 function _safeFileStem(title: string | undefined): string {

@@ -36,7 +36,10 @@ export function GuestExampleDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[88vh] max-w-[56rem]! gap-0 overflow-hidden border-border/80 bg-background/95 p-0 shadow-2xl backdrop-blur-xl">
+      <DialogContent
+        data-coach-surface="examples"
+        className="max-h-[88vh] max-w-[56rem]! gap-0 overflow-hidden border-border/80 bg-background/95 p-0 shadow-2xl backdrop-blur-xl"
+      >
         <DialogHeader className="relative overflow-hidden border-b px-5 py-4 text-left">
           <div
             aria-hidden

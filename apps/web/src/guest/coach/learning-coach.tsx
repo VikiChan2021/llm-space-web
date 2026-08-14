@@ -24,7 +24,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
-
+import { createPortal } from "react-dom";
 
 import { guestCoachApiUrl } from "../guest-api";
 
@@ -33,6 +33,10 @@ import {
   parseCoachAction,
   type CoachActionEnvironment,
 } from "./coach-actions";
+import {
+  getCoachSurfaceHint,
+  type CoachSurfaceId,
+} from "./coach-layout";
 import {
   captureWeatherLearningEvent,
   type WeatherLearningAnalyticsEvent,
@@ -98,6 +102,10 @@ interface CoachDisplayMessage {
 
 export interface LearningCoachProps {
   open: boolean;
+  variant: "docked" | "overlay";
+  portalTarget?: Element | null;
+  surface?: CoachSurfaceId;
+  showCollapsedNudge?: boolean;
   context: LearningCoachContext;
   onOpenChange: (open: boolean) => void;
   onOpenVariables: () => void;
@@ -111,6 +119,10 @@ export interface LearningCoachProps {
 
 export default function LearningCoach({
   open,
+  variant,
+  portalTarget,
+  surface = "workbench",
+  showCollapsedNudge = true,
   context,
   onOpenChange,
   onOpenVariables,
@@ -454,7 +466,13 @@ export default function LearningCoach({
   );
 
   if (!open) {
-    if (!nudgeStage || !weatherProgress || interactionBlocked) return null;
+    if (
+      !showCollapsedNudge ||
+      !nudgeStage ||
+      !weatherProgress ||
+      interactionBlocked
+    )
+      return null;
     return (
       <div className="bg-popover text-popover-foreground fixed right-3 bottom-3 z-40 w-[min(22rem,calc(100vw-1.5rem))] rounded-xl border p-3 shadow-xl">
         <div className="flex items-start gap-2.5">
@@ -500,13 +518,20 @@ export default function LearningCoach({
     );
   }
 
-  return (
+  const surfaceHint = getCoachSurfaceHint(surface);
+  const coach = (
     <>
       <aside
-        role="dialog"
-        aria-modal="false"
+        role={variant === "docked" ? "complementary" : "dialog"}
+        aria-modal={variant === "overlay" ? "false" : undefined}
         aria-labelledby="learning-coach-title"
-        className="bg-popover text-popover-foreground fixed inset-y-2 right-2 z-40 flex w-[min(24rem,calc(100vw-1rem))] flex-col overflow-hidden rounded-2xl border shadow-2xl"
+        className={
+          variant === "docked"
+            ? "bg-popover text-popover-foreground flex h-full w-96 shrink-0 flex-col overflow-hidden border-l"
+            : portalTarget
+              ? "bg-popover text-popover-foreground absolute inset-y-3 right-3 z-20 flex w-[min(24rem,calc(100%-1.5rem))] flex-col overflow-hidden rounded-2xl border shadow-2xl"
+              : "bg-popover text-popover-foreground fixed inset-y-2 right-2 z-60 flex w-[min(24rem,calc(100vw-1rem))] flex-col overflow-hidden rounded-2xl border shadow-2xl"
+        }
       >
         <header className="flex items-start gap-3 border-b px-4 py-3">
           <div className="bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-lg">
@@ -534,6 +559,21 @@ export default function LearningCoach({
             <XIcon />
           </Button>
         </header>
+
+        {surface !== "workbench" ? (
+          <div className="border-b bg-violet-500/5 px-4 py-3">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-violet-700 dark:text-violet-200">
+              <SparklesIcon className="size-3.5" />
+              {surfaceHint.label}
+            </div>
+            <p className="text-muted-foreground mt-1 text-[0.6875rem] leading-relaxed">
+              {surfaceHint.message}
+            </p>
+            <p className="text-muted-foreground mt-1 text-[0.625rem] leading-relaxed">
+              仅感知当前面板类型，不读取表单值或正文。
+            </p>
+          </div>
+        ) : null}
 
         <WeatherLearningCard
           available={context.starterId === "weather"}
@@ -655,9 +695,13 @@ export default function LearningCoach({
         cancelLabel="先不运行"
         confirmLabel="确认运行"
         confirmVariant="default"
+        coachSurface="confirmation"
+        coachOwner="learning-coach"
         onCancel={() => resolveInterrupt(false)}
         onConfirm={() => resolveInterrupt(true)}
       />
     </>
   );
+
+  return portalTarget ? createPortal(coach, portalTarget) : coach;
 }

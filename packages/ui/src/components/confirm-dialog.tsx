@@ -23,6 +23,8 @@ export function ConfirmDialog({
   onCancel,
   onConfirm,
   dimBackground = true,
+  coachSurface,
+  coachOwner,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -40,10 +42,16 @@ export function ConfirmDialog({
    * closes on outside click without an overlay.
    */
   dimBackground?: boolean;
+  coachSurface?: string;
+  coachOwner?: string;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showOverlay={dimBackground}>
+      <DialogContent
+        showOverlay={dimBackground}
+        data-coach-surface={coachSurface}
+        data-coach-owner={coachOwner}
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description ? (

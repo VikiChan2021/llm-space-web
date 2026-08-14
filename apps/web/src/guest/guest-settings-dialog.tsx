@@ -86,7 +86,10 @@ export function GuestSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[min(40rem,85dvh)] max-w-2xl flex-col overflow-hidden sm:max-w-2xl">
+      <DialogContent
+        data-coach-surface="settings"
+        className="flex h-[min(40rem,85dvh)] max-w-2xl flex-col overflow-hidden sm:max-w-2xl"
+      >
         <DialogHeader className="shrink-0">
           <DialogTitle>Web 工作台设置</DialogTitle>
           <DialogDescription>

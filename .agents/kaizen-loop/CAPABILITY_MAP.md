@@ -93,7 +93,7 @@
 
 ## Agent 学习导师与页面协作
 
-- 状态：Weather Learning Track V1 已提交、推送并部署到腾讯云 Hosted Alpha，线上真实浏览器完整闭环验收完成
+- 状态：Weather Learning Track V1 已线上验收；常驻 Agent 学习助手布局 V1 已实现并完成本地真实浏览器验收，等待提交部署
 - 新鲜度：confirmed
 - 最后检查：2026-08-14
 - 证据：
@@ -116,9 +116,14 @@
   - 线上全新 Chrome 从 `20/20` 完成广州与深圳两次真实天气 Run 至 `18/20`；两条 Run history 均保留，选中 2/2 后 Compare 成功打开并正确呈现两次不同输入与工具调用。
   - 线上复盘已验证错误选项给出可重试反馈，正确选项进入第 6/6 步完成态；刷新后完成态和额度恢复，390×844 下页面宽度与视口均为 390，无横向溢出。
   - 36 个聚焦测试、changed lint/typecheck、Guest Web 构建与 Guest API 打包通过；线上 Models、Quota、Coach、Runs 请求均为 200，控制台 0 error / 0 warning。
+  - 常驻布局 V1 把宽屏助手从 fixed 浮层改为 384px 外层第三栏；首次访问默认开启，显式关闭后工作台恢复两栏，偏好独立保存在浏览器且刷新恢复。
+  - 1280px 以下改用右下角 Launcher；任何 Radix Dialog 打开时，Launcher 会 portal 到当前 Dialog 的焦点边界，点击后可在不关闭原 Dialog 的情况下打开助手。
+  - Variables、设置、案例、Threads、MCP、确认与 Run Evaluation 已标注稳定 surface ID；未知 Dialog 使用通用提示。提示不读取字段值、Prompt 或 Dialog 正文，也不扩展模型动作权限。
+  - 本地 Chromium 已验证 1440px 三栏工作台 1056px、助手 384px、几何重叠 0；关闭后工作台恢复 1440px。Variables/设置在助手关闭时仍有 Launcher，Variables 内助手与原 Dialog 同时可操作；1024/390 降级正常，390px 滚动宽度等于视口。
+  - 本轮 19 个 Coach 聚焦测试、changed lint/typecheck、Guest Web 生产构建与 Guest API 打包通过；助手 chunk 为 215.87 KB / 52.83 KB gzip。
 - 能力边界：Phase 0 按需问答与受控动作继续保留；Weather Track V1 仅能驱动当前天气案例的学习闭环，Run 仍要求 Interrupt 确认，第二次输入必须由用户亲手修改。
 - 明确非目标：不让模型直接执行任意 JavaScript、查询任意 DOM 选择器、模拟鼠标键盘、读取原始按键/鼠标轨迹、默认上传完整 Prompt/回答/图片/文件、绕过现有工具权限、自动执行删除/重置/Run 等高影响动作，也不把助手变成全站无边界自治代理。
-- 可见缺口：生产北极星“首次 Agent 学习闭环完成率”已具备采样事件，但仍无真实用户样本基线。Deep Research Track、跨设备进度、更多语义动作与策略校准仍未实现。CopilotKit React Core 尖峰确认 React 19 可装载，但当前仍保留 `@ag-ui/client` 和自有 UI。
+- 可见缺口：常驻布局 V1 尚待腾讯云线上验收；生产北极星“首次 Agent 学习闭环完成率”已具备采样事件，但仍无真实用户样本基线。助手栏暂不支持拖拽调宽，Deep Research Track、跨设备进度、更多语义动作与策略校准仍未实现。CopilotKit React Core 尖峰确认 React 19 可装载，但当前仍保留 `@ag-ui/client` 和自有 UI。
 
 ## 游客 Prompt 辅助与多模态输入
 

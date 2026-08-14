@@ -38,6 +38,7 @@ function _PromptVariablesDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        data-coach-surface="variables"
         className="flex h-[728px] max-h-[calc(100vh-4rem)] w-[min(1080px,calc(100vw-2rem))] max-w-none! flex-col gap-0 overflow-hidden p-0"
         onInteractOutside={(e) => e.preventDefault()}
         onPointerDownOutside={(e) => e.preventDefault()}
