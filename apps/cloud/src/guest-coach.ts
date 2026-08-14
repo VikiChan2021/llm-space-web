@@ -442,6 +442,13 @@ function _shortcutPlan(
 function _elementExplanation(
   text: string
 ): { id: string; explanation: string } | null {
+  if (_matches(text, /\bvariables?\b|变量/i)) {
+    return {
+      id: "variables",
+      explanation:
+        "Variables 是在 Run 前渲染到 Prompt、消息或工具结果模板中的命名值。内置变量可提供当前日期、可用 Skills 和工作目录；Custom Variables 适合复用经常变化的输入。它们不是 Agent 步骤间自动共享的可变内存。",
+    };
+  }
   if (_matches(text, /\bmodels?\b|模型/i)) {
     return {
       id: "models",

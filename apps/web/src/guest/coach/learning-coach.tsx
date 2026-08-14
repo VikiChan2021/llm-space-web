@@ -78,6 +78,7 @@ const COACH_TOOLS = [
 const SUGGESTIONS = [
   "解释 Models",
   "解释 Tools",
+  "解释 Variables",
   "解释 ReAct",
   "打开 Variables",
   "运行当前 Thread",

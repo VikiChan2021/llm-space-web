@@ -119,6 +119,7 @@
   - 常驻布局 V1 把宽屏助手从 fixed 浮层改为 384px 外层第三栏；首次访问默认开启，显式关闭后工作台恢复两栏，偏好独立保存在浏览器且刷新恢复。
   - 1280px 以下改用右下角 Launcher；任何 Radix Dialog 打开时，Launcher 会 portal 到当前 Dialog 的焦点边界，点击后可在不关闭原 Dialog 的情况下打开助手。
   - Variables、设置、案例、Threads、MCP、确认与 Run Evaluation 已标注稳定 surface ID；未知 Dialog 使用通用提示。提示不读取字段值、Prompt 或 Dialog 正文，也不扩展模型动作权限。
+  - Variables 概念问题走确定性知识解释，明确它们是在 Run 前渲染到 Prompt/消息/工具结果模板的命名值，而不是 Agent 步骤间自动共享的可变内存。
   - 本地 Chromium 已验证 1440px 三栏工作台 1056px、助手 384px、几何重叠 0；关闭后工作台恢复 1440px。Variables/设置在助手关闭时仍有 Launcher，Variables 内助手与原 Dialog 同时可操作；1024/390 降级正常，390px 滚动宽度等于视口。
   - 本轮 19 个 Coach 聚焦测试、changed lint/typecheck、Guest Web 生产构建与 Guest API 打包通过；助手 chunk 为 215.87 KB / 52.83 KB gzip。
 - 能力边界：Phase 0 按需问答与受控动作继续保留；Weather Track V1 仅能驱动当前天气案例的学习闭环，Run 仍要求 Interrupt 确认，第二次输入必须由用户亲手修改。

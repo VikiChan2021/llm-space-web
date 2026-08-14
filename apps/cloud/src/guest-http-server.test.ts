@@ -612,6 +612,32 @@ describe("guest HTTP API", () => {
     quotaStore.close();
   });
 
+  test("explains Variables with the workbench template semantics", async () => {
+    let executed = false;
+    const execute: GuestModelExecutor = async function* () {
+      executed = true;
+      yield { type: "agent_end", messages: [] };
+    };
+    const quotaStore = new GuestQuotaStore(":memory:", CONFIG.hmacSecret);
+    const handler = createGuestFetchHandler({
+      config: CONFIG,
+      quotaStore,
+      execute,
+    });
+
+    const response = await handler(
+      _coachRequest("当前 Variables 面板有什么用？")
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(executed).toBe(false);
+    expect(body).toContain("Run 前渲染到 Prompt");
+    expect(body).toContain("不是 Agent 步骤间自动共享的可变内存");
+    expect(body).toContain('{\\"elementId\\":\\"variables\\"}');
+    quotaStore.close();
+  });
+
   test("accepts the AG-UI assistant tool-call message on a follow-up", async () => {
     const quotaStore = new GuestQuotaStore(":memory:", CONFIG.hmacSecret);
     const handler = createGuestFetchHandler({
