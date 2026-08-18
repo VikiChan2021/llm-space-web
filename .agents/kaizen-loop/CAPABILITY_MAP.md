@@ -1,7 +1,7 @@
 # LLM Space 能力地图
 
-- 最后更新：2026-08-12
-- 地图状态：游客工作台 Hosted Alpha 已在线运行；截至提交 `f413847`，Web Agent 案例库 V1 已发布为腾讯云版本 `20260812-131315-f4138476f82c`，线上可从 9 个案例创建独立可调试 Thread。根地址直接进入游客工作台，Landing 保留在 `#/about`。天气 ReAct 完整闭环已经验证可用，但全新浏览器的默认 Run 设置仍关闭 ReAct 与自动工具执行，首次点击 Run 会停在工具结果调试阶段；启用 ReAct 后可自动完成工具调用与模型续答。GitHub 登录、BYOK、租户级持久 Thread、账单、Bash、stdio MCP、Generator，以及公共远程 MCP 的网络层出站策略仍需独立安全边界；身份、Personal Tenant、PostgreSQL 与强制 RLS 基础仍未接入游客入口。当前没有公开或动态加载的插件。
+- 最后更新：2026-08-18
+- 地图状态：游客工作台 Hosted Alpha 已在线运行；截至提交 `9eb8452`，Web Agent 案例库、Agent 学习助手三栏/弹窗协作和可关闭学习引导已发布为腾讯云版本 `20260818-145005-9eb8452996ef`。宽屏默认三栏，Dialog 内助手入口不再覆盖删除、重置等主操作，弹窗助手优先显示对话；仓库默认分支、README、About、官网与 Topics 已统一为 Web 产品。天气 ReAct 完整闭环已经验证可用，但全新浏览器的默认 Run 设置仍关闭 ReAct 与自动工具执行，首次点击 Run 会停在工具结果调试阶段；启用 ReAct 后可自动完成工具调用与模型续答。GitHub 登录、BYOK、租户级持久 Thread、账单、Bash、stdio MCP、Generator，以及公共远程 MCP 的网络层出站策略仍需独立安全边界；身份、Personal Tenant、PostgreSQL 与强制 RLS 基础仍未接入游客入口。当前没有公开或动态加载的插件。
 - 证据规则：`confirmed` 表示有当前渲染产品或当前代码证据；`stale` 表示依赖旧日志或本轮未完全复查的代码路径；`unknown` 表示需要未来重新检查产品界面后才能用于决策。
 
 ## 交互式浏览器工作台
@@ -93,9 +93,9 @@
 
 ## Agent 学习导师与页面协作
 
-- 状态：Weather Learning Track V1 与常驻 Agent 学习助手布局 V1 均已提交、推送、部署到腾讯云并完成线上真实浏览器验收
+- 状态：Weather Learning Track V1、常驻三栏与 Dialog 任务优先 V1 均已提交到 `main`、推送、部署腾讯云并完成线上真实浏览器验收
 - 新鲜度：confirmed
-- 最后检查：2026-08-14
+- 最后检查：2026-08-18
 - 证据：
   - 线上全新浏览器首屏同时暴露 Models、Tools、Variables、System prompt、Run settings、Run history、案例与 Threads 等概念；现有“使用说明”会离开当前工作流打开文档，无法解释用户此刻聚焦的元素，也不会根据运行状态主动介入。
   - `GuestWorkbench` 已增加懒加载“学习助手”sidecar；首屏不加载 AG-UI 客户端，打开助手后才加载约 48 KB gzip 的独立 chunk。
@@ -126,9 +126,31 @@
   - 线上全新 1440×900 浏览器默认三栏，工作台 1056px、助手 384px、重叠 0；关闭并刷新后保持两栏，重新开启恢复三栏。Variables Dialog 内 Launcher、助手和输入框均可操作。
   - 线上 Dialog 内开放问题真实返回、Coach 200，额度 `20/20 → 19/20`；Variables 修正后的确定性解释不消耗额度，保持 `19/20`。390×844 Launcher/overlay 无横向溢出，最终控制台 0 error / 0 warning。
   - 当前审计证据位于 `audits/2026-08-14-113417-persistent-learning-coach-layout-v1/`。
+- Dialog 任务优先修正把带 Footer 的 Launcher 作为普通 Footer 项渲染，把无 Footer 的入口放在标题栏关闭按钮左侧；Threads 删除、重置、Settings、MCP、Variables、Tools 和案例库均不再被浮层覆盖。
+- Dialog 内助手切换为紧凑问答模式，只保留标题、上下文、消息、输入与安全说明；Weather Track、大段 surface 提示和快捷操作仅在常驻三栏呈现。
+- 学习引导新增独立关闭与恢复入口，关闭偏好写入版本化浏览器存储，刷新后保持关闭；原学习进度不被删除，助手仍可继续按需问答。
+- 生产桌面视口已实际完成旧 Thread 删除，数量由 2 变为 1；390×844 重置确认弹窗内助手完整适配，`documentElement.scrollWidth === innerWidth === 390`。
+- 生产 Models、Quota 与 PostHog 请求均为 200，最终浏览器控制台为 0 error / 0 warning；审计证据位于 `audits/2026-08-18-230900-web-coach-dialog-repository-v1/`。
+- 20 个 Coach 聚焦测试、`mise run check:changed`、Guest Web 构建和 Guest API 打包通过；完整仓库测试为 822 通过、1 跳过、25 失败，失败仍集中于 Windows 缺少 `/bin/sh`/`python3`、符号链接权限、POSIX 路径/权限与生成文件换行基线。同一提交的 GitHub Linux CI 通过。
+- 功能提交 `9eb8452` 已快进合入并推送 `main`；腾讯云发布 `20260818-145005-9eb8452996ef` 通过构建、API 打包、Nginx 配置检查与服务 active 检查。
 - 能力边界：Phase 0 按需问答与受控动作继续保留；Weather Track V1 仅能驱动当前天气案例的学习闭环，Run 仍要求 Interrupt 确认，第二次输入必须由用户亲手修改。
 - 明确非目标：不让模型直接执行任意 JavaScript、查询任意 DOM 选择器、模拟鼠标键盘、读取原始按键/鼠标轨迹、默认上传完整 Prompt/回答/图片/文件、绕过现有工具权限、自动执行删除/重置/Run 等高影响动作，也不把助手变成全站无边界自治代理。
 - 可见缺口：生产北极星“首次 Agent 学习闭环完成率”已具备采样事件，但仍无真实用户样本基线。助手栏暂不支持拖拽调宽，Deep Research Track、跨设备进度、更多语义动作与策略校准仍未实现。CopilotKit React Core 尖峰确认 React 19 可装载，但当前仍保留 `@ag-ui/client` 和自有 UI。
+
+## GitHub Web 产品展示
+
+- 状态：Web 定位 V1 已在默认分支 `main` 生效
+- 新鲜度：confirmed
+- 最后检查：2026-08-18
+- 证据：
+  - `main`、`origin/main` 与默认分支均指向功能提交 `9eb8452`；GitHub Linux CI 对该提交通过。
+  - 中英文 README 已改为 LLM Space Web，首屏链接直达腾讯云工作台，并以 9 个案例、运行/Trace/Compare/Evaluation、Agent 学习助手和浏览器本地持久化为主要能力。
+  - README 明示 Hosted Alpha 的数据、额度、工具和账号边界；桌面项目仅在 Project origin 中作为上游来源说明，不再作为主产品下载入口。
+  - GitHub About description、homepage 与 9 个 Topics 已切换为 Web Agent 学习工作台；homepage 为 `https://kandian.site/llm-space-web/#/workbench`。
+  - fork 保留的旧 GitHub Pages workflow 因 fork 未启用 Pages 而在 `configure-pages` 阶段失败；它不承载当前产品，腾讯云是 README 与 About 指向的已验证生产地址。
+- 能力边界：仓库首页现在准确展示可在线体验的 Web 产品，并保留 fork/upstream 来源；主产品部署仍由腾讯云脚本与服务器承载。
+- 明确非目标：不解除 GitHub fork 关系，不删除桌面源码，不把静态 GitHub Pages 误称为可运行 Guest API 的完整工作台。
+- 可见缺口：后续如需将 GitHub Pages 作为第二站点，需要独立决定静态介绍页还是跨域调用腾讯云 API，并重新配置 Pages；当前不在 V1 范围。
 
 ## 游客 Prompt 辅助与多模态输入
 
