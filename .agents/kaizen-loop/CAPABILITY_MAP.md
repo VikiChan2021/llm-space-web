@@ -1,7 +1,7 @@
 # LLM Space 能力地图
 
 - 最后更新：2026-08-18
-- 地图状态：游客工作台 Hosted Alpha 已在线运行；截至提交 `9eb8452`，Web Agent 案例库、Agent 学习助手三栏/弹窗协作和可关闭学习引导已发布为腾讯云版本 `20260818-145005-9eb8452996ef`。宽屏默认三栏，Dialog 内助手入口不再覆盖删除、重置等主操作，弹窗助手优先显示对话；仓库默认分支、README、About、官网与 Topics 已统一为 Web 产品。天气 ReAct 完整闭环已经验证可用，但全新浏览器的默认 Run 设置仍关闭 ReAct 与自动工具执行，首次点击 Run 会停在工具结果调试阶段；启用 ReAct 后可自动完成工具调用与模型续答。GitHub 登录、BYOK、租户级持久 Thread、账单、Bash、stdio MCP、Generator，以及公共远程 MCP 的网络层出站策略仍需独立安全边界；身份、Personal Tenant、PostgreSQL 与强制 RLS 基础仍未接入游客入口。当前没有公开或动态加载的插件。
+- 地图状态：游客工作台 Hosted Alpha 已在线运行；Web 功能提交 `9eb8452` 与 CI 稳定性修复 `f131173` 已发布为腾讯云版本 `20260818-152101-f131173a028d`。Web Agent 案例库、Agent 学习助手三栏/弹窗协作和可关闭学习引导均已上线；宽屏默认三栏，Dialog 内助手入口不再覆盖删除、重置等主操作，弹窗助手优先显示对话。仓库默认分支、README、About、官网与 Topics 已统一为 Web 产品。天气 ReAct 完整闭环已经验证可用，但全新浏览器的默认 Run 设置仍关闭 ReAct 与自动工具执行，首次点击 Run 会停在工具结果调试阶段；启用 ReAct 后可自动完成工具调用与模型续答。GitHub 登录、BYOK、租户级持久 Thread、账单、Bash、stdio MCP、Generator，以及公共远程 MCP 的网络层出站策略仍需独立安全边界；身份、Personal Tenant、PostgreSQL 与强制 RLS 基础仍未接入游客入口。当前没有公开或动态加载的插件。
 - 证据规则：`confirmed` 表示有当前渲染产品或当前代码证据；`stale` 表示依赖旧日志或本轮未完全复查的代码路径；`unknown` 表示需要未来重新检查产品界面后才能用于决策。
 
 ## 交互式浏览器工作台
@@ -131,8 +131,9 @@
 - 学习引导新增独立关闭与恢复入口，关闭偏好写入版本化浏览器存储，刷新后保持关闭；原学习进度不被删除，助手仍可继续按需问答。
 - 生产桌面视口已实际完成旧 Thread 删除，数量由 2 变为 1；390×844 重置确认弹窗内助手完整适配，`documentElement.scrollWidth === innerWidth === 390`。
 - 生产 Models、Quota 与 PostHog 请求均为 200，最终浏览器控制台为 0 error / 0 warning；审计证据位于 `audits/2026-08-18-230900-web-coach-dialog-repository-v1/`。
-- 20 个 Coach 聚焦测试、`mise run check:changed`、Guest Web 构建和 Guest API 打包通过；完整仓库测试为 822 通过、1 跳过、25 失败，失败仍集中于 Windows 缺少 `/bin/sh`/`python3`、符号链接权限、POSIX 路径/权限与生成文件换行基线。同一提交的 GitHub Linux CI 通过。
-- 功能提交 `9eb8452` 已快进合入并推送 `main`；腾讯云发布 `20260818-145005-9eb8452996ef` 通过构建、API 打包、Nginx 配置检查与服务 active 检查。
+- 20 个 Coach 聚焦测试、`mise run check:changed`、Guest Web 构建和 Guest API 打包通过；Windows 完整仓库测试为 823 通过、1 跳过、24 失败，剩余失败集中于缺少 `/bin/sh`/`python3`、符号链接权限、POSIX 路径/权限与生成文件换行基线。
+- CI 首次重跑暴露插件 ZIP 拒绝不安全路径时的异步清理竞态；`f131173` 让 extraction 等待所有写入 settle 后再清理，并把拒绝断言改为显式等待。该测试连续 100 轮 400/400 通过，最终 GitHub Linux CI 的 848 tests、lint、typecheck、desktop build 与 web build 全部通过。
+- Web 功能提交 `9eb8452` 与 CI 修复 `f131173` 已推送 `main`；腾讯云发布 `20260818-152101-f131173a028d` 通过构建、API 打包、Nginx 配置检查与服务 active 检查。
 - 能力边界：Phase 0 按需问答与受控动作继续保留；Weather Track V1 仅能驱动当前天气案例的学习闭环，Run 仍要求 Interrupt 确认，第二次输入必须由用户亲手修改。
 - 明确非目标：不让模型直接执行任意 JavaScript、查询任意 DOM 选择器、模拟鼠标键盘、读取原始按键/鼠标轨迹、默认上传完整 Prompt/回答/图片/文件、绕过现有工具权限、自动执行删除/重置/Run 等高影响动作，也不把助手变成全站无边界自治代理。
 - 可见缺口：生产北极星“首次 Agent 学习闭环完成率”已具备采样事件，但仍无真实用户样本基线。助手栏暂不支持拖拽调宽，Deep Research Track、跨设备进度、更多语义动作与策略校准仍未实现。CopilotKit React Core 尖峰确认 React 19 可装载，但当前仍保留 `@ag-ui/client` 和自有 UI。
@@ -143,7 +144,7 @@
 - 新鲜度：confirmed
 - 最后检查：2026-08-18
 - 证据：
-  - `main`、`origin/main` 与默认分支均指向功能提交 `9eb8452`；GitHub Linux CI 对该提交通过。
+  - `main`、`origin/main` 与默认分支均包含 Web 功能提交 `9eb8452`，当前发布代码提交为 `f131173`；最终 GitHub Linux CI 全绿。
   - 中英文 README 已改为 LLM Space Web，首屏链接直达腾讯云工作台，并以 9 个案例、运行/Trace/Compare/Evaluation、Agent 学习助手和浏览器本地持久化为主要能力。
   - README 明示 Hosted Alpha 的数据、额度、工具和账号边界；桌面项目仅在 Project origin 中作为上游来源说明，不再作为主产品下载入口。
   - GitHub About description、homepage 与 9 个 Topics 已切换为 Web Agent 学习工作台；homepage 为 `https://kandian.site/llm-space-web/#/workbench`。
