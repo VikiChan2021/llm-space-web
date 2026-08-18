@@ -1,0 +1,3 @@
+[data-slot="dialog-content"]:has([data-coach-dialog-panel="true"]) {
+  min-height: min(38rem, calc(100dvh - 2rem));
+}

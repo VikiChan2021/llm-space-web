@@ -1,173 +1,75 @@
-English | [中文](./README.zh-CN.md)
+[English](./README.md) | [中文](./README.zh-CN.md)
 
-[![CI](https://github.com/deer-flow/llm-space/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/deer-flow/llm-space/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/github/v/release/deer-flow/llm-space?label=version)](https://github.com/deer-flow/llm-space/releases)
+[![CI](https://github.com/VikiChan2021/llm-space-web/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/VikiChan2021/llm-space-web/actions/workflows/ci.yml)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.x-3178C6?logo=typescript&logoColor=white)](./package.json)
 [![Bun](https://img.shields.io/badge/Bun-1.3+-000000?logo=bun&logoColor=white)](./mise.toml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
----
+# LLM Space Web
 
-# LLM Space 4
+An interactive learning workbench for building, running, tracing, and comparing AI Agents directly in the browser.
 
-<a href="https://trendshift.io/repositories/83147?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-83147" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/83147/daily?language=TypeScript" alt="deer-flow%2Fllm-space | Trendshift" width="250" height="55"/></a>
+**Try it online:** [https://kandian.site/llm-space-web/#/workbench](https://kandian.site/llm-space-web/#/workbench)
 
-![screenshot](https://github.com/user-attachments/assets/e207bc62-4dab-4b13-a541-d176a8f96c40)
+![LLM Space Web workbench](./.agents/kaizen-loop/audits/2026-08-14-113417-persistent-learning-coach-layout-v1/online-three-column-1440.png)
 
-https://github.com/user-attachments/assets/2ba7a600-1f1a-44c0-b9f1-34ad42100213
+## What you can do
 
-[**LLM Space** v4](https://github.com/deer-flow/llm-space) is a desktop app for agent builders — prototype your next agent ideas, inspect every step of your harness execution, debug failures, and evaluate performance, all in one place.
+- Start from nine editable Agent examples, including Weather Agent, Deep Research, General Agent, Translation, and Deep Wiki.
+- Edit models, prompts, messages, variables, tools, MCP configuration, and ReAct settings in one workbench.
+- Run supported Agents with streamed model output and safe browser/server tools.
+- Inspect Run history and traces, compare executions, restore snapshots, and record evaluations.
+- Learn with an Agentic AI assistant that explains the current surface, guides a weather-agent learning track, and performs only registered, confirmation-aware page actions.
+- Keep guest Threads in the current browser and import or export them as JSON.
 
-**Official website:** https://deer-flow.github.io/llm-space/
+## Hosted Alpha boundaries
 
-LLM Space is a sister project of [DeerFlow](https://github.com/bytedance/deer-flow), and we dogfood it heavily: every version of DeerFlow is built and debugged with LLM Space. The project started in March 2023, and v4 is its fourth major iteration.
+This repository currently showcases the Web Hosted Alpha. It is not presented as a production multi-tenant SaaS.
 
-## Contents
+- Guest Threads and virtual files are stored in the current browser.
+- Free model usage is quota-limited; provider credentials remain on the server.
+- Only allowlisted models and tools are available.
+- Host Bash, host filesystem access, arbitrary DOM/JavaScript control, public remote MCP, login, BYOK, billing, and cross-device Thread sync are not available in the guest experience.
 
-- [Features](#features)
-- [Tech stack](#tech-stack)
-- [Project layout](#project-layout)
-- [Download](#download)
-- [Install](#install)
-- [Run the app](#run-the-app)
-- [User guide](#user-guide)
-- [Contributing](#contributing)
-- [Sponsors](#sponsors)
-- [Donate](#donate)
-- [License](#license)
+See the in-product [Web quick start](https://kandian.site/llm-space-web/#/docs/quick-start) for the current user guide.
 
-## Features
+## Local development
 
-- **Build** — write and version your prompts, system messages, tools, and model settings.
-- **Trace** — see every model call and tool run inside the agent loop as it happens.
-- **Debug** — replay a run from history and step through it to find what went wrong.
-- **Evaluate** — measure how your agent performs across runs.
-- **Manage** — keep your threads organized as files on your own machine.
-- **Generate** — let AI write your prompt and tools for you, and even turn any thread into a runnable [LangGraph](https://github.com/langchain-ai/langgraph) agent.
+The repository uses [mise](https://mise.jdx.dev) as the task entry point and [Bun](https://bun.com) as the package manager/runtime. Do not use npm, pnpm, or yarn for workspace dependencies.
 
-Your files and API keys stay on your local computer. LLM Space collects a small amount of anonymous usage data to improve the app - see [TELEMETRY.md](./TELEMETRY.md) for exactly what is collected and how to opt out.
-
-## Tech stack
-
-- **Language & tooling** — TypeScript, built and managed with [Bun](https://bun.com).
-- **Desktop shell** — [Electrobun](https://electrobun.dev), a lightweight way to ship a native app.
-- **UI** — React with Tailwind CSS and shadcn/ui.
-- **Agent framework** — [Pi Agent Core](https://github.com/earendil-works/pi), a lightweight agent framework for building agents.
-
-## Project layout
-
-LLM Space is a Bun monorepo:
-
+```bash
+mise run setup
+mise run dev:guest-web
 ```
-packages/
-  core/       # Shared domain types, clients, storage, and generators
-  runtime/    # Local runtime, models, tools, skills, MCP, and Plugins
-  ui/         # Shared React design system and Thread Playground
+
+The guest Web app runs on `http://localhost:15175/llm-space-web/`.
+
+Useful checks:
+
+```bash
+mise run check:changed
+mise run build:guest-web
+mise run pack:guest-api
+```
+
+## Web architecture
+
+```text
 apps/
-  desktop/    # The desktop app (Electrobun shell + React UI)
-examples/
-  atlas-plugin/ # Complete Plugin example covering every Extension type
+  web/       # React/Vite workbench, docs, examples, and browser persistence
+  cloud/     # Guest HTTP/SSE API, model quota, coach, and safe tool execution
+packages/
+  core/      # Browser-safe Agent/thread domain and server storage primitives
+  ui/        # Shared Thread Playground and design system
+  runtime/   # Model, tool, MCP, and Agent runtime implementations
 ```
 
-Each package keeps tests in a `tests/` directory beside `src/`. Test paths
-mirror source paths, such as `packages/core/src/thread/history.ts` and
-`packages/core/tests/thread/history.test.ts`.
+The Web UI and guest API are built separately and served under the same origin in the Tencent Cloud deployment. Provider secrets never enter the browser bundle or local storage.
 
-## Download
+## Project origin
 
-Grab a DMG from the [latest release](https://github.com/deer-flow/llm-space/releases/latest) — macOS, Apple Silicon and Intel. It comes in two editions:
-
-- **LLM Space** — uses the system WebView. Small download (~27 MB), light on memory and battery.
-- **LLM Space Performance** — embeds its own rendering engine (~130 MB). Rendering stays consistent across macOS versions, and usually performs better.
-
-Install either, or both. They share the same `~/.llm-space` data, so switching editions keeps your threads and settings, and both update themselves in place.
-
-## Install
-
-Building from source? You need [Bun](https://bun.com) first. Bun is a fast, all-in-one runtime and package manager for JavaScript — think of it as a drop-in replacement for Node.js and npm. Follow the [official install guide](https://bun.com/docs/installation).
-
-Once Bun is ready, install the project from the repo root:
-
-```bash
-bun install
-```
-
-Contributing, or want the exact toolchain CI uses? Install [mise](https://mise.jdx.dev) and run `mise run setup` instead — it installs the locked Bun version (from `mise.lock`) plus JS deps in one step.
-
-## Run the app
-
-Start the desktop app for local development:
-
-```bash
-mise run dev
-```
-
-Build a canary release:
-
-```bash
-mise run build:canary
-```
-
-## User guide
-
-The user guide lives in this repository:
-
-- [Quick start](./docs/get-started.md)
-- [User manual](./docs/index.md)
-- [Core concepts](./docs/core-concepts.md)
-- [Conversation compaction](./docs/compaction.md)
-- [Sharing Threads](./docs/sharing.md)
-- [Generating Projects](./docs/generating-projects.md)
-- [Plugin development guide](./docs/plugins.md)
-- [Complete Atlas Plugin example](./examples/atlas-plugin/README.md) — two
-  Skills, MCP servers, model providers, Plugin Tools, Commands, and Thread
-  Storages, plus a multi-field Settings schema.
-
-## Contributing
-
-For now, we only merge pull requests from the [DeerFlow](https://github.com/bytedance/deer-flow) core team members.
-
-Everyone else is very welcome to help by [opening an issue](https://github.com/deer-flow/llm-space/issues) — bug reports, ideas, and feedback all make the project better.
-
-## Sponsors
-
-LLM Space is free and open source, and it stays that way thanks to our sponsors. We are proud and grateful to be backed by them.
-
-### 🏆 Platinum sponsor
-
-<p align="center">
-  <a href="https://superdesign.dev" target="_blank" rel="noopener">
-    <img src="./docs/images/sponsor-superdesign.svg" alt="Superdesign - AI product design agent that turns prompts into designs on an infinite canvas (Platinum Sponsor)" width="600" />
-  </a>
-</p>
-
-<p align="center">
-  <strong><a href="https://superdesign.dev">Superdesign</a></strong> is an AI product design agent that turns natural-language prompts into UI mockups, components, and full designs on an infinite canvas. Thank you for making LLM Space possible. 💜
-</p>
-
-Want to see your logo here? We would love to talk - [reach out by opening an issue](https://github.com/deer-flow/llm-space/issues) or [support the project](#donate).
-
-
-### 🏅 Gold sponsor
-We strongly recommend using the VolcEngine Coding Plan as your default model provider:
-
-<p align="center">
-  <a href="https://www.byteplus.com/en/activity/codingplan?utm_campaign=LLM_Space&utm_content=LLM_Space&utm_medium=devrel&utm_source=OWO&utm_term=LLM_Space" target="_blank" rel="noopener">
-    <img width="600" height="150" alt="image" src="https://github.com/user-attachments/assets/e6c62cad-a798-4dc4-9beb-c96503526458" />
-  </a>
-</p>
-
-- [BytePlus's Coding Plan by ByteDance](https://www.byteplus.com/en/activity/codingplan?utm_campaign=LLM_Space&utm_content=LLM_Space&utm_medium=devrel&utm_source=OWO&utm_term=LLM_Space)
-- [火山引擎 Coding Plan - 中国大陆地区](https://ai.volcengine.com/activity/agentplan?utm_campaign=LLM_Space&utm_content=LLM_Space&utm_medium=devrel&utm_source=OWO&utm_term=LLM_Space)
-
-## Donate
-
-If LLM Space is useful to you and you would like to support its development, you can donate here:
-
-**[Support LLM Space →](https://my.feishu.cn/wiki/OvLBwVuSkiCR1ik5wGEcBXZfnye)**
-
-Thank you.
+This repository is a Web-focused fork of [deer-flow/llm-space](https://github.com/deer-flow/llm-space). The upstream project is a native Electrobun desktop application; this fork retains shared packages and desktop source for compatibility while the repository homepage, README, and hosted product focus on the browser workbench.
 
 ## License
 
-LLM Space is released under the [MIT License](LICENSE).
+Released under the [MIT License](./LICENSE).

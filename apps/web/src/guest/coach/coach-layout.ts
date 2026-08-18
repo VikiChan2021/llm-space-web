@@ -1,5 +1,7 @@
 export const GUEST_COACH_ENABLED_STORAGE_KEY =
   "llm-space.guest.learning-coach.enabled.v1";
+export const GUEST_COACH_GUIDANCE_ENABLED_STORAGE_KEY =
+  "llm-space.guest.learning-coach.guidance-enabled.v1";
 
 export type CoachSurfaceId =
   | "workbench"
@@ -86,10 +88,35 @@ export function saveGuestCoachEnabled(
   }
 }
 
-export function normalizeCoachSurface(value: string | undefined): CoachSurfaceId {
-  return value && value in SURFACE_HINTS
-    ? (value as CoachSurfaceId)
-    : "dialog";
+export function readGuestCoachGuidanceEnabled(
+  storage: CoachPreferenceStorage | null | undefined
+): boolean {
+  if (!storage) return true;
+  try {
+    return (
+      storage.getItem(GUEST_COACH_GUIDANCE_ENABLED_STORAGE_KEY) !== "false"
+    );
+  } catch {
+    return true;
+  }
+}
+
+export function saveGuestCoachGuidanceEnabled(
+  storage: CoachPreferenceStorage | null | undefined,
+  enabled: boolean
+): void {
+  if (!storage) return;
+  try {
+    storage.setItem(GUEST_COACH_GUIDANCE_ENABLED_STORAGE_KEY, String(enabled));
+  } catch {
+    // The preference is non-critical when browser storage is unavailable.
+  }
+}
+
+export function normalizeCoachSurface(
+  value: string | undefined
+): CoachSurfaceId {
+  return value && value in SURFACE_HINTS ? (value as CoachSurfaceId) : "dialog";
 }
 
 export function getCoachSurfaceHint(surface: CoachSurfaceId): CoachSurfaceHint {

@@ -1,8 +1,4 @@
-import {
-  HttpAgent,
-  type AgentSubscriber,
-  type Interrupt,
-} from "@ag-ui/client";
+import { HttpAgent, type AgentSubscriber, type Interrupt } from "@ag-ui/client";
 import { ConfirmDialog } from "@llm-space/ui/components/confirm-dialog";
 import { Button } from "@llm-space/ui/ui/button";
 import { Textarea } from "@llm-space/ui/ui/textarea";
@@ -35,6 +31,8 @@ import {
 } from "./coach-actions";
 import {
   getCoachSurfaceHint,
+  readGuestCoachGuidanceEnabled,
+  saveGuestCoachGuidanceEnabled,
   type CoachSurfaceId,
 } from "./coach-layout";
 import {
@@ -52,6 +50,8 @@ import {
   type WeatherLearningObservation,
   type WeatherLearningProgress,
 } from "./weather-learning-track";
+
+import "./coach.css";
 
 const COACH_AGENT_ID = "llm-space-learning-coach";
 const COACH_TOOLS = [
@@ -160,10 +160,14 @@ export default function LearningCoach({
       loadWeatherLearningProgress(window.localStorage)
     );
   const [nudgeStage, setNudgeStage] = useState<string | null>(null);
+  const [guidanceEnabled, setGuidanceEnabled] = useState(() =>
+    readGuestCoachGuidanceEnabled(getBrowserStorage())
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
   const runFromFirstUserMessageRef = useRef(false);
   const handledComparisonTokenRef = useRef(0);
   const previousWeatherStageRef = useRef(weatherProgress?.stage);
+
   const contextValue = useMemo(() => JSON.stringify(context), [context]);
   const actionEnvironment = useMemo<CoachActionEnvironment>(
     () => ({
@@ -193,18 +197,15 @@ export default function LearningCoach({
     [agent]
   );
 
-  const updateAssistant = useCallback(
-    (messageId: string, delta: string) => {
-      setMessages((current) =>
-        current.map((message) =>
-          message.id === messageId
-            ? { ...message, content: `${message.content}${delta}` }
-            : message
-        )
-      );
-    },
-    []
-  );
+  const updateAssistant = useCallback((messageId: string, delta: string) => {
+    setMessages((current) =>
+      current.map((message) =>
+        message.id === messageId
+          ? { ...message, content: `${message.content}${delta}` }
+          : message
+      )
+    );
+  }, []);
 
   const addReceipt = useCallback((content: string, failed = false) => {
     setMessages((current) => [
@@ -288,7 +289,9 @@ export default function LearningCoach({
         setRunning(false);
         onRunCompleted();
       }
-    }, [agent, contextValue, createSubscriber, onRunCompleted, running]);
+    },
+    [agent, contextValue, createSubscriber, onRunCompleted, running]
+  );
 
   const ask = useCallback(
     (text: string) => {
@@ -369,7 +372,8 @@ export default function LearningCoach({
     const previousStage = previousWeatherStageRef.current;
     const nextStage = weatherProgress?.stage;
     previousWeatherStageRef.current = nextStage;
-    if (!weatherProgress || !previousStage || previousStage === nextStage) return;
+    if (!weatherProgress || !previousStage || previousStage === nextStage)
+      return;
     captureWeatherLearningEvent(
       nextStage === "completed" ? "track_completed" : "step_completed",
       weatherProgress
@@ -496,7 +500,11 @@ export default function LearningCoach({
                 查看下一步
                 <ChevronRightIcon />
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setNudgeStage(null)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setNudgeStage(null)}
+              >
                 稍后
               </Button>
               <Button
@@ -520,9 +528,11 @@ export default function LearningCoach({
   }
 
   const surfaceHint = getCoachSurfaceHint(surface);
+  const compactDialog = Boolean(portalTarget);
   const coach = (
     <>
       <aside
+        data-coach-dialog-panel={compactDialog ? "true" : undefined}
         role={variant === "docked" ? "complementary" : "dialog"}
         aria-modal={variant === "overlay" ? "false" : undefined}
         aria-labelledby="learning-coach-title"
@@ -547,9 +557,27 @@ export default function LearningCoach({
                 Learning V1
               </span>
             </div>
-            <p className="text-muted-foreground mt-0.5 text-xs">
-              学习轨道 + 按需问答 · 页面动作受安全策略控制
-            </p>
+            <div className="text-muted-foreground mt-0.5 flex items-center gap-2 text-xs">
+              <span>
+                {compactDialog
+                  ? `${surfaceHint.label} · 按需问答`
+                  : guidanceEnabled
+                    ? "学习引导 + 按需问答 · 页面动作受安全策略控制"
+                    : "按需问答 · 学习引导已关闭"}
+              </span>
+              {!compactDialog && !guidanceEnabled ? (
+                <button
+                  type="button"
+                  className="text-primary shrink-0 font-medium hover:underline"
+                  onClick={() => {
+                    setGuidanceEnabled(true);
+                    saveGuestCoachGuidanceEnabled(getBrowserStorage(), true);
+                  }}
+                >
+                  开启引导
+                </button>
+              ) : null}
+            </div>
           </div>
           <Button
             variant="ghost"
@@ -561,7 +589,7 @@ export default function LearningCoach({
           </Button>
         </header>
 
-        {surface !== "workbench" ? (
+        {!compactDialog && surface !== "workbench" ? (
           <div className="border-b bg-violet-500/5 px-4 py-3">
             <div className="flex items-center gap-1.5 text-xs font-medium text-violet-700 dark:text-violet-200">
               <SparklesIcon className="size-3.5" />
@@ -576,51 +604,59 @@ export default function LearningCoach({
           </div>
         ) : null}
 
-        <WeatherLearningCard
-          available={context.starterId === "weather"}
-          observation={weatherObservation}
-          progress={weatherProgress}
-          coachRunning={running}
-          onStart={startWeatherLearning}
-          onDispatch={dispatchWeatherLearning}
-          onAskRun={(fromFirstUserMessage) => {
-            runFromFirstUserMessageRef.current = fromFirstUserMessage;
-            ask(
-              fromFirstUserMessage
-                ? "从第一条用户消息运行当前 Thread"
-                : "运行当前 Thread"
-            );
-          }}
-          onHighlight={(elementId) => {
-            const receipt = executeCoachAction(
-              { name: "highlight_element", elementId },
-              actionEnvironment
-            );
-            addReceipt(receipt.message, !receipt.success);
-          }}
-          onOpenRunHistory={onOpenRunHistory}
-          onReset={resetWeatherLearning}
-        />
+        {!compactDialog && guidanceEnabled ? (
+          <WeatherLearningCard
+            available={context.starterId === "weather"}
+            observation={weatherObservation}
+            progress={weatherProgress}
+            coachRunning={running}
+            onStart={startWeatherLearning}
+            onDispatch={dispatchWeatherLearning}
+            onAskRun={(fromFirstUserMessage) => {
+              runFromFirstUserMessageRef.current = fromFirstUserMessage;
+              ask(
+                fromFirstUserMessage
+                  ? "从第一条用户消息运行当前 Thread"
+                  : "运行当前 Thread"
+              );
+            }}
+            onHighlight={(elementId) => {
+              const receipt = executeCoachAction(
+                { name: "highlight_element", elementId },
+                actionEnvironment
+              );
+              addReceipt(receipt.message, !receipt.success);
+            }}
+            onOpenRunHistory={onOpenRunHistory}
+            onReset={resetWeatherLearning}
+            onDismiss={() => {
+              setGuidanceEnabled(false);
+              saveGuestCoachGuidanceEnabled(getBrowserStorage(), false);
+            }}
+          />
+        ) : null}
 
-        <div className="border-b px-4 py-3">
-          <div className="mb-2 flex items-center gap-1.5 text-xs font-medium">
-            <SparklesIcon className="size-3.5 text-violet-500" />
-            试试这些操作
+        {!compactDialog && guidanceEnabled ? (
+          <div className="border-b px-4 py-3">
+            <div className="mb-2 flex items-center gap-1.5 text-xs font-medium">
+              <SparklesIcon className="size-3.5 text-violet-500" />
+              试试这些操作
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {SUGGESTIONS.map((suggestion) => (
+                <Button
+                  key={suggestion}
+                  variant="outline"
+                  size="sm"
+                  disabled={running}
+                  onClick={() => ask(suggestion)}
+                >
+                  {suggestion}
+                </Button>
+              ))}
+            </div>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {SUGGESTIONS.map((suggestion) => (
-              <Button
-                key={suggestion}
-                variant="outline"
-                size="sm"
-                disabled={running}
-                onClick={() => ask(suggestion)}
-              >
-                {suggestion}
-              </Button>
-            ))}
-          </div>
-        </div>
+        ) : null}
 
         <div
           ref={scrollRef}
@@ -672,13 +708,10 @@ export default function LearningCoach({
           <div className="mt-2 flex items-center gap-2">
             <div className="text-muted-foreground flex min-w-0 flex-1 items-start gap-1.5 text-[0.625rem] leading-relaxed">
               <ShieldCheckIcon className="mt-0.5 size-3 shrink-0" />
-              不发送完整 Prompt、回答、图片、文件或密钥；开放问题可能消耗 1 次免费 Run。
+              不发送完整 Prompt、回答、图片、文件或密钥；开放问题可能消耗 1
+              次免费 Run。
             </div>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={running || !input.trim()}
-            >
+            <Button type="submit" size="sm" disabled={running || !input.trim()}>
               <SendIcon />
               发送
             </Button>
@@ -705,4 +738,12 @@ export default function LearningCoach({
   );
 
   return portalTarget ? createPortal(coach, portalTarget) : coach;
+}
+
+function getBrowserStorage(): Storage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
 }

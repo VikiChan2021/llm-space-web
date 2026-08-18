@@ -7,6 +7,7 @@ import {
   LocateFixedIcon,
   PlayIcon,
   RotateCcwIcon,
+  XIcon,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -28,6 +29,7 @@ interface WeatherLearningCardProps {
   onHighlight: (elementId: "tools" | "run-settings" | "message-input") => void;
   onOpenRunHistory: () => void;
   onReset: () => void;
+  onDismiss: () => void;
 }
 
 const REFLECTION_OPTIONS = [
@@ -47,6 +49,7 @@ export function WeatherLearningCard({
   onHighlight,
   onOpenRunHistory,
   onReset,
+  onDismiss,
 }: WeatherLearningCardProps) {
   const [reflection, setReflection] = useState<string | null>(null);
   const [reflectionError, setReflectionError] = useState(false);
@@ -78,6 +81,15 @@ export function WeatherLearningCard({
               开始学习
             </Button>
           </div>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="关闭学习引导"
+            title="关闭学习引导"
+            onClick={onDismiss}
+          >
+            <XIcon />
+          </Button>
         </div>
       </section>
     );
@@ -88,7 +100,9 @@ export function WeatherLearningCard({
     <section className="border-b bg-gradient-to-br from-sky-500/10 via-transparent to-violet-500/10 px-4 py-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         <div>
-          <div className="text-xs font-semibold">天气 Agent · 第 {step}/6 步</div>
+          <div className="text-xs font-semibold">
+            天气 Agent · 第 {step}/6 步
+          </div>
           <div className="text-muted-foreground mt-0.5 text-[0.625rem]">
             学习进度仅保存在当前浏览器
           </div>
@@ -117,9 +131,18 @@ export function WeatherLearningCard({
           >
             <RotateCcwIcon />
           </Button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="关闭学习引导"
+            title="关闭学习引导"
+            onClick={onDismiss}
+          >
+            <XIcon />
+          </Button>
         </div>
       </div>
-      <div className="mb-3 h-1 overflow-hidden rounded-full bg-muted">
+      <div className="bg-muted mb-3 h-1 overflow-hidden rounded-full">
         <div
           className="h-full rounded-full bg-gradient-to-r from-sky-500 to-violet-500 transition-[width]"
           style={{ width: `${(step / 6) * 100}%` }}
@@ -128,7 +151,8 @@ export function WeatherLearningCard({
 
       {progress.threadRecordId !== observation.threadRecordId ? (
         <div className="rounded-lg border border-dashed px-3 py-2 text-[0.6875rem]">
-          你已切换到另一个 Thread。本轨道已自动停在原天气 Thread；切回后会从当前步骤继续。
+          你已切换到另一个 Thread。本轨道已自动停在原天气
+          Thread；切回后会从当前步骤继续。
         </div>
       ) : progress.paused ? (
         <div className="rounded-lg border border-dashed px-3 py-2 text-[0.6875rem]">
@@ -197,7 +221,11 @@ function WeatherLearningTask({
         Tool 让模型读取实时信息；ReAct 让模型在“思考 → 调用工具 →
         观察结果”之间继续循环。你可以在 Run 右侧设置中开启 ReAct。
         <div className="mt-2 flex flex-wrap gap-1.5">
-          <Button variant="outline" size="sm" onClick={() => onHighlight("tools")}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onHighlight("tools")}
+          >
             高亮 Tools
           </Button>
           <Button
@@ -239,7 +267,8 @@ function WeatherLearningTask({
     const pending = observation.pendingWeatherToolCallCount > 0;
     return (
       <TaskShell title="读懂 weather_report 工具链">
-        已发现 {observation.weatherToolCallCount} 次天气工具调用，完成输出 {observation.completedWeatherToolCallCount} 次。
+        已发现 {observation.weatherToolCallCount} 次天气工具调用，完成输出{" "}
+        {observation.completedWeatherToolCallCount} 次。
         {pending
           ? " 当前调用仍待执行：在消息卡中点击 Call tools；若未启用 ReAct，再点 Continue。"
           : " 展开工具卡即可查看参数、状态和输出。"}
@@ -295,7 +324,8 @@ function WeatherLearningTask({
   if (progress.stage === "compare") {
     return (
       <TaskShell title="比较两次 Run">
-        打开 Run history，选择两条记录并点击 Compare。比较界面真正打开后，本步骤才算完成。
+        打开 Run history，选择两条记录并点击
+        Compare。比较界面真正打开后，本步骤才算完成。
         <div className="mt-2 flex flex-wrap gap-1.5">
           <Button size="sm" onClick={onOpenRunHistory}>
             <GitCompareArrowsIcon />
@@ -336,11 +366,19 @@ function WeatherLearningTask({
           ))}
         </fieldset>
         {reflectionError ? (
-          <p role="alert" className="mt-1.5 text-[0.6875rem] text-amber-700 dark:text-amber-200">
+          <p
+            role="alert"
+            className="mt-1.5 text-[0.6875rem] text-amber-700 dark:text-amber-200"
+          >
             再观察一下：改变的是输入城市，随后变化的是 Tool 参数与结果。
           </p>
         ) : null}
-        <Button className="mt-2" size="sm" disabled={!reflection} onClick={onReflectionSubmit}>
+        <Button
+          className="mt-2"
+          size="sm"
+          disabled={!reflection}
+          onClick={onReflectionSubmit}
+        >
           提交答案
         </Button>
       </TaskShell>
@@ -356,9 +394,15 @@ function WeatherLearningTask({
   );
 }
 
-function TaskShell({ title, children }: { title: string; children: React.ReactNode }) {
+function TaskShell({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="rounded-lg border bg-background/70 px-3 py-2.5 text-[0.6875rem] leading-relaxed">
+    <div className="bg-background/70 rounded-lg border px-3 py-2.5 text-[0.6875rem] leading-relaxed">
       <div className="mb-1 text-xs font-medium">{title}</div>
       <div className="text-muted-foreground">{children}</div>
     </div>

@@ -2,11 +2,14 @@ import { describe, expect, test } from "bun:test";
 
 import {
   GUEST_COACH_ENABLED_STORAGE_KEY,
+  GUEST_COACH_GUIDANCE_ENABLED_STORAGE_KEY,
   getCoachSurfaceHint,
   normalizeCoachSurface,
   readGuestCoachEnabled,
+  readGuestCoachGuidanceEnabled,
   resolveCoachPresentation,
   saveGuestCoachEnabled,
+  saveGuestCoachGuidanceEnabled,
 } from "./coach-layout";
 
 function memoryStorage(initial?: string) {
@@ -28,6 +31,17 @@ describe("guest coach layout", () => {
     saveGuestCoachEnabled(storage, false);
     expect(storage.values.get(GUEST_COACH_ENABLED_STORAGE_KEY)).toBe("false");
     expect(readGuestCoachEnabled(storage)).toBe(false);
+  });
+
+  test("persists the learning guidance preference independently", () => {
+    const storage = memoryStorage();
+    expect(readGuestCoachGuidanceEnabled(storage)).toBe(true);
+    saveGuestCoachGuidanceEnabled(storage, false);
+    expect(storage.values.get(GUEST_COACH_GUIDANCE_ENABLED_STORAGE_KEY)).toBe(
+      "false"
+    );
+    expect(readGuestCoachGuidanceEnabled(storage)).toBe(false);
+    expect(readGuestCoachEnabled(storage)).toBe(true);
   });
 
   test("uses a docked third column only on a wide workbench", () => {
@@ -72,6 +86,8 @@ describe("guest coach layout", () => {
     expect(normalizeCoachSurface("variables")).toBe("variables");
     expect(normalizeCoachSurface("unknown-panel")).toBe("dialog");
     expect(getCoachSurfaceHint("variables").message).toContain("内置变量");
-    expect(getCoachSurfaceHint("dialog").message).not.toContain("unknown-panel");
+    expect(getCoachSurfaceHint("dialog").message).not.toContain(
+      "unknown-panel"
+    );
   });
 });
