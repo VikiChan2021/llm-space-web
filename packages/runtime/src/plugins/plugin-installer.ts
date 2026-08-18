@@ -124,6 +124,11 @@ async function _extractZip(archive: Uint8Array, destination: string) {
 
   const unzip = new Unzip((file) => {
     try {
+      if (extractionError) {
+        file.ondata = () => undefined;
+        file.start();
+        return;
+      }
       entries += 1;
       if (entries > MAX_ARCHIVE_ENTRIES) {
         throw new Error("The plugin ZIP contains too many entries.");
@@ -187,17 +192,24 @@ async function _extractZip(archive: Uint8Array, destination: string) {
     } catch (error) {
       extractionError = _asError(error);
       file.ondata = () => undefined;
+      file.start();
     }
   });
   unzip.register(UnzipPassThrough);
   unzip.register(UnzipInflate);
+  let pushError: Error | undefined;
   try {
     unzip.push(archive, true);
   } catch (error) {
-    throw _asError(error);
+    pushError = _asError(error);
   }
+  const writeResults = await Promise.allSettled(writes);
+  if (pushError) throw pushError;
   if (extractionError) throw extractionError;
-  await Promise.all(writes);
+  const failedWrite = writeResults.find(
+    (result): result is PromiseRejectedResult => result.status === "rejected"
+  );
+  if (failedWrite) throw _asError(failedWrite.reason);
 }
 
 function _safeArchivePath(name: string): string {
