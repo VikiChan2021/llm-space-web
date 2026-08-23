@@ -19,6 +19,7 @@ An interactive learning workbench for building, running, tracing, and comparing 
 - Edit models, prompts, messages, variables, tools, MCP configuration, and ReAct settings in one workbench.
 - Run supported Agents with streamed model output and safe browser/server tools.
 - Inspect Run history and traces, compare executions, restore snapshots, and record evaluations.
+- Run small browser-local Baseline/Candidate experiments with fixed text cases, deterministic checks, trace inspection, manual scoring, and JSON import/export.
 - Learn with an Agentic AI assistant that explains the current surface, guides a weather-agent learning track, and performs only registered, confirmation-aware page actions.
 - Keep guest Threads in the current browser and import or export them as JSON.
 

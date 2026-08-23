@@ -17,6 +17,7 @@ import {
   ChevronRightIcon,
   EyeIcon,
   GitCompareArrowsIcon,
+  FlaskConicalIcon,
   RotateCcwIcon,
   Trash2Icon,
   XIcon,
@@ -55,9 +56,11 @@ const VERDICT_LABELS: Record<EvaluationRecord["verdict"], string> = {
 function _RunHistoryListView({
   onClose,
   onComparisonOpen,
+  onOpenEvaluationLab,
 }: {
   onClose: () => void;
   onComparisonOpen?: () => void;
+  onOpenEvaluationLab?: () => void;
 }) {
   const [containerRef] = useAutoAnimation();
   const runHistory = useThreadStore((s) => s.runHistory);
@@ -298,7 +301,17 @@ function _RunHistoryListView({
     <div className="flex size-full flex-col">
       <div className="text-muted-foreground flex h-12 shrink-0 items-center justify-between border-b pl-3 text-sm">
         <div>Run history</div>
-        <div className="pr-2">
+        <div className="flex items-center gap-1 pr-2">
+          {onOpenEvaluationLab && runs.length > 0 ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onOpenEvaluationLab}
+            >
+              <FlaskConicalIcon className="size-3" />
+              新建评测
+            </Button>
+          ) : null}
           <Button
             variant="ghost"
             size="icon-sm"

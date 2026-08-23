@@ -596,10 +596,14 @@
 
 ## Evaluation Workspace
 
-- Status: shipped V2 with Structured Evaluation Rubrics V1
+- Status: shipped V2 with Structured Evaluation Rubrics V1; Web Evaluation Lab V1 implemented and locally verified, not yet deployed
 - Freshness: confirmed
-- Last checked: 2026-08-22
+- Last checked: 2026-08-23
 - Evidence:
+  - 2026-08-23 local Chromium verified the Web Evaluation Lab from `More actions`: one frozen Baseline and editable Candidate completed a 1-case / 2-variant controlled experiment, both deterministic checks passed, both reduced traces opened read-only, an existing manual evaluation saved with `rightBetter`, JSON export downloaded, refresh restored 2 runs plus 1 evaluation, and ordinary Run history remained empty. A clean restored browser session reported 0 console errors and 0 warnings.
+  - Local responsive checks measured the lab at 933x575 inside a 1037x639 desktop viewport (90% each dimension) and exactly 390x844 inside a 390x844 mobile viewport. Current evidence is `output/playwright/evaluation-lab-v1/results-desktop-final.png` and `output/playwright/evaluation-lab-v1/results-mobile.png`.
+  - Focused Bun coverage now proves bounded experiment creation/normalization/budgeting, isolated Baseline/Candidate thread construction, deterministic text/tool checks, local repository cap/import/export behavior, content-free analytics, sequential-run result capture, and the manual-tool `needs_review` safety boundary.
+  - 2026-08-23 fresh production Chromium at `https://kandian.site/llm-space-web/#/workbench` rendered the current Run history panel with `Compare Runs`, a 0/2 selection state, and no dataset/experiment entry; the browser console reported 0 errors and 0 warnings. Current-run evidence is `output/playwright/web-evaluation-lab-direction/online-current-workbench.png`.
   - 2026-08-22 current hosted Chrome rendered two durable runs in Run history with comparison selection and the shared evaluation surface available; current core tests still prove render-record-rubric-evaluate semantics without desktop imports.
   - No dataset, experiment-runner, aggregate result table, automated evaluator, or regression baseline surface exists in current Web or desktop source; this remains the clearest gap between pairwise inspection and repeatable evaluation.
   - Current CEF screenshot `audits/2026-07-10-145713-evaluation-rubrics-discovery/01-current-run-history.png` shows two durable run cards, comparison selection, inspect/restore actions, and one saved evaluation in the 1280x800 desktop renderer.
@@ -619,9 +623,9 @@
   - Twenty-four focused Bun tests cover schema bounds, malformed/duplicate normalization, rubric CRUD/revisions/caps, immutable snapshots, unordered run-pair orientation, score completeness/aggregation, cross-rubric isolation, and saved-snapshot score restoration.
   - `packages/core/src/types/threads/thread.ts` models legacy and structured evaluations as a compatible union with bounded rubric/snapshot/score data.
   - `apps/desktop/src/components/thread-playground/run-evaluation-dialog.tsx`, `run-evaluation-scorecard.tsx`, and `evaluation-rubric-editor.tsx` implement the comparison, scoring, and rubric-management surfaces.
-- Boundary: two durable runs in one thread can be compared and inspected, labeled with the existing overall verdict/note, or scored against a reusable thread-owned rubric with 2-6 ordered criteria and complete integer 1-5 scores. One evaluation per unordered pair persists immutable rubric evidence, per-run scores, unweighted averages, and B-minus-A delta; editing or deleting the reusable definition does not alter history, and legacy verdict-only evaluations remain valid.
-- Explicit non-goals: dataset/experiment runner, automated or model judge, weighted/formula criteria, thresholds, global rubric library, multiple evaluations per run pair, CI/export, cloud sync, evaluation telemetry, and raw side-by-side trace diff.
-- Visible gaps: rubric weights and mixed criterion types, reusable cross-thread libraries, aggregate experiment tables, evaluation cost comparison, dataset execution, automated judges, and side-by-side trace/timing diff remain unimplemented. The 80% rubric-backed completion target still needs a ten-comparison maintainer dogfood set after merge.
+- Boundary: desktop/shared evaluation still supports durable pairwise run comparison and structured rubrics. Web Local V1 additionally freezes the current text-only Thread as a Baseline, allows a Candidate model/temperature/max-tokens/system-prompt change, runs 1-3 fixed cases sequentially under guest quota and a three-model-turn cap, records deterministic checks/usage/time/reduced traces, preserves unsafe tools as `needs_review`, supports existing manual scoring, and stores at most ten experiments in a separate browser-local repository with explicit JSON import/export. It never mutates the active Thread or ordinary Run history.
+- Explicit non-goals: automated or model judge, weighted/formula criteria, thresholds, global rubric library, multiple evaluations per run pair, CI execution, cloud sync, candidate apply-back, file/image cases, more than three cases, and raw side-by-side trace diff.
+- Visible gaps: production deployment and live-quota dogfood remain pending; rubric weights and mixed criterion types, reusable cross-thread libraries, cost sourced from real usage, larger datasets, automated judges, CI regression gates, cloud collaboration, and side-by-side trace/timing diff remain unimplemented. The first trustworthy experiment target still needs ten fresh-profile production runs after deployment.
 
 ## Trace Inspection
 

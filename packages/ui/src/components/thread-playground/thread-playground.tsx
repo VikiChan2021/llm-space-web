@@ -13,6 +13,7 @@ import {
   ChevronDownIcon,
   EllipsisIcon,
   FileArchiveIcon,
+  FlaskConicalIcon,
   HistoryIcon,
   PlayIcon,
   Redo2Icon,
@@ -139,6 +140,10 @@ export interface ThreadPlaygroundProps {
   onStreamingEnd?: (runId: string) => void;
   /** A monotonic request token used by guided-learning hosts to open Run history. */
   openRunHistoryRequest?: number;
+  /** Open a host-owned evaluation workspace without coupling shared UI to persistence. */
+  onOpenEvaluationLab?: () => void;
+  /** Create a host-owned evaluation draft from the current thread. */
+  onCreateEvaluationExperiment?: () => void;
   /** Run from a known semantic message after an external confirmation flow. */
   runFromMessageRequest?: { token: number; messageId: string } | null;
   /** Content-free learning signals emitted after the user opens history/compare. */
@@ -316,6 +321,8 @@ function ThreadPlaygroundContent({
   compactImages = false,
   runRecovery,
   openRunHistoryRequest,
+  onOpenEvaluationLab,
+  onCreateEvaluationExperiment,
   runFromMessageRequest,
   onLearningEvent,
 }: Omit<
@@ -501,6 +508,15 @@ function ThreadPlaygroundContent({
                     <HistoryIcon />
                     {historyOpen ? "Hide Run History" : "View Run History"}
                   </DropdownMenuItem>
+                  {onOpenEvaluationLab ? (
+                    <DropdownMenuItem
+                      disabled={status !== "idle"}
+                      onSelect={onOpenEvaluationLab}
+                    >
+                      <FlaskConicalIcon />
+                      打开评测实验室
+                    </DropdownMenuItem>
+                  ) : null}
                   <DropdownMenuItem
                     disabled={status !== "idle" || !canCompact}
                     onSelect={() => setCompactDialogOpen(true)}
@@ -747,6 +763,7 @@ function ThreadPlaygroundContent({
         >
           <RunHistoryListView
             onClose={closeHistory}
+            onOpenEvaluationLab={onCreateEvaluationExperiment}
             onComparisonOpen={() =>
               onLearningEvent?.({ type: "run_comparison_opened" })
             }

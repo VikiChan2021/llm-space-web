@@ -19,6 +19,7 @@
 - 在同一个工作台中调整模型、Prompt、消息、Variables、Tools、MCP 与 ReAct 设置。
 - 使用受控的浏览器/服务端工具运行 Agent，并实时查看流式模型输出。
 - 查看 Run history 与 Trace，对比两次执行、恢复快照并记录人工评估。
+- 在浏览器本地运行小型 Baseline/Candidate 评测实验，支持固定文本 Case、确定性检查、Trace、人工评分与 JSON 导入导出。
 - 使用 Agentic AI 学习助手解释当前界面、完成天气 Agent 学习轨道，并通过已注册且带确认边界的页面动作协助操作。
 - 将游客 Thread 保存在当前浏览器，并通过 JSON 导入、导出。
 

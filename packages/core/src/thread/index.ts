@@ -1,5 +1,6 @@
 export * from "./history";
 export * from "./compaction";
+export * from "./evaluation-experiment";
 export * from "./model-config";
 export * from "./prompt-variables";
 export * from "./prompt-variable-display";

@@ -113,6 +113,9 @@ import {
 } from "./guest-workspace";
 
 const LearningCoach = lazy(() => import("./coach/learning-coach"));
+const GuestEvaluationLabDialog = lazy(
+  () => import("./guest-evaluation-lab-dialog")
+);
 
 const BROWSER_WORKSPACE_FACTORY: GuestWorkspaceFactory = {
   createId: () => crypto.randomUUID(),
@@ -149,6 +152,8 @@ export function GuestWorkbench() {
   const [mcpSettingsOpen, setMcpSettingsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exampleDialogOpen, setExampleDialogOpen] = useState(false);
+  const [evaluationLabOpen, setEvaluationLabOpen] = useState(false);
+  const [evaluationCreateRequest, setEvaluationCreateRequest] = useState(0);
   const [coachEnabled, setCoachEnabled] = useState(() =>
     readGuestCoachEnabled(BROWSER_STORAGE)
   );
@@ -842,6 +847,11 @@ export function GuestWorkbench() {
               void refreshQuota();
             }}
             openRunHistoryRequest={openRunHistoryRequest}
+            onOpenEvaluationLab={() => setEvaluationLabOpen(true)}
+            onCreateEvaluationExperiment={() => {
+              setEvaluationCreateRequest((value) => value + 1);
+              setEvaluationLabOpen(true);
+            }}
             runFromMessageRequest={runFromMessageRequest}
             onLearningEvent={handleLearningEvent}
             runRecovery={GUEST_RUN_RECOVERY}
@@ -904,7 +914,8 @@ export function GuestWorkbench() {
                 exampleDialogOpen ||
                 libraryOpen ||
                 resetConfirmOpen ||
-                firstRunDialogOpen
+                firstRunDialogOpen ||
+                evaluationLabOpen
               }
               onOpenRunHistory={() => {
                 setOpenRunHistoryRequest((value) => value + 1);
@@ -917,6 +928,22 @@ export function GuestWorkbench() {
           </Suspense>
         ) : null}
       </div>
+
+      {evaluationLabOpen ? (
+        <Suspense fallback={null}>
+          <GuestEvaluationLabDialog
+            open={evaluationLabOpen}
+            onOpenChange={setEvaluationLabOpen}
+            createRequest={evaluationCreateRequest}
+            thread={activeRecord.thread}
+            fallbackModel={defaultModel}
+            quota={quota}
+            transport={transport}
+            runtimeId={activeRecord.id}
+            onQuotaRefresh={refreshQuota}
+          />
+        </Suspense>
+      ) : null}
 
       <GuestThreadLibrary
         open={libraryOpen}
