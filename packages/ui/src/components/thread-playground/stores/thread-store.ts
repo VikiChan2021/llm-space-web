@@ -118,6 +118,22 @@ export type ThreadRunResult =
       partialOutput: boolean;
       retryFromMessageId?: string;
     };
+export interface ThreadRunModeSnapshot {
+  autoRunTools: boolean;
+  reactLoop: boolean;
+}
+export interface ThreadRunPreparation {
+  autoRunTools?: boolean;
+  reactLoop?: boolean;
+}
+export interface ThreadRunSettledEvent {
+  runId: string;
+  outcome: "completed" | ThreadRunResult["outcome"];
+  thread: Thread;
+  mode: ThreadRunModeSnapshot;
+  result: ThreadRunResult | null;
+  fromMessageId?: string;
+}
 export interface ThreadState {
   thread: Thread;
   runtimeId?: string;
@@ -240,6 +256,24 @@ export function createThreadStore(
      * Read fresh at run time. Defaults to `false`.
      */
     getReactLoop?: () => boolean;
+    /**
+     * Optional host gate evaluated once before a run starts. Returning `false`
+     * cancels without touching the Thread; a mode object overrides only this
+     * run and never writes the shared run-mode preference.
+     */
+    prepareRun?: (request: {
+      fromMessageId?: string;
+    }) =>
+      | ThreadRunPreparation
+      | false
+      | void
+      | Promise<ThreadRunPreparation | false | void>;
+    /** Safe host signal emitted after an actual streaming run settles. */
+    onRunSettled?: (event: ThreadRunSettledEvent) => void;
+    /** Restore a host-persisted, content-free recovery result on mount. */
+    initialRunResult?: ThreadRunResult | null;
+    /** Let a host remove its persisted recovery summary when dismissed. */
+    onRunResultDismissed?: () => void;
     /**
      * Execute an MCP or built-in tool call, returning structured model-facing
      * content. Only used by the auto-run-tools path; manual tool runs go through
@@ -713,7 +747,7 @@ export function createThreadStore(
         abortController: null,
         activeRunId: null,
         executingToolCallIds: [],
-        lastRunResult: null,
+        lastRunResult: options.initialRunResult ?? null,
         collapsedMessageIds: [],
         runValidationIssue: null,
         autoFocusMessageId: null,
@@ -736,6 +770,7 @@ export function createThreadStore(
         },
         dismissRunResult() {
           set({ lastRunResult: null });
+          options.onRunResultDismissed?.();
         },
         insertMessageBefore(beforeMessageId: string) {
           const messages = get().thread.context?.messages ?? [];
@@ -1121,6 +1156,34 @@ export function createThreadStore(
             lastRunResult: null,
           });
           if (!isPreparingRun()) return;
+          let runPreparation: ThreadRunPreparation | void;
+          try {
+            const prepared = await options.prepareRun?.({ fromMessageId });
+            if (prepared === false) {
+              finishPreparingRun();
+              return;
+            }
+            runPreparation = prepared;
+          } catch (error) {
+            finishPreparingRun();
+            toast.error("Unable to prepare this run", {
+              description:
+                error instanceof Error ? error.message : "Please try again.",
+            });
+            return;
+          }
+          if (!isPreparingRun()) return;
+          const reactLoop =
+            runPreparation?.reactLoop ?? options.getReactLoop?.() ?? false;
+          const autoRunTools =
+            reactLoop ||
+            (runPreparation?.autoRunTools ??
+              options.getAutoRunTools?.() ??
+              false);
+          const runMode: ThreadRunModeSnapshot = {
+            autoRunTools,
+            reactLoop,
+          };
           // Resolve the model to run with: the thread's own when available,
           // else the default/first available. A thread with no resolvable model
           // cannot run.
@@ -1350,6 +1413,19 @@ export function createThreadStore(
                 activeRunId: null,
                 executingToolCallIds: [],
               });
+              const result = get().lastRunResult;
+              try {
+                options.onRunSettled?.({
+                  runId,
+                  outcome: result?.outcome ?? "completed",
+                  thread: get().thread,
+                  mode: runMode,
+                  result,
+                  ...(fromMessageId ? { fromMessageId } : {}),
+                });
+              } catch (error) {
+                console.error("Run settlement callback failed", error);
+              }
               stopActiveRun = null;
             })();
             return finalizePromise;
@@ -1541,9 +1617,6 @@ export function createThreadStore(
               if (outcome !== "completed") {
                 break;
               }
-              const reactLoop = options.getReactLoop?.() ?? false;
-              const autoRunTools =
-                reactLoop || (options.getAutoRunTools?.() ?? false);
               if (!autoRunTools) {
                 break;
               }

@@ -2,7 +2,10 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import type { AgentEvent, AgentTransport } from "@llm-space/core";
 
-import { createThreadStore } from "./thread-store";
+import {
+  createThreadStore,
+  type ThreadRunSettledEvent,
+} from "./thread-store";
 
 const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
 const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
@@ -19,6 +22,57 @@ afterAll(() => {
 });
 
 describe("host tool execution policy", () => {
+  test("applies a ReAct override to one run without changing stored defaults", async () => {
+    let transportCalls = 0;
+    let settledMode: { autoRunTools: boolean; reactLoop: boolean } | undefined;
+    const transport: AgentTransport = async function* () {
+      transportCalls += 1;
+      if (transportCalls === 1) yield* _toolCallEvents("call-override");
+      else yield* _textEvents("完成");
+    };
+    const store = _store(transport, {
+      canAutoExecuteTool: () => true,
+      getReactLoop: () => false,
+      prepareRun: () => ({ autoRunTools: true, reactLoop: true }),
+      onRunSettled: (event) => {
+        settledMode = event.mode;
+      },
+      executeTool: async () => ({
+        content: [{ type: "text", text: "safe result" }],
+        isError: false,
+      }),
+    });
+
+    await store.getState().run();
+
+    expect(transportCalls).toBe(2);
+    expect(settledMode).toEqual({ autoRunTools: true, reactLoop: true });
+  });
+
+  test("cancels cleanly when the host declines run preparation", async () => {
+    let transportCalls = 0;
+    const store = _store(
+      async function* () {
+        transportCalls += 1;
+        yield* _textEvents("不应运行");
+      },
+      {
+        canAutoExecuteTool: () => true,
+        prepareRun: () => false,
+        executeTool: async () => ({
+          content: [{ type: "text", text: "unused" }],
+          isError: false,
+        }),
+      }
+    );
+
+    await store.getState().run();
+
+    expect(transportCalls).toBe(0);
+    expect(store.getState().status).toBe("idle");
+    expect(store.getState().thread.context?.messages).toHaveLength(1);
+  });
+
   test("runs an allowed tool and continues the ReAct loop", async () => {
     let transportCalls = 0;
     let toolCalls = 0;
@@ -116,6 +170,11 @@ function _store(
     }>;
     maxAutoToolTurns?: number;
     maxAutoToolCalls?: number;
+    getReactLoop?: () => boolean;
+    prepareRun?: () =>
+      | { autoRunTools?: boolean; reactLoop?: boolean }
+      | false;
+    onRunSettled?: (event: ThreadRunSettledEvent) => void;
   }
 ) {
   return createThreadStore(
@@ -145,7 +204,9 @@ function _store(
     {
       transport,
       resolveModel: () => ({ provider: "test", id: "test" }),
-      getReactLoop: () => true,
+      getReactLoop: options.getReactLoop ?? (() => true),
+      prepareRun: options.prepareRun,
+      onRunSettled: options.onRunSettled,
       executeTool: options.executeTool,
       canAutoExecuteTool: options.canAutoExecuteTool,
       maxAutoToolTurns: options.maxAutoToolTurns,

@@ -3,6 +3,8 @@ import { ConfirmDialog } from "@llm-space/ui/components/confirm-dialog";
 import { useDefaultModel } from "@llm-space/ui/components/model-provider";
 import {
   ThreadPlayground,
+  type ThreadRunPreparation,
+  type ThreadRunSettledEvent,
   type ThreadPlaygroundLearningEvent,
 } from "@llm-space/ui/components/thread-playground";
 import { HostServicesProvider } from "@llm-space/ui/host";
@@ -61,6 +63,28 @@ import {
   createGuestExampleThread,
   type GuestExample,
 } from "./guest-examples";
+import { GuestFirstRunDialog } from "./guest-first-run-dialog";
+import {
+  captureGuestActivationEvent,
+  classifyGuestRunFailure,
+  clearGuestRunRecovery,
+  dismissGuestFirstSuccessCallout,
+  guestRunPreparation,
+  hasCompletedAgentLoop,
+  hasCompletedToolResult,
+  initialGuestRunResult,
+  loadGuestFirstSuccess,
+  recordGuestFirstRunMode,
+  recordGuestFirstSuccess,
+  recordGuestHistoryOpened,
+  recordGuestRunRecovery,
+  recoveryRunPreparation,
+  saveGuestFirstSuccess,
+  shouldOfferGuestFirstRun,
+  type GuestFirstRunMode,
+  type GuestFirstSuccessState,
+} from "./guest-first-success";
+import { GuestFirstSuccessCallout } from "./guest-first-success-callout";
 import { OPEN_GUEST_MCP_SETTINGS_EVENT } from "./guest-mcp";
 import { GuestMcpSettingsDialog } from "./guest-mcp-settings-dialog";
 import { GUEST_RUN_RECOVERY } from "./guest-run-recovery";
@@ -143,10 +167,21 @@ export function GuestWorkbench() {
     useState<GuestSettingsTab>("appearance");
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [running, setRunning] = useState(false);
+  const [firstRunDialogOpen, setFirstRunDialogOpen] = useState(false);
+  const [firstSuccessState, setFirstSuccessState] =
+    useState<GuestFirstSuccessState>(() =>
+      loadGuestFirstSuccess(BROWSER_STORAGE, BROWSER_WORKSPACE_FACTORY)
+    );
   const wideCoachLayout = useWideCoachLayout();
   const activeDialogSurface = useActiveDialogSurface();
   const previousDialogTargetRef = useRef<Element | null>(null);
   const workspaceRef = useRef(workspaceState.workspace);
+  const firstSuccessRef = useRef(firstSuccessState);
+  const sessionEventCapturedRef = useRef(false);
+  const pendingFirstRunRef = useRef<
+    ((value: ThreadRunPreparation | false) => void) | null
+  >(null);
+  const runStartedAtRef = useRef<number | null>(null);
   const { workspace, storageError } = workspaceState;
   const activeRecord =
     workspace.threads.find(
@@ -163,6 +198,14 @@ export function GuestWorkbench() {
   useEffect(() => {
     document.title = WEB_APP_TITLE;
   }, []);
+  useEffect(() => {
+    if (sessionEventCapturedRef.current) return;
+    sessionEventCapturedRef.current = true;
+    captureGuestActivationEvent("session_started", {
+      state: firstSuccessRef.current,
+      starterId: activeRecord.starterId,
+    });
+  }, [activeRecord.starterId]);
   useEffect(() => {
     const nextTarget = activeDialogSurface?.target ?? null;
     if (previousDialogTargetRef.current !== nextTarget) {
@@ -239,6 +282,140 @@ export function GuestWorkbench() {
       });
     },
     []
+  );
+
+  const commitFirstSuccess = useCallback(
+    (
+      transform: (current: GuestFirstSuccessState) => GuestFirstSuccessState
+    ) => {
+      const next = transform(firstSuccessRef.current);
+      firstSuccessRef.current = next;
+      setFirstSuccessState(next);
+      saveGuestFirstSuccess(BROWSER_STORAGE, next);
+      return next;
+    },
+    []
+  );
+
+  const prepareGuestRun = useCallback(
+    async ({
+      fromMessageId,
+    }: {
+      fromMessageId?: string;
+    }): Promise<ThreadRunPreparation | false | void> => {
+      const recoveryMode = recoveryRunPreparation(
+        firstSuccessRef.current,
+        activeRecord.id,
+        fromMessageId
+      );
+      if (recoveryMode) return recoveryMode;
+      if (
+        !shouldOfferGuestFirstRun({
+          state: firstSuccessRef.current,
+          starterId: activeRecord.starterId,
+          thread: activeRecord.thread,
+        })
+      ) {
+        return undefined;
+      }
+      captureGuestActivationEvent("mode_choice_shown", {
+        state: firstSuccessRef.current,
+        starterId: activeRecord.starterId,
+        stage: "first_run",
+      });
+      setFirstRunDialogOpen(true);
+      return new Promise<ThreadRunPreparation | false>((resolve) => {
+        pendingFirstRunRef.current = resolve;
+      });
+    },
+    [activeRecord]
+  );
+
+  const resolveFirstRun = useCallback(
+    (mode?: GuestFirstRunMode) => {
+      const resolve = pendingFirstRunRef.current;
+      if (!resolve) return;
+      pendingFirstRunRef.current = null;
+      setFirstRunDialogOpen(false);
+      if (!mode) {
+        resolve(false);
+        return;
+      }
+      const next = commitFirstSuccess((current) =>
+        recordGuestFirstRunMode(
+          current,
+          mode,
+          BROWSER_WORKSPACE_FACTORY.now()
+        )
+      );
+      captureGuestActivationEvent("mode_selected", {
+        state: next,
+        starterId: activeRecord.starterId,
+        mode,
+        stage: "first_run",
+      });
+      resolve(guestRunPreparation(mode));
+    },
+    [activeRecord.starterId, commitFirstSuccess]
+  );
+
+  const handleRunSettled = useCallback(
+    (event: ThreadRunSettledEvent) => {
+      const now = BROWSER_WORKSPACE_FACTORY.now();
+      const elapsedMs = runStartedAtRef.current
+        ? Date.now() - runStartedAtRef.current
+        : undefined;
+      runStartedAtRef.current = null;
+      if (event.result) {
+        const next = commitFirstSuccess((current) =>
+          recordGuestRunRecovery(current, activeRecord.id, event, now)
+        );
+        if (event.result.outcome === "failed") {
+          captureGuestActivationEvent("run_failed", {
+            state: next,
+            starterId: activeRecord.starterId,
+            mode: event.mode,
+            stage: "first_run",
+            failureCategory: classifyGuestRunFailure(event.result.error).category,
+            elapsedMs,
+          });
+        } else {
+          captureGuestActivationEvent("run_aborted", {
+            state: next,
+            starterId: activeRecord.starterId,
+            mode: event.mode,
+            stage: "first_run",
+            elapsedMs,
+          });
+        }
+        return;
+      }
+
+      const previous = firstSuccessRef.current;
+      commitFirstSuccess(clearGuestRunRecovery);
+      if (hasCompletedToolResult(event.thread)) {
+        captureGuestActivationEvent("tool_result_observed", {
+          state: firstSuccessRef.current,
+          starterId: activeRecord.starterId,
+          mode: event.mode,
+          stage: "tool_result",
+          elapsedMs,
+        });
+      }
+      if (hasCompletedAgentLoop(event.thread) && !previous.completedAt) {
+        const next = commitFirstSuccess((current) =>
+          recordGuestFirstSuccess(current, activeRecord.id, now)
+        );
+        captureGuestActivationEvent("final_answer_completed", {
+          state: next,
+          starterId: activeRecord.starterId,
+          mode: event.mode,
+          stage: "final_answer",
+          elapsedMs,
+        });
+      }
+    },
+    [activeRecord.id, activeRecord.starterId, commitFirstSuccess]
   );
 
   const handleChange = useCallback(
@@ -337,11 +514,31 @@ export function GuestWorkbench() {
   );
   const handleLearningEvent = useCallback(
     (event: ThreadPlaygroundLearningEvent) => {
+      if (event.type === "run_history_opened") {
+        if (
+          firstSuccessRef.current.completedThreadRecordId !== activeRecord.id
+        ) {
+          return;
+        }
+        const wasOpened = Boolean(firstSuccessRef.current.historyOpenedAt);
+        const next = commitFirstSuccess((current) =>
+          recordGuestHistoryOpened(current, BROWSER_WORKSPACE_FACTORY.now())
+        );
+        if (!wasOpened) {
+          captureGuestActivationEvent("run_history_opened", {
+            state: next,
+            starterId: activeRecord.starterId,
+            stage: "history",
+            elapsedMs:
+              Date.now() - new Date(next.startedAt).getTime(),
+          });
+        }
+      }
       if (event.type === "run_comparison_opened") {
         setComparisonOpenedToken((value) => value + 1);
       }
     },
-    []
+    [activeRecord.id, activeRecord.starterId, commitFirstSuccess]
   );
   const handleSelect = useCallback(
     (recordId: string) => {
@@ -600,11 +797,29 @@ export function GuestWorkbench() {
       ) : null}
 
       <div className="flex min-h-0 min-w-0 flex-1">
-        <main className="min-h-0 min-w-0 flex-1 p-2 sm:p-4">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col p-2 sm:p-4">
+          {firstSuccessState.completedAt &&
+          firstSuccessState.completedThreadRecordId === activeRecord.id &&
+          !firstSuccessState.historyOpenedAt &&
+          !firstSuccessState.calloutDismissedAt ? (
+            <GuestFirstSuccessCallout
+              onOpenHistory={() =>
+                setOpenRunHistoryRequest((value) => value + 1)
+              }
+              onDismiss={() =>
+                commitFirstSuccess((current) =>
+                  dismissGuestFirstSuccessCallout(
+                    current,
+                    BROWSER_WORKSPACE_FACTORY.now()
+                  )
+                )
+              }
+            />
+          ) : null}
           <ThreadPlayground
             key={`${activeRecord.id}:${revision}`}
             active
-            className="size-full min-w-0 overflow-hidden rounded-xl border shadow-lg"
+            className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border shadow-lg"
             path={`guest/${activeRecord.id}.json`}
             title={activeRecord.thread.title}
             initialValue={activeRecord.thread}
@@ -612,17 +827,33 @@ export function GuestWorkbench() {
             runtimeId={activeRecord.id}
             onChange={handleChange}
             onRenameTitle={handleRename}
-            onStreamingStart={() => setRunning(true)}
+            onStreamingStart={() => {
+              setRunning(true);
+              runStartedAtRef.current = Date.now();
+              const next = commitFirstSuccess(clearGuestRunRecovery);
+              captureGuestActivationEvent("run_started", {
+                state: next,
+                starterId: activeRecord.starterId,
+                stage: "first_run",
+              });
+            }}
             onStreamingEnd={() => {
               setRunning(false);
               void refreshQuota();
             }}
-            openRunHistoryRequest={
-              coachLoaded ? openRunHistoryRequest : undefined
-            }
+            openRunHistoryRequest={openRunHistoryRequest}
             runFromMessageRequest={runFromMessageRequest}
             onLearningEvent={handleLearningEvent}
             runRecovery={GUEST_RUN_RECOVERY}
+            prepareRun={prepareGuestRun}
+            onRunSettled={handleRunSettled}
+            initialRunResult={initialGuestRunResult(
+              firstSuccessState,
+              activeRecord.id
+            )}
+            onRunResultDismissed={() =>
+              commitFirstSuccess(clearGuestRunRecovery)
+            }
           />
         </main>
 
@@ -672,7 +903,8 @@ export function GuestWorkbench() {
                 mcpSettingsOpen ||
                 exampleDialogOpen ||
                 libraryOpen ||
-                resetConfirmOpen
+                resetConfirmOpen ||
+                firstRunDialogOpen
               }
               onOpenRunHistory={() => {
                 setOpenRunHistoryRequest((value) => value + 1);
@@ -722,6 +954,13 @@ export function GuestWorkbench() {
         running={running}
         creating={creatingExample}
         onSelect={(example) => void handleSelectExample(example)}
+      />
+
+      <GuestFirstRunDialog
+        open={firstRunDialogOpen}
+        quota={quota}
+        onChoose={resolveFirstRun}
+        onCancel={() => resolveFirstRun()}
       />
 
       <ConfirmDialog

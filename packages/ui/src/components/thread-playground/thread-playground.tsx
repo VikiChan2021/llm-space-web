@@ -84,6 +84,9 @@ import {
   createThreadStore,
   getAutoRunTools,
   getReactLoop,
+  type ThreadRunPreparation,
+  type ThreadRunResult,
+  type ThreadRunSettledEvent,
   ThreadStoreContext,
   useRunMode,
   useThreadStore,
@@ -145,6 +148,19 @@ export interface ThreadPlaygroundProps {
   ) => Promise<ThreadRunReference>;
   readRunSnapshot?: (snapshotRef: string) => Promise<ThreadSnapshot>;
   runRecovery?: ThreadRunRecoveryConfig;
+  /** Host-specific, per-run gate and mode override. */
+  prepareRun?: (request: {
+    fromMessageId?: string;
+  }) =>
+    | ThreadRunPreparation
+    | false
+    | void
+    | Promise<ThreadRunPreparation | false | void>;
+  /** Safe completion signal for host-owned activation and persistence flows. */
+  onRunSettled?: (event: ThreadRunSettledEvent) => void;
+  /** Content-free recovery state restored by a host such as the guest Web app. */
+  initialRunResult?: ThreadRunResult | null;
+  onRunResultDismissed?: () => void;
 }
 
 export type ThreadPlaygroundLearningEvent =
@@ -202,6 +218,10 @@ function _ThreadPlaygroundStore({
   archiveRunSnapshot,
   readRunSnapshot,
   runRecovery,
+  prepareRun,
+  onRunSettled,
+  initialRunResult,
+  onRunResultDismissed,
   ...props
 }: ThreadPlaygroundProps) {
   const [ownerRuntimeId] = useState(() => runtimeId ?? "local");
@@ -217,6 +237,12 @@ function _ThreadPlaygroundStore({
   const getProfileId = useGetProviderProfileId();
   const { skills, files, toolExecutionPolicy } = useHostServices();
   const toolExecutor = useToolExecutor(ownerRuntimeId);
+  const prepareRunRef = useRef(prepareRun);
+  prepareRunRef.current = prepareRun;
+  const onRunSettledRef = useRef(onRunSettled);
+  onRunSettledRef.current = onRunSettled;
+  const onRunResultDismissedRef = useRef(onRunResultDismissed);
+  onRunResultDismissedRef.current = onRunResultDismissed;
   const [store] = useState(() => {
     const promptFiles = createRuntimePromptFiles(files, ownerRuntimeId);
     return createThreadStore(initialValue, {
@@ -229,6 +255,10 @@ function _ThreadPlaygroundStore({
         ),
       getAutoRunTools,
       getReactLoop,
+      prepareRun: (request) => prepareRunRef.current?.(request),
+      onRunSettled: (event) => onRunSettledRef.current?.(event),
+      initialRunResult,
+      onRunResultDismissed: () => onRunResultDismissedRef.current?.(),
       getProfileId,
       runtimeId: ownerRuntimeId,
       executeTool: toolExecutor ?? undefined,
@@ -369,10 +399,11 @@ function ThreadPlaygroundContent({
     }
     if (panel.isCollapsed()) {
       panel.resize(RUN_HISTORY_PANEL_SIZE);
+      onLearningEvent?.({ type: "run_history_opened" });
     } else {
       panel.collapse();
     }
-  }, [runHistoryPanelRef]);
+  }, [onLearningEvent, runHistoryPanelRef]);
   const closeHistory = useCallback(() => {
     runHistoryPanelRef.current?.collapse();
   }, [runHistoryPanelRef]);

@@ -1,15 +1,17 @@
 # LLM Space 能力地图
 
-- 最后更新：2026-08-18
-- 地图状态：游客工作台 Hosted Alpha 已在线运行；Web 功能提交 `9eb8452` 与 CI 稳定性修复 `f131173` 已发布为腾讯云版本 `20260818-152101-f131173a028d`。Web Agent 案例库、Agent 学习助手三栏/弹窗协作和可关闭学习引导均已上线；宽屏默认三栏，Dialog 内助手入口不再覆盖删除、重置等主操作，弹窗助手优先显示对话。仓库默认分支、README、About、官网与 Topics 已统一为 Web 产品。天气 ReAct 完整闭环已经验证可用，但全新浏览器的默认 Run 设置仍关闭 ReAct 与自动工具执行，首次点击 Run 会停在工具结果调试阶段；启用 ReAct 后可自动完成工具调用与模型续答。GitHub 登录、BYOK、租户级持久 Thread、账单、Bash、stdio MCP、Generator，以及公共远程 MCP 的网络层出站策略仍需独立安全边界；身份、Personal Tenant、PostgreSQL 与强制 RLS 基础仍未接入游客入口。当前没有公开或动态加载的插件。
+- 最后更新：2026-08-23
+- 地图状态：游客工作台 Hosted Alpha 已在线运行；Web 功能提交 `9eb8452` 与 CI 稳定性修复 `f131173` 已发布为腾讯云版本 `20260818-152101-f131173a028d`。Web Agent 案例库、Agent 学习助手三栏/弹窗协作和可关闭学习引导均已上线。Web 首次成功 V1 已在本地实现并通过受控浏览器验收：全新天气示例首次 Run 可选择“完整运行”或“逐步调试”，完整模式只覆盖当次 Run，不改变全局或桌面默认值，并在成功后引导打开对应 Thread 的运行记录；该增量尚未提交、推送或部署。GitHub 登录、BYOK、租户级持久 Thread、账单、Bash、stdio MCP、Generator，以及公共远程 MCP 的网络层出站策略仍需独立安全边界；身份、Personal Tenant、PostgreSQL 与强制 RLS 基础仍未接入游客入口。当前没有公开或动态加载的插件。
 - 证据规则：`confirmed` 表示有当前渲染产品或当前代码证据；`stale` 表示依赖旧日志或本轮未完全复查的代码路径；`unknown` 表示需要未来重新检查产品界面后才能用于决策。
 
 ## 交互式浏览器工作台
 
 - 状态：线上 Hosted Alpha 可用；三款资源包对齐模型、单行顶部、固定高度设置、工作台优先入口和中文使用说明已部署并完成线上验收
 - 新鲜度：confirmed
-- 最后检查：2026-08-12
+- 最后检查：2026-08-22
 - 证据：
+  - 2026-08-22 当前线上 Chrome 再检查确认 `#/workbench` 可编辑并显示三款游客模型、Tools、Variables、System prompt、完整天气 Tool Call 与最终答案、Run history、学习助手和 18/20 剩余额度；本轮页面控制台 0 error / 0 warning。
+  - 当前 Web 设置只提供外观、三款游客模型、四份内置 Skills 和游客 MCP；设置文案明确这些配置保存在当前浏览器，未提供 BYOK、账号或跨设备同步。
   - 当前线上 `https://kandian.site/llm-space-web/` 会直接重定向到 `#/workbench`；介绍页保留在 `#/about`，两个路由均恢复正确的浏览器标题。
   - 2026-08-01 功能发布为 `20260801-083709-a49c04be1c64`，对应提交 `a49c04be1c6488bd77e5fed16940b9e2516c6f72`；systemd 服务为 active，Nginx 配置与本机 API 检查通过。
   - 本地实现将单一 `llm-space.guest.thread.v1` 数据迁移为版本化的 `llm-space.guest.workspace.v1` 工作区；新格式写入成功后才删除旧键。
@@ -50,8 +52,9 @@
 
 - 状态：V1 已提交、推送并部署到腾讯云 Hosted Alpha，线上真实 Chromium 验收完成
 - 新鲜度：confirmed
-- 最后检查：2026-08-12
+- 最后检查：2026-08-22
 - 证据：
+  - 2026-08-22 当前线上顶部仍有常驻“案例”入口；本轮没有重新逐个运行 9 个案例，完整案例执行边界继续沿用 2026-08-12 验收。
   - 当前 Web 顶部已有常驻“案例”入口，Thread 抽屉的“从案例新建”进入同一选择界面；运行中两个入口均锁定。
   - 案例库保留 Web 天气 Agent，并迁移桌面共享层全部 8 个案例：Blank、General Agent、Deep Research、Translation、Deep Wiki、Compact Memory、Meta Prompt、Meta Image Prompt，共 9 个。
   - 选择案例会创建并切换到独立浏览器本地 Thread，不覆盖已有 Thread；`starterId` 随工作区记录持久化，复制保留来源，旧工作区和导入 Thread 继续兼容。
@@ -66,14 +69,24 @@
   - 完整仓库测试为 795 通过、1 跳过、25 失败；失败来自本轮未改动的 Windows/POSIX 路径、权限、符号链接、SSH 子进程、生成文件换行同步和缺少 `python3` 的环境基线，不能据此宣称全仓测试全绿。
 - 能力边界：游客可从 9 个内置案例创建可编辑、可运行、可持久化的独立 Thread；案例复用桌面 Prompt 数据，但执行工具必须落在 Web 游客真实能力边界内。
 - 明确非目标：不提供远程案例市场、账号收藏、动态第三方模板、宿主 Bash、插件子 Agent、自动开启全局 ReAct 或服务端 Thread 同步。
-- 可见缺口：尚未增加案例选择/首次 Run 的匿名激活事件；案例执行仍继承当前全局 Run 模式，新访客默认停在逐步工具调试阶段，一键 ReAct 成功仍属于独立的“游客首次成功闭环”能力。
+- 可见缺口：Web 首次成功 V1 已在本地补充首次天气 Run 模式选择与内容无关激活事件，但尚未部署，仍没有真实访客漏斗样本；其他案例仍继承全局 Run 模式。
 
 ## 游客核心迭代闭环
 
-- 状态：天气 ReAct 完整闭环可用，但默认首次 Run 只完成模型到工具调用的半程；运行历史与评估流程中文化、首次成功引导和产品埋点仍待处理
+- 状态：Web 首次成功与通用激活漏斗 V1 已在本地实现并完成受控浏览器验收，尚未提交、推送或部署；运行历史与评估流程中文化仍待处理
 - 新鲜度：confirmed
-- 最后检查：2026-08-12
+- 最后检查：2026-08-23
 - 证据：
+  - 2026-08-23 本地实现为全新天气示例的首次 Run 增加“完整运行（推荐）/逐步调试/取消”选择；完整模式仅对当次 Run 覆盖 `autoRunTools=true` 与 `reactLoop=true`，不修改全局 Run 设置，也不改变桌面端默认行为。
+  - 首次选择仅出现一次；取消不会记录选择或发起请求。完整模式继续经过现有 `canAutoExecuteTool` 策略，未知、写入、Custom 和不可信 MCP 仍暂停，原有 6 模型回合/8 工具调用上限保持不变。
+  - 成功状态只在检测到“成功 Tool Result 后存在最终 Assistant 文本”时成立；成功提示绑定完成该闭环的 Thread，并提供“查看运行记录”动作，避免切换 Thread 后错位。
+  - 激活事件复用现有 PostHog，只允许版本、随机激活会话 ID、白名单案例 ID、模式、阶段、失败分类和耗时；不发送 Prompt、消息、工具输入输出、错误原文、请求 ID、Thread 内容或用户文件。
+  - 失败/停止恢复独立存入版本化浏览器状态，不改变 Thread JSON；刷新后可恢复现有结果条和原当次运行模式，只保存枚举、状态码、安全错误码、局部输出标记与本地不透明 ID。
+  - 单元测试覆盖首次选择、单次模式覆盖、安全工具策略、取消、完整闭环识别、Thread 归属、脱敏恢复和埋点白名单；真实浏览器在 1440、768、390 视口完成布局审计，390/768/1440 均无页面级横向溢出。
+  - 受控浏览器完成 `Run -> weather_report -> Tool Result -> 最终答案 -> 成功 CTA -> Run history`，网络序列为两次 `/api/guest/runs` 与一次 `/api/guest/tools/call` 全部 200；干净会话控制台 0 error / 0 warning。证据位于 `output/playwright/web-first-success-v1/`。
+  - 当前仅有 10/10 受控路径的目标，生产北极星仍无样本：7 天内至少 30 个隐私安全样本时，首次访客完整 Agent 闭环完成率目标为 `>=60%`，中位完成时间目标为 `<=5 分钟`。
+  - 2026-08-22 当前线上返回访客状态可显示完整天气最终答案和两条可比较 Run，但源码仍确认 `autoRunTools` 与 `reactLoop` 缺省为 `false`；因此“有能力完成”与“全新访客默认完成”仍是两个不同边界。
+  - 2026-08-22 当前线上 Run history 面板仍使用 `Run history`、`Compare Runs` 等英文标签，且通用首次访问/首次成功漏斗仍没有独立于 Weather Track 的完整事件覆盖。
   - 2026-08-12 在生产环境全新浏览器状态下，根地址正确进入 `#/workbench`，初始额度为 20/20，控制台零错误、零警告；默认天气示例首次点击 Run 后额度变为 19/20，模型正确发起 `weather_report({"location":"广州"})`，但界面停在等待工具结果的空输入框，没有继续生成最终答案。
   - 当前 `packages/ui/src/components/thread-playground/stores/run-mode.ts` 明确让 `autoRunTools` 与 `reactLoop` 默认均为 `false`；对应设置藏在 Run 下拉菜单中，新访客必须先理解并手动启用 ReAct 才能完成一键天气闭环。
   - 游客工作台尚未记录首次访问、首次 Run、工具调用、完整答案、失败、文档打开、运行比较等激活事件；当前只能用受控浏览器路径评估，无法得到真实访客漏斗基线。
@@ -89,14 +102,15 @@
   - 2026-08-01 线上版本已把首次示例改为广州天气搜索并预装三个安全工具，根地址直达工作台；7 篇中文说明覆盖 Thread、模型额度、工具/MCP、Auto run/ReAct、错误恢复和浏览器数据边界。
 - 能力边界：专家用户或导入已有 Run 的用户可以在浏览器中完成单 Thread 的运行历史查看、快照 Trace 检查、恢复、两次 Run 对比、人工结论和刷新持久化；这些能力共用现有 Thread JSON，不依赖登录或服务端 Thread 存储。
 - 明确非目标：本能力本身不新增分享、登录、BYOK、团队协作、批量数据集、自动评审器、Bash、stdio MCP、Generator 或服务端 Thread 同步；游客可执行工具改由独立的“游客安全工具闭环 V1”能力承接。
-- 可见缺口：默认示例虽然已经展示工具调用，却不能让新访客一键获得最终答案；“首次完整答案—修改—第二次运行—检查/比较—保存评估”的渐进式闭环缺少界面内引导和可观测漏斗。历史图标可发现性及 Run history、Compare、Inspect、Evaluate 等流程中文化仍待处理。
+- 可见缺口：首次天气闭环和通用激活漏斗尚未部署，因此生产基线仍未知；“修改—第二次运行—检查/比较—保存评估”的后半段渐进式闭环、历史入口可发现性，以及 Run history、Compare、Inspect、Evaluate 等流程中文化仍待处理。
 
 ## Agent 学习导师与页面协作
 
 - 状态：Weather Learning Track V1、常驻三栏与 Dialog 任务优先 V1 均已提交到 `main`、推送、部署腾讯云并完成线上真实浏览器验收
 - 新鲜度：confirmed
-- 最后检查：2026-08-18
+- 最后检查：2026-08-22
 - 证据：
+  - 2026-08-22 当前线上宽屏仍呈工作台加右侧常驻学习助手三栏；助手显示 Weather Track 3/6 暂停态、六个受控快捷动作、内容隐私说明和按需问答输入，控制台无 error/warning。
   - 线上全新浏览器首屏同时暴露 Models、Tools、Variables、System prompt、Run settings、Run history、案例与 Threads 等概念；现有“使用说明”会离开当前工作流打开文档，无法解释用户此刻聚焦的元素，也不会根据运行状态主动介入。
   - `GuestWorkbench` 已增加懒加载“学习助手”sidecar；首屏不加载 AG-UI 客户端，打开助手后才加载约 48 KB gzip 的独立 chunk。
   - `HostServices.actions` 已提供打开设置、变量、分享和注册 Run 等少量语义动作，桌面端还有强类型 Command 层；它们证明应扩展语义动作注册表，而不是让模型依赖 DOM 选择器或截图点击。
@@ -142,8 +156,9 @@
 
 - 状态：Web 定位 V1 已在默认分支 `main` 生效
 - 新鲜度：confirmed
-- 最后检查：2026-08-18
+- 最后检查：2026-08-22
 - 证据：
+  - 2026-08-22 当前 `main`、`origin/main` 与仓库 HEAD 均为 Web 定位完成后的 `637292b`，README 仍把腾讯云 `#/workbench` 作为在线产品入口。
   - `main`、`origin/main` 与默认分支均包含 Web 功能提交 `9eb8452`，当前发布代码提交为 `f131173`；最终 GitHub Linux CI 全绿。
   - 中英文 README 已改为 LLM Space Web，首屏链接直达腾讯云工作台，并以 9 个案例、运行/Trace/Compare/Evaluation、Agent 学习助手和浏览器本地持久化为主要能力。
   - README 明示 Hosted Alpha 的数据、额度、工具和账号边界；桌面项目仅在 Project origin 中作为上游来源说明，不再作为主产品下载入口。
@@ -243,8 +258,9 @@
 
 - 状态：游客 Alpha 已部署；第一阶段身份与租户基础仍仅在本地验证，尚未接入游客入口
 - 新鲜度：confirmed
-- 最后检查：2026-07-30
+- 最后检查：2026-08-22
 - 证据：
+  - 2026-08-22 当前 `main` 的 Cloud README 和实现仍把 GitHub OAuth、Personal Tenant/Workspace 与强制 RLS 定义为独立控制面基础；游客入口继续明确绕过登录/BYOK并把 Thread 留在浏览器本地。
   - The user selected the public multi-user SaaS direction on 2026-07-29.
   - The guest entry flow intentionally bypasses GitHub OAuth and Personal Tenant activation.
   - `apps/server/src/runtime-factory.ts` writes `process.env.LLM_SPACE_HOME`, while `packages/core/src/server/paths.ts` and runtime managers resolve one global settings root.
@@ -268,8 +284,9 @@
 
 - 状态：桌面端可经 GitHub Gist 分享；游客 Web 只能查看已有共享 Thread，不能创建分享
 - 新鲜度：confirmed
-- 最后检查：2026-07-30
+- 最后检查：2026-08-22
 - 证据：
+  - 2026-08-22 当前 `apps/web/src/host/web-host.ts` 仍把游客 `shareThread` 实现为“即将开放”提示，未形成发布、复制链接、撤销或过期闭环。
   - 当前本地提交 `cf5cb8d` 的真实 Chromium 工作台标题栏已显示“Share thread”按钮。
   - 点击该按钮只出现“游客 Thread 分享即将开放。”提示，没有预览、隐私确认、链接生成、复制、更新或撤销流程。
   - `apps/web/src/host/web-host.ts` 明确把游客 `shareThread` 实现为上述占位提示。
@@ -578,8 +595,10 @@
 
 - Status: shipped V2 with Structured Evaluation Rubrics V1
 - Freshness: confirmed
-- Last checked: 2026-07-10
+- Last checked: 2026-08-22
 - Evidence:
+  - 2026-08-22 current hosted Chrome rendered two durable runs in Run history with comparison selection and the shared evaluation surface available; current core tests still prove render-record-rubric-evaluate semantics without desktop imports.
+  - No dataset, experiment-runner, aggregate result table, automated evaluator, or regression baseline surface exists in current Web or desktop source; this remains the clearest gap between pairwise inspection and repeatable evaluation.
   - Current CEF screenshot `audits/2026-07-10-145713-evaluation-rubrics-discovery/01-current-run-history.png` shows two durable run cards, comparison selection, inspect/restore actions, and one saved evaluation in the 1280x800 desktop renderer.
   - Current CEF screenshot `audits/2026-07-10-145713-evaluation-rubrics-discovery/02-current-evaluation-dialog.png` shows the comparison dialog with Run A/Run B evidence, five fixed overall verdicts, and one unstructured evaluation note; there is no criterion/rubric configuration or per-side structured score.
   - Current CDP checks on 2026-07-10 found `documentElement.scrollWidth === innerWidth === 1280`, a 1040x728 evaluation dialog inside the 1280x800 viewport, and no relevant console errors.
@@ -623,7 +642,7 @@
 ## External Trace Import
 
 - Status: shipped V1
-- Freshness: confirmed
+- Freshness: stale
 - Last checked: 2026-07-06
 - Evidence:
   - Current discovery screenshot `audits/2026-07-05-160904-langfuse-trace-import-discovery/01-current-native-debug-surface.png` shows the product can render a native reduced debug fixture with assistant thinking, tool calls, token usage, manual continuation state, and Run history.
@@ -648,7 +667,7 @@
 ## Langfuse Connected Trace Source
 
 - Status: shipped V1
-- Freshness: confirmed
+- Freshness: stale
 - Last checked: 2026-07-06
 - Evidence:
   - Pre-implementation CEF discovery screenshot `audits/2026-07-05-221840-langfuse-connect-v1/01-current-trace-panel-empty.png` showed the Trace Panel empty state only supported creating a local Trace Project and manually importing Langfuse JSON; there was no connect/test/sync entry.
@@ -680,8 +699,9 @@
 
 - Status: operational settings surface
 - Freshness: confirmed
-- Last checked: 2026-07-31
+- Last checked: 2026-08-22
 - Evidence:
+  - 2026-08-22 isolated desktop renderer showed current Settings navigation for Account, Plugins, Models, Skills, MCP Servers, Web Search, Remote Servers, Network, and Experimental; the Web renderer exposes only Appearance, allowlisted Models, static Skills, and guest MCP.
   - Current first-run CEF flow added `OpenAI Codex` through onboarding and persisted provider settings in the isolated root.
   - Previous log `logs/2026-07-02-195244-first-run-model-setup-v1.md` verified provider add/persist flows through onboarding and settings.
   - Current CEF screenshot `audits/2026-07-31-125706-seedream-discovery/01-ark-model-settings-current.png` shows the VolcEngine Ark settings surface exposing API key, base URL, and five chat models, with no image-generation configuration.
@@ -699,7 +719,7 @@
 ## Agent Image Generation
 
 - Status: shipped native Ark Seedream V1
-- Freshness: confirmed
+- Freshness: stale
 - Last checked: 2026-07-31
 - Evidence:
   - Current CEF screenshot `audits/2026-07-31-125706-seedream-discovery/01-ark-model-settings-current.png` shows no Seedream or image-generation section under VolcEngine Ark.
