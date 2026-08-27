@@ -4,12 +4,19 @@ import type { ModelConfig, Thread } from "@llm-space/core";
 import { createEvaluationExperiment } from "@llm-space/core/thread";
 
 import {
+  GUEST_EVALUATION_LAB_STORAGE_KEY,
+  LEGACY_GUEST_EVALUATION_LAB_STORAGE_KEY,
   addGuestEvaluationExperiment,
+  createGuestEvaluationReport,
   deleteGuestEvaluationExperiment,
   loadGuestEvaluationLab,
+  parseGuestEvaluationCaseSetImport,
   parseGuestEvaluationLabImport,
   saveGuestEvaluationLab,
+  serializeGuestEvaluationCaseSet,
   serializeGuestEvaluationLab,
+  serializeGuestEvaluationReport,
+  serializeGuestEvaluationReportHtml,
   type EvaluationLabStorage,
 } from "./guest-evaluation-lab";
 
@@ -32,6 +39,7 @@ function memoryStorage(): EvaluationLabStorage {
   return {
     getItem: (key) => values.get(key) ?? null,
     setItem: (key, value) => values.set(key, value),
+    removeItem: (key) => values.delete(key),
   };
 }
 
@@ -77,7 +85,9 @@ describe("guest evaluation lab repository", () => {
         draft(`experiment-${index}`)
       )!;
     }
-    expect(addGuestEvaluationExperiment(repository, draft("overflow"))).toBeNull();
+    expect(
+      addGuestEvaluationExperiment(repository, draft("overflow"))
+    ).toBeNull();
     expect(repository.experiments[0]?.id).toBe("experiment-0");
   });
 
@@ -90,5 +100,50 @@ describe("guest evaluation lab repository", () => {
         JSON.stringify({ format: "other", version: 1 })
       )
     ).toThrow("不受支持");
+  });
+
+  test("migrates the legacy storage key only after a successful V2 write", () => {
+    const values = new Map<string, string>();
+    const storage: EvaluationLabStorage = {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, value),
+      removeItem: (key) => values.delete(key),
+    };
+    values.set(
+      LEGACY_GUEST_EVALUATION_LAB_STORAGE_KEY,
+      JSON.stringify({ version: 1, experiments: [draft("legacy")] })
+    );
+    const loaded = loadGuestEvaluationLab(storage);
+    expect(loaded.repository.version).toBe(2);
+    expect(values.has(GUEST_EVALUATION_LAB_STORAGE_KEY)).toBe(true);
+    expect(values.has(LEGACY_GUEST_EVALUATION_LAB_STORAGE_KEY)).toBe(false);
+  });
+
+  test("round-trips a reusable Case Set", () => {
+    const experiment = draft("case-set");
+    const parsed = parseGuestEvaluationCaseSetImport(
+      serializeGuestEvaluationCaseSet("Support regression", experiment.cases)
+    );
+    expect(parsed.name).toBe("Support regression");
+    expect(parsed.cases).toEqual(experiment.cases);
+  });
+
+  test("exports redacted JSON and HTML quality-gate reports", () => {
+    const experiment = draft("report");
+    experiment.sourceThread.context!.systemPrompt =
+      "SECRET_SYSTEM_PROMPT Authorization Bearer raw-secret";
+    experiment.cases[0].input = "PRIVATE_CASE_INPUT";
+    experiment.cases[0].name = "PRIVATE_CASE_NAME";
+    const report = createGuestEvaluationReport(experiment, 0);
+    expect(report.summary.unknown).toBe(1);
+    for (const output of [
+      serializeGuestEvaluationReport(experiment, 0),
+      serializeGuestEvaluationReportHtml(experiment, 0),
+    ]) {
+      expect(output).not.toContain("SECRET_SYSTEM_PROMPT");
+      expect(output).not.toContain("PRIVATE_CASE_INPUT");
+      expect(output).not.toContain("PRIVATE_CASE_NAME");
+      expect(output).not.toContain("raw-secret");
+    }
   });
 });

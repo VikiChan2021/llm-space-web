@@ -1,6 +1,6 @@
 # LLM Space 能力地图
 
-- 最后更新：2026-08-23
+- 最后更新：2026-08-27
 - 地图状态：游客工作台 Hosted Alpha 已在线运行。Web 首次成功 V1 已由提交 `e8ef57e` 发布为腾讯云版本 `20260823-090625-e8ef57eff31f`：全新天气示例首次 Run 可选择“完整运行”或“逐步调试”，完整模式只覆盖当次 Run，不改变全局或桌面默认值，并在成功后引导打开对应 Thread 的运行记录；线上真实模型、天气工具、刷新恢复、返回访客、390/1440 布局及安全拒绝边界均已验收。Web Agent 案例库、Agent 学习助手三栏/弹窗协作和可关闭学习引导也已上线。GitHub 登录、BYOK、租户级持久 Thread、账单、Bash、stdio MCP、Generator，以及公共远程 MCP 的网络层出站策略仍需独立安全边界；身份、Personal Tenant、PostgreSQL 与强制 RLS 基础仍未接入游客入口。当前没有公开或动态加载的插件。
 - 证据规则：`confirmed` 表示有当前渲染产品或当前代码证据；`stale` 表示依赖旧日志或本轮未完全复查的代码路径；`unknown` 表示需要未来重新检查产品界面后才能用于决策。
 
@@ -8,8 +8,9 @@
 
 - 状态：线上 Hosted Alpha 可用；三款资源包对齐模型、单行顶部、固定高度设置、工作台优先入口和中文使用说明已部署并完成线上验收
 - 新鲜度：confirmed
-- 最后检查：2026-08-23
+- 最后检查：2026-08-27
 - 证据：
+  - 2026-08-27 真实 Chrome 复核线上 `#/workbench`：页面仍提供 9 案例入口、游客模型与安全工具、Run、Run history、Trace/Compare 入口、Agent 学习助手和 20/20 当日额度；返回访客的天气 Thread、工具结果、最终答案与历史记录正常渲染，控制台 0 error / 0 warning。本轮未执行新 Run，不据此刷新模型成功率或额度扣减结论。
   - 2026-08-23 腾讯云活动发布为 `20260823-090625-e8ef57eff31f`，`RELEASE_COMMIT` 为 `e8ef57eff31fd3e1340c26f081c98e48aca7f1b4`；`llm-space-web.service` 为 active/running、`NRestarts=0`，Nginx 检查通过，内网健康接口返回 `llm-space-guest-api` 与 `glm-4.5-air`。
   - 2026-08-22 当前线上 Chrome 再检查确认 `#/workbench` 可编辑并显示三款游客模型、Tools、Variables、System prompt、完整天气 Tool Call 与最终答案、Run history、学习助手和 18/20 剩余额度；本轮页面控制台 0 error / 0 warning。
   - 当前 Web 设置只提供外观、三款游客模型、四份内置 Skills 和游客 MCP；设置文案明确这些配置保存在当前浏览器，未提供 BYOK、账号或跨设备同步。
@@ -596,10 +597,16 @@
 
 ## Evaluation Workspace
 
-- Status: shipped V2 with Structured Evaluation Rubrics V1; Web Evaluation Lab V1 deployed and production-verified
+- Status: shipped V2 with Structured Evaluation Rubrics V1; Web Quality Gate V2 locally implemented and browser-verified, while production remains Evaluation Lab V1
 - Freshness: confirmed
-- Last checked: 2026-08-23
+- Last checked: 2026-08-27
 - Evidence:
+  - 2026-08-27 local Quality Gate V2 browser acceptance imported a versioned 10-case Case Set, selected the default 3-case batch, and showed a quota-safe worst-case budget of 18/20 Runs. A legacy V1 completed experiment migrated into V2 with stable cases and rendered `improved` regression evidence, token and duration deltas.
+  - Candidate promotion is now an explicit quality gate: `regressed` or `unknown` cases block promotion; a passing experiment opens an exact four-field allowlist diff for model, temperature, max tokens, and system prompt. Applying the Candidate preserves messages, tools, variables, and Run history, creates an immutable parent plus a lineage-linked next-round draft, and the Thread change is one-step Undoable.
+  - Case Set storage is capped at 50 cases with selected-batch execution, failed/regressed rerun targeting, V1-to-V2 migration, redacted JSON/HTML reports, and content-free analytics. The 30 focused tests passed with 108 assertions; `mise run check:changed`, `mise run build:guest-web`, and `mise run pack:guest-api` passed locally.
+  - Local in-app browser acceptance verified Case Set import, V1 migration, report controls, exact-diff confirmation, parent immutability, refresh persistence, Undo, and the `unknown` gate. At 390x844 the page and dialog both measured 390px wide with no page-level horizontal overflow; the horizontal action strip remained intentionally scrollable. Console errors and warnings were both zero; local Web and quota API returned 200 with 20/20 remaining.
+  - Quality Gate V2 has not been committed, pushed, deployed, or production-confirmed in this iteration. Current production evidence below continues to describe Evaluation Lab V1 until a separate release is approved and accepted.
+  - 2026-08-27 real Chrome re-opened the production Evaluation Lab from `More actions`. The rendered Local V1 still showed a frozen Baseline, restricted Candidate fields, one fixed Case, worst-case quota preview, two completed variants, aggregate token/round/duration summaries, per-side Trace actions, manual scoring, JSON import/export, and the 2/10 local experiment cap. The page console had 0 errors and 0 warnings; no new model run was started.
   - 2026-08-23 local Chromium verified the Web Evaluation Lab from `More actions`: one frozen Baseline and editable Candidate completed a 1-case / 2-variant controlled experiment, both deterministic checks passed, both reduced traces opened read-only, an existing manual evaluation saved with `rightBetter`, JSON export downloaded, refresh restored 2 runs plus 1 evaluation, and ordinary Run history remained empty. A clean restored browser session reported 0 console errors and 0 warnings.
   - Local responsive checks measured the lab at 933x575 inside a 1037x639 desktop viewport (90% each dimension) and exactly 390x844 inside a 390x844 mobile viewport. Current evidence is `output/playwright/evaluation-lab-v1/results-desktop-final.png` and `output/playwright/evaluation-lab-v1/results-mobile.png`.
   - Focused Bun coverage now proves bounded experiment creation/normalization/budgeting, isolated Baseline/Candidate thread construction, deterministic text/tool checks, local repository cap/import/export behavior, content-free analytics, sequential-run result capture, and the manual-tool `needs_review` safety boundary.
@@ -608,7 +615,7 @@
   - Production JSON export parsed as V1 with 1 case, 2 runs, and 1 evaluation and contained no API-key, Authorization, Cookie, or Bearer markers. The browser reported 0 console errors and 0 warnings; the 390x844 dialog measured exactly 390x844 with matching scroll bounds. Current evidence is `output/playwright/production-evaluation-lab-20260823/results-desktop.png` and `output/playwright/production-evaluation-lab-20260823/results-mobile.png`.
   - 2026-08-23 fresh production Chromium at `https://kandian.site/llm-space-web/#/workbench` rendered the current Run history panel with `Compare Runs`, a 0/2 selection state, and no dataset/experiment entry; the browser console reported 0 errors and 0 warnings. Current-run evidence is `output/playwright/web-evaluation-lab-direction/online-current-workbench.png`.
   - 2026-08-22 current hosted Chrome rendered two durable runs in Run history with comparison selection and the shared evaluation surface available; current core tests still prove render-record-rubric-evaluate semantics without desktop imports.
-  - No dataset, experiment-runner, aggregate result table, automated evaluator, or regression baseline surface exists in current Web or desktop source; this remains the clearest gap between pairwise inspection and repeatable evaluation.
+  - The deployed production surface still has no reusable Case Set, regression baseline, promotion, or report workflow; those capabilities currently exist only in the locally verified Quality Gate V2 changes.
   - Current CEF screenshot `audits/2026-07-10-145713-evaluation-rubrics-discovery/01-current-run-history.png` shows two durable run cards, comparison selection, inspect/restore actions, and one saved evaluation in the 1280x800 desktop renderer.
   - Current CEF screenshot `audits/2026-07-10-145713-evaluation-rubrics-discovery/02-current-evaluation-dialog.png` shows the comparison dialog with Run A/Run B evidence, five fixed overall verdicts, and one unstructured evaluation note; there is no criterion/rubric configuration or per-side structured score.
   - Current CDP checks on 2026-07-10 found `documentElement.scrollWidth === innerWidth === 1280`, a 1040x728 evaluation dialog inside the 1280x800 viewport, and no relevant console errors.
@@ -626,9 +633,9 @@
   - Twenty-four focused Bun tests cover schema bounds, malformed/duplicate normalization, rubric CRUD/revisions/caps, immutable snapshots, unordered run-pair orientation, score completeness/aggregation, cross-rubric isolation, and saved-snapshot score restoration.
   - `packages/core/src/types/threads/thread.ts` models legacy and structured evaluations as a compatible union with bounded rubric/snapshot/score data.
   - `apps/desktop/src/components/thread-playground/run-evaluation-dialog.tsx`, `run-evaluation-scorecard.tsx`, and `evaluation-rubric-editor.tsx` implement the comparison, scoring, and rubric-management surfaces.
-- Boundary: desktop/shared evaluation still supports durable pairwise run comparison and structured rubrics. Web Local V1 additionally freezes the current text-only Thread as a Baseline, allows a Candidate model/temperature/max-tokens/system-prompt change, runs 1-3 fixed cases sequentially under guest quota and a three-model-turn cap, records deterministic checks/usage/time/reduced traces, preserves unsafe tools as `needs_review`, supports existing manual scoring, and stores at most ten experiments in a separate browser-local repository with explicit JSON import/export. It never mutates the active Thread or ordinary Run history.
-- Explicit non-goals: automated or model judge, weighted/formula criteria, thresholds, global rubric library, multiple evaluations per run pair, CI execution, cloud sync, candidate apply-back, file/image cases, more than three cases, and raw side-by-side trace diff.
-- Visible gaps: rubric weights and mixed criterion types, reusable cross-thread libraries, cost sourced from real usage, larger datasets, automated judges, CI regression gates, cloud collaboration, and side-by-side trace/timing diff remain unimplemented. The first trustworthy experiment target still needs nine additional fresh-profile production runs after this initial accepted run.
+- Boundary: desktop/shared evaluation still supports durable pairwise run comparison and structured rubrics. Local Web Quality Gate V2 freezes a text-only Baseline, stores up to 50 cases, executes selected batches under the existing guest quota and three-model-turn cap, classifies deterministic/manual regressions, reruns failed or regressed cases, exports redacted reports, and explicitly promotes only four allowlisted Candidate fields into an Undoable Thread update plus immutable next-round lineage. Experiments remain browser-local and capped at ten; production continues to expose V1 until deployment.
+- Explicit non-goals: automated or model judge, weighted/formula criteria, thresholds, global rubric library, multiple evaluations per run pair, CI execution, cloud sync, file/image cases, raw side-by-side trace diff, authentication, billing, teams, or unrestricted BYOK/MCP/tool privileges.
+- Visible gaps: the V2 implementation still needs an approved production release and fresh-profile production acceptance. Rubric weights and mixed criterion types, cost sourced from real usage, automated judges, CI regression gates, cloud collaboration, and side-by-side trace/timing diff remain unimplemented; commercial validation still requires design-partner evidence rather than more product scope.
 
 ## Trace Inspection
 

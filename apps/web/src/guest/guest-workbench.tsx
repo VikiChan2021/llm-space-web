@@ -1,4 +1,8 @@
 import type { Thread } from "@llm-space/core";
+import {
+  planEvaluationPromotion,
+  type EvaluationExperiment,
+} from "@llm-space/core/thread";
 import { ConfirmDialog } from "@llm-space/ui/components/confirm-dialog";
 import { useDefaultModel } from "@llm-space/ui/components/model-provider";
 import {
@@ -59,10 +63,7 @@ import {
   type GuestQuota,
 } from "./guest-api";
 import { GuestExampleDialog } from "./guest-example-dialog";
-import {
-  createGuestExampleThread,
-  type GuestExample,
-} from "./guest-examples";
+import { createGuestExampleThread, type GuestExample } from "./guest-examples";
 import { GuestFirstRunDialog } from "./guest-first-run-dialog";
 import {
   captureGuestActivationEvent,
@@ -101,6 +102,7 @@ import {
   loadGuestWorkspace,
   MAX_GUEST_THREAD_IMPORT_BYTES,
   parseGuestThreadImport,
+  persistGuestThreadUpdate,
   resetGuestThread,
   saveGuestWorkspace,
   selectGuestThread,
@@ -154,6 +156,10 @@ export function GuestWorkbench() {
   const [exampleDialogOpen, setExampleDialogOpen] = useState(false);
   const [evaluationLabOpen, setEvaluationLabOpen] = useState(false);
   const [evaluationCreateRequest, setEvaluationCreateRequest] = useState(0);
+  const [restoreThreadRequest, setRestoreThreadRequest] = useState<{
+    token: number;
+    thread: Thread;
+  } | null>(null);
   const [coachEnabled, setCoachEnabled] = useState(() =>
     readGuestCoachEnabled(BROWSER_STORAGE)
   );
@@ -238,10 +244,7 @@ export function GuestWorkbench() {
   }, [refreshQuota]);
   useEffect(() => {
     const openMcpSettings = () => setMcpSettingsOpen(true);
-    window.addEventListener(
-      OPEN_GUEST_MCP_SETTINGS_EVENT,
-      openMcpSettings
-    );
+    window.addEventListener(OPEN_GUEST_MCP_SETTINGS_EVENT, openMcpSettings);
     return () =>
       window.removeEventListener(
         OPEN_GUEST_MCP_SETTINGS_EVENT,
@@ -347,11 +350,7 @@ export function GuestWorkbench() {
         return;
       }
       const next = commitFirstSuccess((current) =>
-        recordGuestFirstRunMode(
-          current,
-          mode,
-          BROWSER_WORKSPACE_FACTORY.now()
-        )
+        recordGuestFirstRunMode(current, mode, BROWSER_WORKSPACE_FACTORY.now())
       );
       captureGuestActivationEvent("mode_selected", {
         state: next,
@@ -381,7 +380,8 @@ export function GuestWorkbench() {
             starterId: activeRecord.starterId,
             mode: event.mode,
             stage: "first_run",
-            failureCategory: classifyGuestRunFailure(event.result.error).category,
+            failureCategory: classifyGuestRunFailure(event.result.error)
+              .category,
             elapsedMs,
           });
         } else {
@@ -457,12 +457,7 @@ export function GuestWorkbench() {
       );
       return Promise.resolve(true);
     },
-    [
-      activeRecord.id,
-      activeRecord.thread,
-      commitWorkspace,
-      workspace.threads,
-    ]
+    [activeRecord.id, activeRecord.thread, commitWorkspace, workspace.threads]
   );
   const handleCreate = useCallback(() => {
     if (running) return;
@@ -480,19 +475,13 @@ export function GuestWorkbench() {
           defaultModel
         );
         commitWorkspace((current) =>
-          addGuestThread(
-            current,
-            thread,
-            BROWSER_WORKSPACE_FACTORY,
-            example.id
-          )
+          addGuestThread(current, thread, BROWSER_WORKSPACE_FACTORY, example.id)
         );
         setExampleDialogOpen(false);
         toast.success(`已创建 ${example.label}`);
       } catch (error) {
         toast.error("无法创建案例", {
-          description:
-            error instanceof Error ? error.message : "请稍后重试。",
+          description: error instanceof Error ? error.message : "请稍后重试。",
         });
       } finally {
         setCreatingExample(false);
@@ -534,8 +523,7 @@ export function GuestWorkbench() {
             state: next,
             starterId: activeRecord.starterId,
             stage: "history",
-            elapsedMs:
-              Date.now() - new Date(next.startedAt).getTime(),
+            elapsedMs: Date.now() - new Date(next.startedAt).getTime(),
           });
         }
       }
@@ -544,6 +532,52 @@ export function GuestWorkbench() {
       }
     },
     [activeRecord.id, activeRecord.starterId, commitFirstSuccess]
+  );
+  const applyEvaluationCandidate = useCallback(
+    (
+      experiment: EvaluationExperiment
+    ): { ok: true; thread: Thread } | { ok: false; error: string } => {
+      const currentWorkspace = workspaceRef.current;
+      const record = currentWorkspace.threads.find(
+        (item) => item.id === currentWorkspace.activeThreadId
+      );
+      if (!record) {
+        return { ok: false, error: "当前 Thread 已不存在。" };
+      }
+      const plan = planEvaluationPromotion(experiment, record.thread);
+      if (plan.status === "conflict") {
+        return {
+          ok: false,
+          error:
+            "当前 Thread 的模型或 System Prompt 已变化，请新建实验后再试。",
+        };
+      }
+      if (plan.status === "no_changes") {
+        return { ok: false, error: "Candidate 与当前 Thread 没有可应用差异。" };
+      }
+      const persisted = persistGuestThreadUpdate(
+        BROWSER_STORAGE,
+        currentWorkspace,
+        record.id,
+        plan.nextThread,
+        BROWSER_WORKSPACE_FACTORY.now()
+      );
+      if (!persisted.applied) {
+        return {
+          ok: false,
+          error: persisted.storageError ?? "无法保存 Candidate。",
+        };
+      }
+      const nextWorkspace = persisted.workspace;
+      workspaceRef.current = nextWorkspace;
+      setWorkspaceState({ workspace: nextWorkspace, storageError: null });
+      setRestoreThreadRequest((current) => ({
+        token: (current?.token ?? 0) + 1,
+        thread: plan.nextThread,
+      }));
+      return { ok: true, thread: plan.nextThread };
+    },
+    []
   );
   const handleSelect = useCallback(
     (recordId: string) => {
@@ -620,7 +654,10 @@ export function GuestWorkbench() {
         });
         return false;
       }
-      const imported = await parseGuestThreadImport(file.name, await file.text());
+      const imported = await parseGuestThreadImport(
+        file.name,
+        await file.text()
+      );
       if (!imported) {
         toast.error("无法导入", {
           description: "请选择有效的 LLM Space Thread JSON 文件。",
@@ -669,347 +706,350 @@ export function GuestWorkbench() {
 
   return (
     <HostServicesProvider value={guestHost}>
-      <div className="flex h-dvh min-w-0 flex-col bg-background text-foreground">
-      <header className="flex min-w-0 flex-nowrap items-center gap-3 border-b px-4 py-3">
-        <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
-          <h1 className="text-base font-semibold">LLM Space Web 工作台</h1>
-          <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-xs text-violet-700 dark:text-violet-200">
-            游客模式
-          </span>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="查看游客工作台说明"
-              >
-                <InfoIcon className="size-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-80">
-              <PopoverHeader>
-                <PopoverTitle>游客工作台说明</PopoverTitle>
-                <PopoverDescription>
-                  Thread 与虚拟文件保存在当前浏览器。安全 Built-in、Custom
-                  Tool、MCP 和 ReAct 可体验；Bash 与 Generator 等待隔离沙箱。
-                </PopoverDescription>
-                <PopoverDescription>
-                  免费额度用完后可配置自己的 API Key（即将开放）。
-                </PopoverDescription>
-              </PopoverHeader>
-            </PopoverContent>
-          </Popover>
-        </div>
-        <div className="ml-auto flex min-w-0 flex-nowrap items-center justify-end gap-2">
-          <div className="shrink-0 whitespace-nowrap text-right text-xs font-medium">
-            {quota
-              ? `今日免费 Run：${quota.browserRemaining}/${quota.browserDailyLimit}`
-              : quotaError
-                ? "额度状态暂不可用"
-                : "正在读取额度…"}
+      <div className="bg-background text-foreground flex h-dvh min-w-0 flex-col">
+        <header className="flex min-w-0 flex-nowrap items-center gap-3 border-b px-4 py-3">
+          <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
+            <h1 className="text-base font-semibold">LLM Space Web 工作台</h1>
+            <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-xs text-violet-700 dark:text-violet-200">
+              游客模式
+            </span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="查看游客工作台说明"
+                >
+                  <InfoIcon className="size-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-80">
+                <PopoverHeader>
+                  <PopoverTitle>游客工作台说明</PopoverTitle>
+                  <PopoverDescription>
+                    Thread 与虚拟文件保存在当前浏览器。安全 Built-in、Custom
+                    Tool、MCP 和 ReAct 可体验；Bash 与 Generator 等待隔离沙箱。
+                  </PopoverDescription>
+                  <PopoverDescription>
+                    免费额度用完后可配置自己的 API Key（即将开放）。
+                  </PopoverDescription>
+                </PopoverHeader>
+              </PopoverContent>
+            </Popover>
           </div>
-          <Button
-            data-coach-element-id="learning-coach"
-            variant={coachEnabled ? "secondary" : "outline"}
-            size="sm"
-            aria-label={
-              coachEnabled && wideCoachLayout
-                ? "关闭 Agent 学习助手三栏"
-                : "打开 Agent 学习助手"
-            }
-            aria-expanded={
-              coachPresentation === "docked" || coachPresentation === "overlay"
-            }
-            onClick={() => {
-              setCoachLoaded(true);
-              if (wideCoachLayout && !activeDialogSurface) {
-                setCoachEnabledPreference(!coachEnabled);
-                return;
+          <div className="ml-auto flex min-w-0 flex-nowrap items-center justify-end gap-2">
+            <div className="shrink-0 text-right text-xs font-medium whitespace-nowrap">
+              {quota
+                ? `今日免费 Run：${quota.browserRemaining}/${quota.browserDailyLimit}`
+                : quotaError
+                  ? "额度状态暂不可用"
+                  : "正在读取额度…"}
+            </div>
+            <Button
+              data-coach-element-id="learning-coach"
+              variant={coachEnabled ? "secondary" : "outline"}
+              size="sm"
+              aria-label={
+                coachEnabled && wideCoachLayout
+                  ? "关闭 Agent 学习助手三栏"
+                  : "打开 Agent 学习助手"
               }
-              setFloatingCoachOpen(true);
-            }}
-          >
-            <BotIcon className="size-3.5" />
-            <span className="hidden lg:inline">学习助手</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            aria-label="打开使用说明"
-            onClick={() =>
-              window.open(
-                `${import.meta.env.BASE_URL}#/docs/quick-start`,
-                "_blank",
-                "noopener,noreferrer"
-              )
-            }
-          >
-            <CircleHelpIcon className="size-3.5" />
-            <span className="hidden xl:inline">使用说明</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            aria-label="打开工作台设置"
-            onClick={() => {
-              setSettingsTab("appearance");
-              setSettingsOpen(true);
-            }}
-          >
-            <SettingsIcon className="size-3.5" />
-            <span className="hidden xl:inline">设置</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            aria-label="打开 Agent 案例库"
-            disabled={running}
-            onClick={() => setExampleDialogOpen(true)}
-          >
-            <SparklesIcon className="size-3.5" />
-            <span className="hidden lg:inline">案例</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            aria-label={`打开 Thread 列表，共 ${workspace.threads.length} 个`}
-            onClick={() => setLibraryOpen(true)}
-          >
-            <LibraryIcon className="size-3.5" />
-            <span className="hidden xl:inline">Threads</span>
-            {workspace.threads.length}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            aria-label="重置当前示例"
-            disabled={running}
-            onClick={() => setResetConfirmOpen(true)}
-          >
-            <RotateCcwIcon className="size-3.5" />
-            <span className="hidden xl:inline">重置示例</span>
-          </Button>
-        </div>
-      </header>
-
-      {storageError ? (
-        <div
-          role="alert"
-          className="border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive"
-        >
-          {storageError}
-        </div>
-      ) : null}
-
-      <div className="flex min-h-0 min-w-0 flex-1">
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col p-2 sm:p-4">
-          {firstSuccessState.completedAt &&
-          firstSuccessState.completedThreadRecordId === activeRecord.id &&
-          !firstSuccessState.historyOpenedAt &&
-          !firstSuccessState.calloutDismissedAt ? (
-            <GuestFirstSuccessCallout
-              onOpenHistory={() =>
-                setOpenRunHistoryRequest((value) => value + 1)
-              }
-              onDismiss={() =>
-                commitFirstSuccess((current) =>
-                  dismissGuestFirstSuccessCallout(
-                    current,
-                    BROWSER_WORKSPACE_FACTORY.now()
-                  )
-                )
-              }
-            />
-          ) : null}
-          <ThreadPlayground
-            key={`${activeRecord.id}:${revision}`}
-            active
-            className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border shadow-lg"
-            path={`guest/${activeRecord.id}.json`}
-            title={activeRecord.thread.title}
-            initialValue={activeRecord.thread}
-            transport={transport}
-            runtimeId={activeRecord.id}
-            onChange={handleChange}
-            onRenameTitle={handleRename}
-            onStreamingStart={() => {
-              setRunning(true);
-              runStartedAtRef.current = Date.now();
-              const next = commitFirstSuccess(clearGuestRunRecovery);
-              captureGuestActivationEvent("run_started", {
-                state: next,
-                starterId: activeRecord.starterId,
-                stage: "first_run",
-              });
-            }}
-            onStreamingEnd={() => {
-              setRunning(false);
-              void refreshQuota();
-            }}
-            openRunHistoryRequest={openRunHistoryRequest}
-            onOpenEvaluationLab={() => setEvaluationLabOpen(true)}
-            onCreateEvaluationExperiment={() => {
-              setEvaluationCreateRequest((value) => value + 1);
-              setEvaluationLabOpen(true);
-            }}
-            runFromMessageRequest={runFromMessageRequest}
-            onLearningEvent={handleLearningEvent}
-            runRecovery={GUEST_RUN_RECOVERY}
-            prepareRun={prepareGuestRun}
-            onRunSettled={handleRunSettled}
-            initialRunResult={initialGuestRunResult(
-              firstSuccessState,
-              activeRecord.id
-            )}
-            onRunResultDismissed={() =>
-              commitFirstSuccess(clearGuestRunRecovery)
-            }
-          />
-        </main>
-
-        {coachLoaded ? (
-          <Suspense fallback={null}>
-            <LearningCoach
-              open={
+              aria-expanded={
                 coachPresentation === "docked" ||
                 coachPresentation === "overlay"
               }
-              variant={coachPresentation === "docked" ? "docked" : "overlay"}
-              portalTarget={activeDialogSurface?.target ?? null}
-              surface={coachSurface}
-              showCollapsedNudge={false}
-              context={coachContext}
-              onOpenChange={(open) => {
-                if (open) {
-                  setCoachLoaded(true);
-                  setFloatingCoachOpen(true);
-                } else if (coachPresentation === "docked") {
-                  setCoachEnabledPreference(false);
-                } else {
-                  setFloatingCoachOpen(false);
+              onClick={() => {
+                setCoachLoaded(true);
+                if (wideCoachLayout && !activeDialogSurface) {
+                  setCoachEnabledPreference(!coachEnabled);
+                  return;
                 }
+                setFloatingCoachOpen(true);
               }}
-              onOpenVariables={() => guestHost.actions.openVariables()}
-              onRequestRun={(options) => {
-                if (running) return false;
-                if (options?.fromFirstUserMessage) {
-                  const firstUserMessage =
-                    activeRecord.thread.context?.messages?.find(
-                      (message) => message.role === "user"
-                    );
-                  if (!firstUserMessage) return false;
-                  setRunFromMessageRequest((current) => ({
-                    token: (current?.token ?? 0) + 1,
-                    messageId: firstUserMessage.id,
-                  }));
-                  return true;
-                }
-                return requestGuestThreadRun();
-              }}
-              onRunCompleted={() => void refreshQuota()}
-              weatherObservation={weatherObservation}
-              interactionBlocked={
-                settingsOpen ||
-                mcpSettingsOpen ||
-                exampleDialogOpen ||
-                libraryOpen ||
-                resetConfirmOpen ||
-                firstRunDialogOpen ||
-                evaluationLabOpen
+            >
+              <BotIcon className="size-3.5" />
+              <span className="hidden lg:inline">学习助手</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              aria-label="打开使用说明"
+              onClick={() =>
+                window.open(
+                  `${import.meta.env.BASE_URL}#/docs/quick-start`,
+                  "_blank",
+                  "noopener,noreferrer"
+                )
               }
-              onOpenRunHistory={() => {
-                setOpenRunHistoryRequest((value) => value + 1);
-                if (coachPresentation === "overlay") {
-                  setFloatingCoachOpen(false);
-                }
+            >
+              <CircleHelpIcon className="size-3.5" />
+              <span className="hidden xl:inline">使用说明</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              aria-label="打开工作台设置"
+              onClick={() => {
+                setSettingsTab("appearance");
+                setSettingsOpen(true);
               }}
-              comparisonOpenedToken={comparisonOpenedToken}
+            >
+              <SettingsIcon className="size-3.5" />
+              <span className="hidden xl:inline">设置</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              aria-label="打开 Agent 案例库"
+              disabled={running}
+              onClick={() => setExampleDialogOpen(true)}
+            >
+              <SparklesIcon className="size-3.5" />
+              <span className="hidden lg:inline">案例</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              aria-label={`打开 Thread 列表，共 ${workspace.threads.length} 个`}
+              onClick={() => setLibraryOpen(true)}
+            >
+              <LibraryIcon className="size-3.5" />
+              <span className="hidden xl:inline">Threads</span>
+              {workspace.threads.length}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              aria-label="重置当前示例"
+              disabled={running}
+              onClick={() => setResetConfirmOpen(true)}
+            >
+              <RotateCcwIcon className="size-3.5" />
+              <span className="hidden xl:inline">重置示例</span>
+            </Button>
+          </div>
+        </header>
+
+        {storageError ? (
+          <div
+            role="alert"
+            className="border-destructive/30 bg-destructive/10 text-destructive border-b px-4 py-2 text-xs"
+          >
+            {storageError}
+          </div>
+        ) : null}
+
+        <div className="flex min-h-0 min-w-0 flex-1">
+          <main className="flex min-h-0 min-w-0 flex-1 flex-col p-2 sm:p-4">
+            {firstSuccessState.completedAt &&
+            firstSuccessState.completedThreadRecordId === activeRecord.id &&
+            !firstSuccessState.historyOpenedAt &&
+            !firstSuccessState.calloutDismissedAt ? (
+              <GuestFirstSuccessCallout
+                onOpenHistory={() =>
+                  setOpenRunHistoryRequest((value) => value + 1)
+                }
+                onDismiss={() =>
+                  commitFirstSuccess((current) =>
+                    dismissGuestFirstSuccessCallout(
+                      current,
+                      BROWSER_WORKSPACE_FACTORY.now()
+                    )
+                  )
+                }
+              />
+            ) : null}
+            <ThreadPlayground
+              key={`${activeRecord.id}:${revision}`}
+              active
+              className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border shadow-lg"
+              path={`guest/${activeRecord.id}.json`}
+              title={activeRecord.thread.title}
+              initialValue={activeRecord.thread}
+              transport={transport}
+              runtimeId={activeRecord.id}
+              onChange={handleChange}
+              onRenameTitle={handleRename}
+              onStreamingStart={() => {
+                setRunning(true);
+                runStartedAtRef.current = Date.now();
+                const next = commitFirstSuccess(clearGuestRunRecovery);
+                captureGuestActivationEvent("run_started", {
+                  state: next,
+                  starterId: activeRecord.starterId,
+                  stage: "first_run",
+                });
+              }}
+              onStreamingEnd={() => {
+                setRunning(false);
+                void refreshQuota();
+              }}
+              openRunHistoryRequest={openRunHistoryRequest}
+              onOpenEvaluationLab={() => setEvaluationLabOpen(true)}
+              onCreateEvaluationExperiment={() => {
+                setEvaluationCreateRequest((value) => value + 1);
+                setEvaluationLabOpen(true);
+              }}
+              runFromMessageRequest={runFromMessageRequest}
+              restoreThreadRequest={restoreThreadRequest}
+              onLearningEvent={handleLearningEvent}
+              runRecovery={GUEST_RUN_RECOVERY}
+              prepareRun={prepareGuestRun}
+              onRunSettled={handleRunSettled}
+              initialRunResult={initialGuestRunResult(
+                firstSuccessState,
+                activeRecord.id
+              )}
+              onRunResultDismissed={() =>
+                commitFirstSuccess(clearGuestRunRecovery)
+              }
+            />
+          </main>
+
+          {coachLoaded ? (
+            <Suspense fallback={null}>
+              <LearningCoach
+                open={
+                  coachPresentation === "docked" ||
+                  coachPresentation === "overlay"
+                }
+                variant={coachPresentation === "docked" ? "docked" : "overlay"}
+                portalTarget={activeDialogSurface?.target ?? null}
+                surface={coachSurface}
+                showCollapsedNudge={false}
+                context={coachContext}
+                onOpenChange={(open) => {
+                  if (open) {
+                    setCoachLoaded(true);
+                    setFloatingCoachOpen(true);
+                  } else if (coachPresentation === "docked") {
+                    setCoachEnabledPreference(false);
+                  } else {
+                    setFloatingCoachOpen(false);
+                  }
+                }}
+                onOpenVariables={() => guestHost.actions.openVariables()}
+                onRequestRun={(options) => {
+                  if (running) return false;
+                  if (options?.fromFirstUserMessage) {
+                    const firstUserMessage =
+                      activeRecord.thread.context?.messages?.find(
+                        (message) => message.role === "user"
+                      );
+                    if (!firstUserMessage) return false;
+                    setRunFromMessageRequest((current) => ({
+                      token: (current?.token ?? 0) + 1,
+                      messageId: firstUserMessage.id,
+                    }));
+                    return true;
+                  }
+                  return requestGuestThreadRun();
+                }}
+                onRunCompleted={() => void refreshQuota()}
+                weatherObservation={weatherObservation}
+                interactionBlocked={
+                  settingsOpen ||
+                  mcpSettingsOpen ||
+                  exampleDialogOpen ||
+                  libraryOpen ||
+                  resetConfirmOpen ||
+                  firstRunDialogOpen ||
+                  evaluationLabOpen
+                }
+                onOpenRunHistory={() => {
+                  setOpenRunHistoryRequest((value) => value + 1);
+                  if (coachPresentation === "overlay") {
+                    setFloatingCoachOpen(false);
+                  }
+                }}
+                comparisonOpenedToken={comparisonOpenedToken}
+              />
+            </Suspense>
+          ) : null}
+        </div>
+
+        {evaluationLabOpen ? (
+          <Suspense fallback={null}>
+            <GuestEvaluationLabDialog
+              open={evaluationLabOpen}
+              onOpenChange={setEvaluationLabOpen}
+              createRequest={evaluationCreateRequest}
+              thread={activeRecord.thread}
+              fallbackModel={defaultModel}
+              quota={quota}
+              transport={transport}
+              runtimeId={activeRecord.id}
+              onQuotaRefresh={refreshQuota}
+              onApplyCandidate={applyEvaluationCandidate}
             />
           </Suspense>
         ) : null}
-      </div>
 
-      {evaluationLabOpen ? (
-        <Suspense fallback={null}>
-          <GuestEvaluationLabDialog
-            open={evaluationLabOpen}
-            onOpenChange={setEvaluationLabOpen}
-            createRequest={evaluationCreateRequest}
-            thread={activeRecord.thread}
-            fallbackModel={defaultModel}
-            quota={quota}
-            transport={transport}
-            runtimeId={activeRecord.id}
-            onQuotaRefresh={refreshQuota}
-          />
-        </Suspense>
-      ) : null}
+        <GuestThreadLibrary
+          open={libraryOpen}
+          onOpenChange={setLibraryOpen}
+          records={workspace.threads}
+          activeThreadId={activeRecord.id}
+          running={running}
+          onCreate={handleCreate}
+          onSelect={handleSelect}
+          onDuplicate={handleDuplicate}
+          onExport={handleExport}
+          onDelete={handleDelete}
+          onImport={handleImport}
+        />
 
-      <GuestThreadLibrary
-        open={libraryOpen}
-        onOpenChange={setLibraryOpen}
-        records={workspace.threads}
-        activeThreadId={activeRecord.id}
-        running={running}
-        onCreate={handleCreate}
-        onSelect={handleSelect}
-        onDuplicate={handleDuplicate}
-        onExport={handleExport}
-        onDelete={handleDelete}
-        onImport={handleImport}
-      />
+        <GuestMcpSettingsDialog
+          open={mcpSettingsOpen}
+          onOpenChange={setMcpSettingsOpen}
+        />
 
-      <GuestMcpSettingsDialog
-        open={mcpSettingsOpen}
-        onOpenChange={setMcpSettingsOpen}
-      />
-
-      <GuestSettingsDialog
-        open={settingsOpen}
-        tab={settingsTab}
-        onOpenChange={setSettingsOpen}
-        onTabChange={setSettingsTab}
-        onOpenMcp={() => {
-          setSettingsOpen(false);
-          setMcpSettingsOpen(true);
-        }}
-      />
-
-      <GuestExampleDialog
-        open={exampleDialogOpen}
-        onOpenChange={setExampleDialogOpen}
-        running={running}
-        creating={creatingExample}
-        onSelect={(example) => void handleSelectExample(example)}
-      />
-
-      <GuestFirstRunDialog
-        open={firstRunDialogOpen}
-        quota={quota}
-        onChoose={resolveFirstRun}
-        onCancel={() => resolveFirstRun()}
-      />
-
-      <ConfirmDialog
-        open={resetConfirmOpen}
-        onOpenChange={setResetConfirmOpen}
-        title="重置当前 Thread？"
-        description={`“${activeRecord.thread.title || "未命名 Thread"}”的当前内容、Run 历史和评估会被示例内容替换。此操作无法撤销。`}
-        cancelLabel="取消"
-        confirmLabel="重置"
-        coachSurface="confirmation"
-        onConfirm={() => void handleReset()}
-      />
-      {coachPresentation === "launcher" ? (
-        <CoachLauncher
-          surface={coachSurface}
-          portalTarget={activeDialogSurface?.target ?? null}
-          onOpen={() => {
-            setCoachLoaded(true);
-            setFloatingCoachOpen(true);
+        <GuestSettingsDialog
+          open={settingsOpen}
+          tab={settingsTab}
+          onOpenChange={setSettingsOpen}
+          onTabChange={setSettingsTab}
+          onOpenMcp={() => {
+            setSettingsOpen(false);
+            setMcpSettingsOpen(true);
           }}
         />
-      ) : null}
+
+        <GuestExampleDialog
+          open={exampleDialogOpen}
+          onOpenChange={setExampleDialogOpen}
+          running={running}
+          creating={creatingExample}
+          onSelect={(example) => void handleSelectExample(example)}
+        />
+
+        <GuestFirstRunDialog
+          open={firstRunDialogOpen}
+          quota={quota}
+          onChoose={resolveFirstRun}
+          onCancel={() => resolveFirstRun()}
+        />
+
+        <ConfirmDialog
+          open={resetConfirmOpen}
+          onOpenChange={setResetConfirmOpen}
+          title="重置当前 Thread？"
+          description={`“${activeRecord.thread.title || "未命名 Thread"}”的当前内容、Run 历史和评估会被示例内容替换。此操作无法撤销。`}
+          cancelLabel="取消"
+          confirmLabel="重置"
+          coachSurface="confirmation"
+          onConfirm={() => void handleReset()}
+        />
+        {coachPresentation === "launcher" ? (
+          <CoachLauncher
+            surface={coachSurface}
+            portalTarget={activeDialogSurface?.target ?? null}
+            onOpen={() => {
+              setCoachLoaded(true);
+              setFloatingCoachOpen(true);
+            }}
+          />
+        ) : null}
       </div>
     </HostServicesProvider>
   );
@@ -1021,8 +1061,8 @@ interface ActiveDialogSurface {
 }
 
 function useWideCoachLayout(): boolean {
-  const [wide, setWide] = useState(() =>
-    window.matchMedia(WIDE_COACH_QUERY).matches
+  const [wide, setWide] = useState(
+    () => window.matchMedia(WIDE_COACH_QUERY).matches
   );
 
   useEffect(() => {

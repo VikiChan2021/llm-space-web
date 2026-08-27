@@ -12,6 +12,7 @@ import {
   LEGACY_GUEST_THREAD_STORAGE_KEY,
   loadGuestWorkspace,
   parseGuestThreadImport,
+  persistGuestThreadUpdate,
   resetGuestThread,
   saveGuestWorkspace,
   selectGuestThread,
@@ -66,12 +67,39 @@ function _thread(title: string, text = title): Thread {
 }
 
 describe("游客 Thread 工作区", () => {
+  test("Candidate 类原子更新只在持久化成功后返回新工作区", () => {
+    const storage = new MemoryStorage();
+    const original = createGuestWorkspace(_factory(), _thread("Original"));
+    storage.failWrites = true;
+    const failed = persistGuestThreadUpdate(
+      storage,
+      original,
+      original.activeThreadId,
+      _thread("Candidate"),
+      "2026-08-27T00:00:00.000Z"
+    );
+    expect(failed.applied).toBe(false);
+    expect(failed.workspace).toBe(original);
+    storage.failWrites = false;
+    const applied = persistGuestThreadUpdate(
+      storage,
+      original,
+      original.activeThreadId,
+      _thread("Candidate"),
+      "2026-08-27T00:00:00.000Z"
+    );
+    expect(applied.applied).toBe(true);
+    expect(applied.workspace.threads[0]?.thread.title).toBe("Candidate");
+  });
+
   test("首次访问会立即创建并保存示例 Thread", () => {
     const storage = new MemoryStorage();
     const result = loadGuestWorkspace(storage, _factory());
 
     expect(result.workspace.threads).toHaveLength(1);
-    expect(result.workspace.activeThreadId).toBe(result.workspace.threads[0].id);
+    expect(result.workspace.activeThreadId).toBe(
+      result.workspace.threads[0].id
+    );
     expect(result.workspace.threads[0].thread.title).toBe("游客体验工作台");
     expect(result.workspace.threads[0].starterId).toBe(
       DEFAULT_GUEST_STARTER_ID

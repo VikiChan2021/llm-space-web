@@ -336,6 +336,31 @@ export function saveGuestWorkspace(
   }
 }
 
+export function persistGuestThreadUpdate(
+  storage: GuestWorkspaceStorage,
+  workspace: GuestWorkspace,
+  recordId: string,
+  thread: Thread,
+  now: string
+): {
+  workspace: GuestWorkspace;
+  storageError: string | null;
+  applied: boolean;
+} {
+  const next = updateGuestThread(workspace, recordId, thread, now);
+  if (next === workspace) {
+    return {
+      workspace,
+      storageError: "当前 Thread 已不存在。",
+      applied: false,
+    };
+  }
+  const storageError = saveGuestWorkspace(storage, next);
+  return storageError
+    ? { workspace, storageError, applied: false }
+    : { workspace: next, storageError: null, applied: true };
+}
+
 function _parseLegacyThread(raw: string | null): Thread | null {
   if (!raw) return null;
   try {

@@ -38,10 +38,7 @@ import {
   useModels,
 } from "@llm-space/ui/components/model-provider";
 import { Tooltip } from "@llm-space/ui/components/tooltip";
-import {
-  createShareThreadAction,
-  useHostServices,
-} from "@llm-space/ui/host";
+import { createShareThreadAction, useHostServices } from "@llm-space/ui/host";
 import { threadTitleFromPath } from "@llm-space/ui/lib/thread-file";
 import { cn } from "@llm-space/ui/lib/utils";
 import { Button } from "@llm-space/ui/ui/button";
@@ -146,6 +143,8 @@ export interface ThreadPlaygroundProps {
   onCreateEvaluationExperiment?: () => void;
   /** Run from a known semantic message after an external confirmation flow. */
   runFromMessageRequest?: { token: number; messageId: string } | null;
+  /** Replace the live Thread as one undoable host-owned edit. */
+  restoreThreadRequest?: { token: number; thread: Thread } | null;
   /** Content-free learning signals emitted after the user opens history/compare. */
   onLearningEvent?: (event: ThreadPlaygroundLearningEvent) => void;
   archiveRunSnapshot?: (
@@ -169,8 +168,7 @@ export interface ThreadPlaygroundProps {
 }
 
 export type ThreadPlaygroundLearningEvent =
-  | { type: "run_history_opened" }
-  | { type: "run_comparison_opened" };
+  { type: "run_history_opened" } | { type: "run_comparison_opened" };
 
 export function ThreadPlayground({
   loading,
@@ -324,6 +322,7 @@ function ThreadPlaygroundContent({
   onOpenEvaluationLab,
   onCreateEvaluationExperiment,
   runFromMessageRequest,
+  restoreThreadRequest,
   onLearningEvent,
 }: Omit<
   ThreadPlaygroundProps,
@@ -343,13 +342,12 @@ function ThreadPlaygroundContent({
     isMetaUserMessage(s.thread.context)
   );
   const canCompact = useMemo(
-    () =>
-      planCompaction(messages, 0, { hasMetaUserPrompt }).turnCount >= 2,
+    () => planCompaction(messages, 0, { hasMetaUserPrompt }).turnCount >= 2,
     [hasMetaUserPrompt, messages]
   );
   const { effectiveAutoRunTools, reactLoop, setAutoRunTools, setReactLoop } =
     useRunMode();
-  const { run, abort, undo, redo, syncTitle, dismissRunResult } =
+  const { run, abort, undo, redo, restoreThread, syncTitle, dismissRunResult } =
     useThreadStoreActions();
   const [systemPromptStreaming, setSystemPromptStreaming] = useState(false);
   const title = useMemo(
@@ -430,6 +428,18 @@ function ThreadPlaygroundContent({
     handledRunFromMessageTokenRef.current = runFromMessageRequest.token;
     if (status === "idle") void run(runFromMessageRequest.messageId);
   }, [run, runFromMessageRequest, status]);
+  const handledRestoreThreadTokenRef = useRef(0);
+  useEffect(() => {
+    if (
+      !restoreThreadRequest ||
+      restoreThreadRequest.token === handledRestoreThreadTokenRef.current ||
+      status !== "idle"
+    ) {
+      return;
+    }
+    handledRestoreThreadTokenRef.current = restoreThreadRequest.token;
+    restoreThread(restoreThreadRequest.thread);
+  }, [restoreThread, restoreThreadRequest, status]);
   const handleShortcuts = useShortcuts({ readonly: readonlyFromProps });
   return (
     <div
