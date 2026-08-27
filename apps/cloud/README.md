@@ -68,6 +68,11 @@ database boundary is not claimed as runtime-verified.
 本地 Bun 入口使用 `mise run dev:guest-api`，Node 22 部署包使用
 `mise run pack:guest-api`。配套路径前缀前端使用 `mise run build:guest-web` 构建。
 
+本地只开发 Web 界面且没有服务端智谱 Key 时，可以让 Vite 开发代理连接已部署的
+Guest API。将 `GUEST_API_ORIGIN` 设为包含部署路径前缀的 API 地址，并将
+`GUEST_API_PROXY_ORIGIN` 设为该部署的精确 HTTP(S) Origin。后者只重写开发代理
+发往服务端的 `Origin` 请求头，不会进入浏览器代码或放宽服务端同源校验。
+
 安全边界：
 
 - 供应商 Key 只从服务端进程环境读取，不会通过 Models、Run 或错误响应返回。

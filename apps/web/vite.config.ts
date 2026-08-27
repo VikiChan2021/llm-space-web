@@ -7,6 +7,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const base = process.env.LLM_SPACE_WEB_BASE ?? "/llm-space/";
 const guestApiOrigin =
   process.env.GUEST_API_ORIGIN ?? "http://127.0.0.1:8791";
+const guestApiProxyOrigin = _optionalOrigin(
+  process.env.GUEST_API_PROXY_ORIGIN,
+  "GUEST_API_PROXY_ORIGIN"
+);
 
 export default defineConfig({
   base,
@@ -47,9 +51,29 @@ export default defineConfig({
       [`${base}api`]: {
         target: guestApiOrigin,
         changeOrigin: true,
+        ...(guestApiProxyOrigin
+          ? { headers: { Origin: guestApiProxyOrigin } }
+          : {}),
         rewrite: (requestPath) =>
           requestPath.slice(base.length - 1),
       },
     },
   },
 });
+
+function _optionalOrigin(
+  value: string | undefined,
+  name: string
+): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+
+  const parsed = new URL(trimmed);
+  if (
+    (parsed.protocol !== "http:" && parsed.protocol !== "https:") ||
+    parsed.origin !== trimmed
+  ) {
+    throw new Error(`${name} must be an exact HTTP(S) origin.`);
+  }
+  return parsed.origin;
+}
