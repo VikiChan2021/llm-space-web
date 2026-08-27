@@ -24,6 +24,11 @@ test("evaluation analytics never includes experiment content", () => {
     regressed_cases: 0,
     unchanged_cases: 0,
     unknown_cases: 1,
+    review_eligible_pairs: 0,
+    review_manual_cases: 0,
+    review_pending_cases: 0,
+    review_automatic_cases: 0,
+    review_blocking_cases: 1,
   });
   expect(JSON.stringify(properties)).not.toContain("private prompt");
   expect(JSON.stringify(properties)).not.toContain("Secret experiment");

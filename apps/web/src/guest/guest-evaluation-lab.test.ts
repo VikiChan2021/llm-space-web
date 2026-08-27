@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
 import type { ModelConfig, Thread } from "@llm-space/core";
-import { createEvaluationExperiment } from "@llm-space/core/thread";
+import {
+  createEvaluationExperiment,
+  type EvaluationExperiment,
+} from "@llm-space/core/thread";
 
 import {
   GUEST_EVALUATION_LAB_STORAGE_KEY,
@@ -134,8 +137,18 @@ describe("guest evaluation lab repository", () => {
       "SECRET_SYSTEM_PROMPT Authorization Bearer raw-secret";
     experiment.cases[0].input = "PRIVATE_CASE_INPUT";
     experiment.cases[0].name = "PRIVATE_CASE_NAME";
+    experiment.runs = [
+      completedReportRun("baseline", experiment.cases[0].id),
+      completedReportRun("candidate", experiment.cases[0].id),
+    ];
     const report = createGuestEvaluationReport(experiment, 0);
     expect(report.summary.unknown).toBe(1);
+    expect(report.review).toMatchObject({
+      eligiblePairs: 1,
+      manualReviewed: 0,
+      pending: 1,
+      blocking: 1,
+    });
     for (const output of [
       serializeGuestEvaluationReport(experiment, 0),
       serializeGuestEvaluationReportHtml(experiment, 0),
@@ -143,7 +156,40 @@ describe("guest evaluation lab repository", () => {
       expect(output).not.toContain("SECRET_SYSTEM_PROMPT");
       expect(output).not.toContain("PRIVATE_CASE_INPUT");
       expect(output).not.toContain("PRIVATE_CASE_NAME");
+      expect(output).not.toContain("PRIVATE_MODEL_OUTPUT");
       expect(output).not.toContain("raw-secret");
     }
   });
 });
+
+function completedReportRun(
+  variantId: "baseline" | "candidate",
+  caseId: string
+): EvaluationExperiment["runs"][number] {
+  return {
+    id: `${variantId}-result`,
+    caseId,
+    variantId,
+    status: "completed",
+    modelTurns: 1,
+    durationMs: 100,
+    toolNames: [],
+    checks: [],
+    run: {
+      id: `${variantId}-snapshot`,
+      timestamp: 100,
+      thread: {
+        model: MODEL,
+        context: {
+          messages: [
+            {
+              id: `${variantId}-assistant`,
+              role: "assistant",
+              content: [{ type: "text", text: "PRIVATE_MODEL_OUTPUT" }],
+            },
+          ],
+        },
+      },
+    },
+  };
+}

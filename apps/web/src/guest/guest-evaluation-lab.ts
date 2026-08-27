@@ -4,6 +4,7 @@ import {
   MAX_EVALUATION_EXPERIMENTS,
   aggregateEvaluationExperiment,
   classifyEvaluationRegressions,
+  evaluationReviewSummary,
   createEvaluationCaseSet,
   emptyEvaluationLabRepository,
   normalizeEvaluationCaseSet,
@@ -218,13 +219,14 @@ export function parseGuestEvaluationCaseSetImport(
 
 export interface GuestEvaluationReport {
   format: "llm-space-quality-gate-report";
-  version: 1;
+  version: 2;
   generatedAt: string;
   experimentId: string;
   lineage?: EvaluationExperiment["lineage"];
   changedFields: string[];
   aggregate: ReturnType<typeof aggregateEvaluationExperiment>;
   summary: Record<"improved" | "regressed" | "unchanged" | "unknown", number>;
+  review: ReturnType<typeof evaluationReviewSummary>;
   cases: {
     caseId: string;
     label: string;
@@ -281,7 +283,7 @@ export function createGuestEvaluationReport(
   });
   return {
     format: "llm-space-quality-gate-report",
-    version: 1,
+    version: 2,
     generatedAt: new Date(now).toISOString(),
     experimentId: experiment.id,
     ...(experiment.lineage
@@ -293,6 +295,7 @@ export function createGuestEvaluationReport(
         : promotion.changes.map((change) => change.field),
     aggregate: aggregateEvaluationExperiment(experiment),
     summary,
+    review: evaluationReviewSummary(experiment),
     cases,
   };
 }
@@ -320,6 +323,7 @@ export function serializeGuestEvaluationReportHtml(
 <style>body{margin:0;background:#0b1020;color:#e5e7eb;font:14px/1.5 system-ui,sans-serif}.page{max-width:960px;margin:auto;padding:40px 24px}h1{font-size:28px;margin:0 0 8px}p{color:#9ca3af}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:24px 0}.card,table{background:#111827;border:1px solid #263244;border-radius:12px}.card{padding:16px}.value{font-size:26px;font-weight:700}table{width:100%;border-collapse:collapse;overflow:hidden}th,td{text-align:left;padding:12px;border-bottom:1px solid #263244}th{color:#9ca3af}.status{font-weight:700}.improved{color:#34d399}.regressed{color:#fb7185}.unchanged{color:#93c5fd}.unknown{color:#fbbf24}.note{margin-top:20px;font-size:12px}@media(max-width:640px){.cards{grid-template-columns:repeat(2,1fr)}th:nth-child(n+4),td:nth-child(n+4){display:none}}</style></head>
 <body><main class="page"><h1>LLM Space Quality Gate Report</h1><p>生成时间：${escapeHtml(report.generatedAt)} · 报告默认不包含 Prompt、Case 输入、模型输出、Tool 内容或密钥。</p>
 <section class="cards">${(["improved", "regressed", "unchanged", "unknown"] as const).map((key) => `<div class="card"><div>${key}</div><div class="value ${key}">${report.summary[key]}</div></div>`).join("")}</section>
+<p>人工评审：${report.review.manualReviewed} 已完成 · ${report.review.pending} 待评审 · ${report.review.automatic} 自动判定 · ${report.review.blocking} 门禁阻塞。</p>
 <table><thead><tr><th>Case</th><th>结论</th><th>依据</th><th>Token Δ</th><th>耗时 Δ(ms)</th></tr></thead><tbody>${rows}</tbody></table>
 <p class="note">Changed fields: ${report.changedFields.map(escapeHtml).join(", ") || "none"}. Unknown 表示需要人工评分或结果尚不完整，不应自动视为通过。</p></main></body></html>`;
 }

@@ -85,6 +85,24 @@ export interface EvaluationRegressionResult {
   durationDeltaMs: number | null;
 }
 
+export interface EvaluationReviewItem {
+  caseId: string;
+  baseline: EvaluationExperimentRun;
+  candidate: EvaluationExperimentRun;
+  regression: EvaluationRegressionResult;
+  evaluation: ThreadEvaluation | null;
+  needsReview: boolean;
+}
+
+export interface EvaluationReviewSummary {
+  eligiblePairs: number;
+  manualReviewed: number;
+  pending: number;
+  automatic: number;
+  blocking: number;
+  verdicts: Record<ThreadEvaluation["verdict"], number>;
+}
+
 export interface EvaluationExperimentLineage {
   parentExperimentId: string;
   promotionId: string;
@@ -443,6 +461,79 @@ export function classifyEvaluationRegressions(
       checkDelta,
     };
   });
+}
+
+export function evaluationReviewItems(
+  experiment: EvaluationExperiment
+): EvaluationReviewItem[] {
+  const regressions = new Map(
+    classifyEvaluationRegressions(experiment).map((item) => [item.caseId, item])
+  );
+  return experiment.cases.flatMap((evaluationCase) => {
+    const baseline = findExperimentRun(
+      experiment,
+      evaluationCase.id,
+      "baseline"
+    );
+    const candidate = findExperimentRun(
+      experiment,
+      evaluationCase.id,
+      "candidate"
+    );
+    const regression = regressions.get(evaluationCase.id);
+    if (
+      baseline?.status !== "completed" ||
+      candidate?.status !== "completed" ||
+      !baseline.run ||
+      !candidate.run ||
+      !regression
+    ) {
+      return [];
+    }
+    const evaluation = findEvaluationForPair(
+      experiment.evaluations,
+      baseline.run.id,
+      candidate.run.id
+    );
+    return [
+      {
+        caseId: evaluationCase.id,
+        baseline,
+        candidate,
+        regression,
+        evaluation,
+        needsReview: regression.status === "unknown" && !evaluation,
+      },
+    ];
+  });
+}
+
+export function evaluationReviewSummary(
+  experiment: EvaluationExperiment
+): EvaluationReviewSummary {
+  const items = evaluationReviewItems(experiment);
+  const verdicts: EvaluationReviewSummary["verdicts"] = {
+    leftBetter: 0,
+    rightBetter: 0,
+    tie: 0,
+    pass: 0,
+    fail: 0,
+  };
+  for (const item of items) {
+    if (item.evaluation) verdicts[item.evaluation.verdict] += 1;
+  }
+  return {
+    eligiblePairs: items.length,
+    manualReviewed: items.filter((item) => item.evaluation).length,
+    pending: items.filter((item) => item.needsReview).length,
+    automatic: items.filter(
+      (item) => !item.evaluation && item.regression.status !== "unknown"
+    ).length,
+    blocking: classifyEvaluationRegressions(experiment).filter(
+      (item) => item.status === "regressed" || item.status === "unknown"
+    ).length,
+    verdicts,
+  };
 }
 
 export function evaluationRerunTargets(

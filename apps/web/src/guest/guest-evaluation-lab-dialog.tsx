@@ -14,6 +14,8 @@ import {
   createEvaluationExperiment,
   createNextEvaluationExperiment,
   evaluationBudget,
+  evaluationReviewItems,
+  evaluationReviewSummary,
   evaluationRerunTargets,
   findEvaluationForPair,
   planEvaluationPromotion,
@@ -26,7 +28,9 @@ import {
   type EvaluationExperiment,
   type EvaluationExperimentRun,
   type EvaluationPromotionPlan,
+  type EvaluationRecord,
   type EvaluationRegressionResult,
+  type EvaluationReviewItem,
   type EvaluationRubricInput,
   type EvaluationVariantId,
 } from "@llm-space/core/thread";
@@ -63,6 +67,8 @@ import {
   FlaskConicalIcon,
   GitCompareArrowsIcon,
   LoaderCircleIcon,
+  PackageIcon,
+  PackageOpenIcon,
   PlusIcon,
   RotateCcwIcon,
   SquareIcon,
@@ -96,7 +102,15 @@ import {
   serializeGuestEvaluationReportHtml,
   updateGuestEvaluationExperiment,
 } from "./guest-evaluation-lab";
+import { GuestEvaluationReviewQueueDialog } from "./guest-evaluation-review-queue-dialog";
 import { runGuestEvaluationItem } from "./guest-evaluation-runner";
+import {
+  MAX_GUEST_PILOT_BUNDLE_IMPORT_BYTES,
+  parseGuestPilotBundle,
+  serializeGuestPilotBundle,
+  type GuestPilotBundle,
+  type GuestPilotBundleImportResult,
+} from "./guest-pilot-bundle";
 
 const STORAGE = _browserStorage();
 
@@ -111,6 +125,7 @@ export function GuestEvaluationLabDialog({
   runtimeId,
   onQuotaRefresh,
   onApplyCandidate,
+  onImportPilotBundle,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -124,6 +139,9 @@ export function GuestEvaluationLabDialog({
   onApplyCandidate: (
     experiment: EvaluationExperiment
   ) => { ok: true; thread: Thread } | { ok: false; error: string };
+  onImportPilotBundle: (
+    bundle: GuestPilotBundle
+  ) => GuestPilotBundleImportResult;
 }) {
   const loadedRef = useRef(loadGuestEvaluationLab(STORAGE));
   const [repository, setRepository] = useState(
@@ -142,16 +160,24 @@ export function GuestEvaluationLabDialog({
     baseline: EvaluationExperimentRun;
     candidate: EvaluationExperimentRun;
   } | null>(null);
+  const [reviewQueueOpen, setReviewQueueOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const [promotionPlan, setPromotionPlan] =
     useState<EvaluationPromotionPlan | null>(null);
+  const [pendingPilotBundle, setPendingPilotBundle] = useState<{
+    fileName: string;
+    bundle: GuestPilotBundle;
+  } | null>(null);
+  const [bundleExportConfirmOpen, setBundleExportConfirmOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
   const caseSetInputRef = useRef<HTMLInputElement>(null);
+  const pilotBundleInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const handledCreateRequestRef = useRef(0);
   const draftCreationGuardRef = useRef(false);
   const openedAtRef = useRef<number | null>(null);
+  const reviewQueueOpenedAtRef = useRef<number | null>(null);
 
   const activeExperiment = useMemo(
     () =>
@@ -168,6 +194,14 @@ export function GuestEvaluationLabDialog({
     repository.experiments.some(
       (item) => item.lineage?.parentExperimentId === activeExperiment.id
     )
+  );
+  const reviewItems = useMemo(
+    () => (activeExperiment ? evaluationReviewItems(activeExperiment) : []),
+    [activeExperiment]
+  );
+  const reviewSummary = useMemo(
+    () => (activeExperiment ? evaluationReviewSummary(activeExperiment) : null),
+    [activeExperiment]
   );
 
   const persistRepository = useCallback(
@@ -615,6 +649,66 @@ export function GuestEvaluationLabDialog({
     [activeExperiment]
   );
 
+  const exportPilotBundle = useCallback(() => {
+    if (!activeExperiment) return;
+    downloadText(
+      `${safeFilename(activeExperiment.name)}.pilot.json`,
+      serializeGuestPilotBundle({
+        thread,
+        repository,
+        activeExperiment,
+      }),
+      "application/json;charset=utf-8"
+    );
+    setBundleExportConfirmOpen(false);
+    captureGuestEvaluationEvent("pilot_bundle_exported", {
+      experiment: activeExperiment,
+    });
+    toast.success("试点包已导出", {
+      description: "文件包含完整内容，请只交给可信的试点参与者。",
+    });
+  }, [activeExperiment, repository, thread]);
+
+  const preparePilotBundleImport = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+      try {
+        if (file.size > MAX_GUEST_PILOT_BUNDLE_IMPORT_BYTES) {
+          throw new Error("试点包不能超过 8 MiB。");
+        }
+        setPendingPilotBundle({
+          fileName: file.name,
+          bundle: parseGuestPilotBundle(await file.text()),
+        });
+      } catch (error) {
+        toast.error("无法读取试点包", {
+          description: error instanceof Error ? error.message : "请检查文件。",
+        });
+      }
+    },
+    []
+  );
+
+  const confirmPilotBundleImport = useCallback(() => {
+    if (!pendingPilotBundle) return;
+    const result = onImportPilotBundle(pendingPilotBundle.bundle);
+    if (!result.ok) {
+      toast.error("无法导入试点包", { description: result.error });
+      return;
+    }
+    setRepository(result.repository);
+    setStorageError(null);
+    setPendingPilotBundle(null);
+    captureGuestEvaluationEvent("pilot_bundle_imported", {
+      experiment: result.activeExperiment,
+    });
+    toast.success("试点包已恢复", {
+      description: `已新建 1 个 Thread，并恢复 ${result.counts.experiments} 个实验、${result.counts.cases} 个 Case、${result.counts.evaluations} 条人工评审。`,
+    });
+  }, [onImportPilotBundle, pendingPilotBundle]);
+
   const requestPromotion = useCallback(() => {
     if (!activeExperiment || isRunning || activeExperimentIsImmutable) return;
     if (activeExperiment.status !== "completed") {
@@ -688,6 +782,62 @@ export function GuestEvaluationLabDialog({
       description: "原实验保持不变；可使用工作台 Undo 撤销 Thread 修改。",
     });
   }, [activeExperiment, onApplyCandidate, persistRepository, promotionPlan]);
+
+  const openReviewQueue = useCallback(() => {
+    if (
+      !activeExperiment ||
+      activeExperimentIsImmutable ||
+      reviewSummary?.pending === 0
+    ) {
+      return;
+    }
+    reviewQueueOpenedAtRef.current = Date.now();
+    captureGuestEvaluationEvent("review_queue_opened", {
+      experiment: activeExperiment,
+    });
+    setReviewQueueOpen(true);
+  }, [activeExperiment, activeExperimentIsImmutable, reviewSummary?.pending]);
+
+  const saveReviewVerdict = useCallback(
+    (
+      item: EvaluationReviewItem,
+      verdict: EvaluationRecord["verdict"]
+    ): boolean => {
+      if (!activeExperiment || activeExperimentIsImmutable) return false;
+      const baselineRun = item.baseline.run;
+      const candidateRun = item.candidate.run;
+      if (!baselineRun || !candidateRun) return false;
+      const evaluations = upsertEvaluation(
+        activeExperiment.evaluations,
+        activeExperiment.runs
+          .map((run) => run.run)
+          .filter((run): run is NonNullable<typeof run> => Boolean(run)),
+        {
+          leftRunId: baselineRun.id,
+          rightRunId: candidateRun.id,
+          verdict,
+        },
+        Date.now()
+      );
+      if (!evaluations) return false;
+      const nextExperiment = { ...activeExperiment, evaluations };
+      commitExperiment((experiment) => ({ ...experiment, evaluations }));
+      captureGuestEvaluationEvent("review_case_saved", {
+        experiment: nextExperiment,
+      });
+      if (evaluationReviewSummary(nextExperiment).pending === 0) {
+        captureGuestEvaluationEvent("review_queue_completed", {
+          experiment: nextExperiment,
+          elapsedMs:
+            reviewQueueOpenedAtRef.current === null
+              ? undefined
+              : Date.now() - reviewQueueOpenedAtRef.current,
+        });
+      }
+      return true;
+    },
+    [activeExperiment, activeExperimentIsImmutable, commitExperiment]
+  );
 
   const baselineRun = scoringPair?.baseline.run ?? null;
   const candidateRun = scoringPair?.candidate.run ?? null;
@@ -779,6 +929,20 @@ export function GuestEvaluationLabDialog({
               />
               <Button
                 variant="outline"
+                onClick={() => pilotBundleInputRef.current?.click()}
+                disabled={isRunning}
+              >
+                <PackageOpenIcon /> 导入试点包
+              </Button>
+              <input
+                ref={pilotBundleInputRef}
+                className="hidden"
+                type="file"
+                accept="application/json,.json"
+                onChange={preparePilotBundleImport}
+              />
+              <Button
+                variant="outline"
                 onClick={() => caseSetInputRef.current?.click()}
                 disabled={
                   !activeExperiment ||
@@ -808,6 +972,13 @@ export function GuestEvaluationLabDialog({
                 disabled={!activeExperiment}
               >
                 <DownloadIcon /> 导出实验
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setBundleExportConfirmOpen(true)}
+                disabled={!activeExperiment || isRunning}
+              >
+                <PackageIcon /> 导出试点包
               </Button>
               <Button
                 variant="outline"
@@ -864,6 +1035,7 @@ export function GuestEvaluationLabDialog({
                   onContinue={continueExperiment}
                   onRunSelected={runSelectedCases}
                   onRerunFailedOrRegressed={rerunFailedOrRegressed}
+                  onOpenReviewQueue={openReviewQueue}
                   onRequestPromotion={requestPromotion}
                   onRetry={retryResult}
                   onTrace={(run) => {
@@ -956,6 +1128,57 @@ export function GuestEvaluationLabDialog({
         }}
       />
 
+      {activeExperiment && reviewSummary ? (
+        <GuestEvaluationReviewQueueDialog
+          open={reviewQueueOpen}
+          experiment={activeExperiment}
+          items={reviewItems}
+          summary={reviewSummary}
+          onOpenChange={(next) => {
+            setReviewQueueOpen(next);
+            if (!next) reviewQueueOpenedAtRef.current = null;
+          }}
+          onSaveVerdict={saveReviewVerdict}
+        />
+      ) : null}
+
+      <ConfirmDialog
+        open={bundleExportConfirmOpen}
+        onOpenChange={setBundleExportConfirmOpen}
+        title="导出包含完整内容的试点包？"
+        description="试点包包含当前 Thread、Prompt、Case 输入、模型输出、Tool 证据、实验链和人工评审。它不是脱敏报告，只应保存在可信设备并交给可信人员。"
+        cancelLabel="取消"
+        confirmLabel="确认导出"
+        confirmVariant="default"
+        onConfirm={exportPilotBundle}
+      />
+      <ConfirmDialog
+        open={Boolean(pendingPilotBundle)}
+        onOpenChange={(next) => !next && setPendingPilotBundle(null)}
+        title="导入这个完整试点包？"
+        description={
+          pendingPilotBundle ? (
+            <span className="grid gap-2 text-left">
+              <span>
+                文件“{pendingPilotBundle.fileName}”包含完整
+                Prompt、输入、输出、Tool 证据和人工评审。确认来源可信后再导入。
+              </span>
+              <span className="rounded border p-2 text-xs">
+                将新建 1 个 Thread，并恢复{" "}
+                {pendingPilotBundle.bundle.counts.experiments}
+                个实验、{pendingPilotBundle.bundle.counts.cases} 个 Case、
+                {pendingPilotBundle.bundle.counts.runs} 个 Run、
+                {pendingPilotBundle.bundle.counts.evaluations}{" "}
+                条人工评审；不会覆盖现有实验。
+              </span>
+            </span>
+          ) : undefined
+        }
+        cancelLabel="取消"
+        confirmLabel="确认并恢复"
+        confirmVariant="default"
+        onConfirm={confirmPilotBundleImport}
+      />
       <ConfirmDialog
         open={promotionPlan?.status === "ready"}
         onOpenChange={(next) => !next && setPromotionPlan(null)}
@@ -1033,6 +1256,7 @@ function ExperimentEditor({
   onContinue,
   onRunSelected,
   onRerunFailedOrRegressed,
+  onOpenReviewQueue,
   onRequestPromotion,
   onRetry,
   onTrace,
@@ -1050,6 +1274,7 @@ function ExperimentEditor({
   onContinue: () => void;
   onRunSelected: () => void;
   onRerunFailedOrRegressed: () => void;
+  onOpenReviewQueue: () => void;
   onRequestPromotion: () => void;
   onRetry: (run: EvaluationExperimentRun) => void;
   onTrace: (run: EvaluationExperimentRun) => void;
@@ -1072,6 +1297,7 @@ function ExperimentEditor({
     regressions.map((regression) => [regression.caseId, regression])
   );
   const rerunTargetCount = evaluationRerunTargets(experiment).length;
+  const reviewSummary = evaluationReviewSummary(experiment);
   const progress = experiment.runs.filter(
     (run) => run.status !== "queued" && run.status !== "running"
   ).length;
@@ -1313,14 +1539,23 @@ function ExperimentEditor({
                 优先使用确定性检查与人工评分；没有足够质量证据时标记 unknown。
               </p>
             </div>
-            <Button
-              onClick={onRequestPromotion}
-              disabled={
-                experiment.status !== "completed" || isRunning || immutable
-              }
-            >
-              <GitCompareArrowsIcon /> Candidate 用于下一轮
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={onOpenReviewQueue}
+                disabled={reviewSummary.pending === 0 || isRunning || immutable}
+              >
+                <EyeIcon /> 待评审 ({reviewSummary.pending})
+              </Button>
+              <Button
+                onClick={onRequestPromotion}
+                disabled={
+                  experiment.status !== "completed" || isRunning || immutable
+                }
+              >
+                <GitCompareArrowsIcon /> Candidate 用于下一轮
+              </Button>
+            </div>
           </div>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {aggregates.map((aggregate) => (

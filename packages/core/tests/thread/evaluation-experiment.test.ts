@@ -11,6 +11,8 @@ import {
   emptyEvaluationLabRepository,
   evaluateExperimentRun,
   evaluationBudget,
+  evaluationReviewItems,
+  evaluationReviewSummary,
   evaluationRerunTargets,
   normalizeEvaluationCaseSet,
   normalizeEvaluationLabRepository,
@@ -317,6 +319,118 @@ describe("evaluation experiment domain", () => {
     expect(evaluationRerunTargets(value)).toEqual([
       { caseId, variantId: "candidate" },
     ]);
+  });
+
+  test("builds a focused manual-review queue from complete unknown pairs", () => {
+    const value = experiment();
+    value.cases = [
+      value.cases[0]!,
+      {
+        id: "auto-case",
+        name: "Automatic",
+        input: "Automatic",
+        expectations: {},
+      },
+      {
+        id: "reviewed-case",
+        name: "Reviewed",
+        input: "Reviewed",
+        expectations: {},
+      },
+      {
+        id: "failed-case",
+        name: "Failed",
+        input: "Failed",
+        expectations: {},
+      },
+    ];
+    const pendingCaseId = value.cases[0]!.id;
+    const pendingBaseline = completedRun(
+      "pending-baseline",
+      "baseline",
+      pendingCaseId,
+      [true]
+    );
+    const pendingCandidate = completedRun(
+      "pending-candidate",
+      "candidate",
+      pendingCaseId,
+      [true]
+    );
+    const autoBaseline = completedRun(
+      "auto-baseline",
+      "baseline",
+      "auto-case",
+      [false]
+    );
+    const autoCandidate = completedRun(
+      "auto-candidate",
+      "candidate",
+      "auto-case",
+      [true]
+    );
+    const reviewedBaseline = completedRun(
+      "reviewed-baseline",
+      "baseline",
+      "reviewed-case",
+      [true]
+    );
+    const reviewedCandidate = completedRun(
+      "reviewed-candidate",
+      "candidate",
+      "reviewed-case",
+      [true]
+    );
+    const failedBaseline = completedRun(
+      "failed-baseline",
+      "baseline",
+      "failed-case",
+      [true]
+    );
+    const failedCandidate = {
+      ...completedRun("failed-candidate", "candidate", "failed-case", [true]),
+      status: "failed" as const,
+    };
+    value.runs = [
+      pendingBaseline,
+      pendingCandidate,
+      autoBaseline,
+      autoCandidate,
+      reviewedBaseline,
+      reviewedCandidate,
+      failedBaseline,
+      failedCandidate,
+    ];
+    value.evaluations = [
+      {
+        id: "reviewed-evaluation",
+        leftRunId: reviewedBaseline.run!.id,
+        rightRunId: reviewedCandidate.run!.id,
+        verdict: "fail",
+        createdAt: 300,
+        updatedAt: 300,
+      },
+    ];
+
+    const items = evaluationReviewItems(value);
+    expect(items).toHaveLength(3);
+    expect(
+      items.filter((item) => item.needsReview).map((item) => item.caseId)
+    ).toEqual([pendingCaseId]);
+    expect(evaluationReviewSummary(value)).toEqual({
+      eligiblePairs: 3,
+      manualReviewed: 1,
+      pending: 1,
+      automatic: 1,
+      blocking: 3,
+      verdicts: {
+        leftBetter: 0,
+        rightBetter: 0,
+        tie: 0,
+        pass: 0,
+        fail: 1,
+      },
+    });
   });
 });
 

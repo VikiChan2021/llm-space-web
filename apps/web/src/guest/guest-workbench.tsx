@@ -88,6 +88,11 @@ import {
 import { GuestFirstSuccessCallout } from "./guest-first-success-callout";
 import { OPEN_GUEST_MCP_SETTINGS_EVENT } from "./guest-mcp";
 import { GuestMcpSettingsDialog } from "./guest-mcp-settings-dialog";
+import {
+  persistGuestPilotBundleImport,
+  type GuestPilotBundle,
+  type GuestPilotBundleImportResult,
+} from "./guest-pilot-bundle";
 import { GUEST_RUN_RECOVERY } from "./guest-run-recovery";
 import {
   GuestSettingsDialog,
@@ -703,6 +708,25 @@ export function GuestWorkbench() {
     },
     [workspace.threads]
   );
+  const handlePilotBundleImport = useCallback(
+    (bundle: GuestPilotBundle): GuestPilotBundleImportResult => {
+      if (running) {
+        return { ok: false, error: "请先等待当前 Run 结束。" };
+      }
+      const result = persistGuestPilotBundleImport({
+        storage: BROWSER_STORAGE,
+        workspace: workspaceRef.current,
+        factory: BROWSER_WORKSPACE_FACTORY,
+        bundle,
+      });
+      if (!result.ok) return result;
+      workspaceRef.current = result.workspace;
+      setWorkspaceState({ workspace: result.workspace, storageError: null });
+      setRevision((value) => value + 1);
+      return result;
+    },
+    [running]
+  );
 
   return (
     <HostServicesProvider value={guestHost}>
@@ -981,6 +1005,7 @@ export function GuestWorkbench() {
               runtimeId={activeRecord.id}
               onQuotaRefresh={refreshQuota}
               onApplyCandidate={applyEvaluationCandidate}
+              onImportPilotBundle={handlePilotBundleImport}
             />
           </Suspense>
         ) : null}

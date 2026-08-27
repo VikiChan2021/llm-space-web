@@ -2,7 +2,10 @@ import type {
   EvaluationExperiment,
   EvaluationExperimentRun,
 } from "@llm-space/core/thread";
-import { classifyEvaluationRegressions } from "@llm-space/core/thread";
+import {
+  classifyEvaluationRegressions,
+  evaluationReviewSummary,
+} from "@llm-space/core/thread";
 
 interface PostHogLike {
   capture(event: string, properties?: Record<string, unknown>): void;
@@ -27,6 +30,11 @@ export type GuestEvaluationEvent =
   | "case_set_exported"
   | "report_exported"
   | "regression_rerun_started"
+  | "review_queue_opened"
+  | "review_case_saved"
+  | "review_queue_completed"
+  | "pilot_bundle_exported"
+  | "pilot_bundle_imported"
   | "promotion_diff_opened"
   | "promotion_applied"
   | "next_round_created";
@@ -46,6 +54,15 @@ export function guestEvaluationAnalyticsProperties(input: {
         { improved: 0, regressed: 0, unchanged: 0, unknown: 0 }
       )
     : { improved: 0, regressed: 0, unchanged: 0, unknown: 0 };
+  const reviewSummary = experiment
+    ? evaluationReviewSummary(experiment)
+    : {
+        eligiblePairs: 0,
+        manualReviewed: 0,
+        pending: 0,
+        automatic: 0,
+        blocking: 0,
+      };
   return {
     evaluation_version: 2,
     case_count: experiment?.cases.length ?? 0,
@@ -58,6 +75,11 @@ export function guestEvaluationAnalyticsProperties(input: {
     regressed_cases: regressionSummary.regressed,
     unchanged_cases: regressionSummary.unchanged,
     unknown_cases: regressionSummary.unknown,
+    review_eligible_pairs: reviewSummary.eligiblePairs,
+    review_manual_cases: reviewSummary.manualReviewed,
+    review_pending_cases: reviewSummary.pending,
+    review_automatic_cases: reviewSummary.automatic,
+    review_blocking_cases: reviewSummary.blocking,
     ...(input.result
       ? {
           result_status: input.result.status,
