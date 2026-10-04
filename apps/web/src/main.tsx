@@ -9,6 +9,7 @@ import { createRoot } from "react-dom/client";
 import { HashRouter } from "react-router-dom";
 
 import { App } from "@/app";
+import { readGuestModels } from "@/guest/guest-api";
 // This is the web app's single CSS entry. It imports the shared UI globals first,
 // then adds the landing-only theme tokens and helpers in the same Tailwind graph.
 import "@/landing/index.css";
@@ -22,10 +23,21 @@ const initialDark =
   (storedTheme !== "light" && storedTheme !== "system");
 document.documentElement.classList.toggle("dark", initialDark);
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <HashRouter>
-      <App />
-    </HashRouter>
-  </StrictMode>
-);
+async function _mount() {
+  if (import.meta.env.VITE_GUEST_WORKBENCH === "1") {
+    try {
+      await readGuestModels();
+    } catch {
+      // Keep the workspace accessible with the bounded fallback catalog.
+    }
+  }
+  createRoot(document.getElementById("root")!).render(
+    <StrictMode>
+      <HashRouter>
+        <App />
+      </HashRouter>
+    </StrictMode>
+  );
+}
+
+void _mount();

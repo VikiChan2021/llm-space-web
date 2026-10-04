@@ -11,17 +11,18 @@ import {
   streamGuestCoachModelEvents,
   type GuestCoachEvent,
 } from "./guest-coach";
-import type { GuestCloudConfig } from "./guest-config";
+import {
+  getGuestProviderApiKeys,
+  isConfiguredGuestModel,
+  type GuestCloudConfig,
+} from "./guest-config";
 import {
   createGuestModelProvider,
   guestModelSupportsImageInput,
   GUEST_PROVIDER_ID,
-  isGuestModelAllowed,
+  isGuestProviderId,
 } from "./guest-model-catalog";
-import type {
-  GuestQuotaDecision,
-  GuestQuotaStore,
-} from "./guest-quota";
+import type { GuestQuotaDecision, GuestQuotaStore } from "./guest-quota";
 import {
   callGuestBuiltinTool,
   callGuestMcpTool,
@@ -50,10 +51,7 @@ export type GuestModelExecutor = (
 
 export interface GuestHttpDependencies {
   config: GuestCloudConfig;
-  quotaStore: Pick<
-    GuestQuotaStore,
-    "hashIdentity" | "read" | "consume"
-  >;
+  quotaStore: Pick<GuestQuotaStore, "hashIdentity" | "read" | "consume">;
   execute: GuestModelExecutor;
   now?: () => Date;
 }
@@ -68,9 +66,7 @@ export function startGuestHttpServer(
   });
 }
 
-export function createGuestFetchHandler(
-  dependencies: GuestHttpDependencies
-) {
+export function createGuestFetchHandler(dependencies: GuestHttpDependencies) {
   const now = dependencies.now ?? (() => new Date());
   const activeRuns = new Map<string, number>();
   const activeToolCalls = new Map<string, number>();
@@ -105,12 +101,17 @@ export function createGuestFetchHandler(
       if (request.method === "GET" && url.pathname === "/api/guest/models") {
         return _json({
           defaultModel: {
-            provider: GUEST_PROVIDER_ID,
+            provider: dependencies.config.providerId ?? GUEST_PROVIDER_ID,
             id: dependencies.config.modelId,
           },
-          providers: [
-            createGuestModelProvider(dependencies.config.maxOutputTokens),
-          ],
+          providers: Object.keys(getGuestProviderApiKeys(dependencies.config))
+            .filter(isGuestProviderId)
+            .map((provider) =>
+              createGuestModelProvider(
+                dependencies.config.maxOutputTokens,
+                provider
+              )
+            ),
         });
       }
       if (request.method === "GET" && url.pathname === "/api/guest/tools") {
@@ -151,15 +152,8 @@ export function createGuestFetchHandler(
         _assertJsonRequest(request);
         const identity = _guestIdentity(request, dependencies.config);
         const body = await _readJsonObject(request, dependencies.config);
-        const serverId = _readBoundedString(
-          body.serverId,
-          "serverId",
-          120
-        );
-        _assertRemoteMcpEnabled(
-          serverId,
-          dependencies.config.remoteMcpEnabled
-        );
+        const serverId = _readBoundedString(body.serverId, "serverId", 120);
+        _assertRemoteMcpEnabled(serverId, dependencies.config.remoteMcpEnabled);
         const tools = isBuiltinGuestMcpServer(serverId)
           ? listBuiltinGuestMcpTools(serverId)
           : await listRemoteMcpTools(
@@ -174,28 +168,14 @@ export function createGuestFetchHandler(
           }
         );
       }
-      if (
-        request.method === "POST" &&
-        url.pathname === "/api/guest/mcp/call"
-      ) {
+      if (request.method === "POST" && url.pathname === "/api/guest/mcp/call") {
         _assertSameOrigin(request, dependencies.config.publicUrl);
         _assertJsonRequest(request);
         const identity = _guestIdentity(request, dependencies.config);
         const body = await _readJsonObject(request, dependencies.config);
-        const serverId = _readBoundedString(
-          body.serverId,
-          "serverId",
-          120
-        );
-        _assertRemoteMcpEnabled(
-          serverId,
-          dependencies.config.remoteMcpEnabled
-        );
-        const toolName = _readBoundedString(
-          body.toolName,
-          "toolName",
-          160
-        );
+        const serverId = _readBoundedString(body.serverId, "serverId", 120);
+        _assertRemoteMcpEnabled(serverId, dependencies.config.remoteMcpEnabled);
+        const toolName = _readBoundedString(body.toolName, "toolName", 160);
         const args = _readArguments(body.arguments);
         const result = await _withGuestToolSlot({
           identity,
@@ -226,13 +206,14 @@ export function createGuestFetchHandler(
         _assertJsonRequest(request);
         const input = await readGuestCoachRequest(request);
         const identity = _guestIdentity(request, dependencies.config);
-        const plan = createGuestCoachPlan(input, dependencies.config.modelId);
+        const plan = createGuestCoachPlan(
+          input,
+          dependencies.config.modelId,
+          Object.keys(getGuestProviderApiKeys(dependencies.config))
+        );
 
         if (plan.kind === "shortcut") {
-          const response = _streamCoachResponse(
-            plan.events,
-            requestId
-          );
+          const response = _streamCoachResponse(plan.events, requestId);
           if (identity.setCookie) {
             response.headers.append("Set-Cookie", identity.setCookie);
           }
@@ -304,10 +285,7 @@ export function createGuestFetchHandler(
           );
         }
 
-        const requestBody = await _readRequest(
-          request,
-          dependencies.config
-        );
+        const requestBody = await _readRequest(request, dependencies.config);
         const quota = dependencies.quotaStore.consume({
           guestId: identity.id,
           ip: _sourceIp(request, dependencies.config),
@@ -354,13 +332,13 @@ export function createGuestFetchHandler(
           ? error
           : error instanceof GuestCoachRequestError
             ? new GuestHttpError(error.status, error.code, error.message)
-          : error instanceof GuestToolError
-            ? new GuestHttpError(error.status, error.code, error.message)
-          : new GuestHttpError(
-              500,
-              "internal_error",
-              "请求暂时无法完成，请稍后重试。"
-            );
+            : error instanceof GuestToolError
+              ? new GuestHttpError(error.status, error.code, error.message)
+              : new GuestHttpError(
+                  500,
+                  "internal_error",
+                  "请求暂时无法完成，请稍后重试。"
+                );
       if (!(error instanceof GuestHttpError)) {
         console.error(
           "Guest request failed.",
@@ -426,11 +404,7 @@ async function _readRequest(
   try {
     value = JSON.parse(text);
   } catch {
-    throw new GuestHttpError(
-      400,
-      "invalid_json",
-      "请求格式无效。"
-    );
+    throw new GuestHttpError(400, "invalid_json", "请求格式无效。");
   }
   _validateRequest(value, config);
   return value;
@@ -445,14 +419,14 @@ function _validateRequest(
   }
   const request = value as Partial<AgentStreamRequest>;
   if (
-    request.model?.provider !== GUEST_PROVIDER_ID ||
-    typeof request.model.id !== "string" ||
-    !isGuestModelAllowed(request.model.id)
+    typeof request.model?.id !== "string" ||
+    typeof request.model?.provider !== "string" ||
+    !isConfiguredGuestModel(config, request.model.provider, request.model.id)
   ) {
     throw new GuestHttpError(
       400,
       "guest_model_unavailable",
-      "所选智谱模型不可用于游客工作台，请切换其他模型。"
+      "所选模型不可用于游客工作台，请在 Models 中选择已启用的模型。"
     );
   }
   const context = request.context;
@@ -502,9 +476,7 @@ function _validateRequest(
     toolNames.add(tool.name);
   }
   let characters =
-    typeof context.systemPrompt === "string"
-      ? context.systemPrompt.length
-      : 0;
+    typeof context.systemPrompt === "string" ? context.systemPrompt.length : 0;
   let imageCount = 0;
   let totalImageBytes = 0;
   for (const message of context.messages) {
@@ -538,7 +510,7 @@ function _validateRequest(
           throw new GuestHttpError(
             400,
             "guest_model_input_unsupported",
-            "当前模型不支持图片输入，请切换到 GLM-4.6V 后重试。"
+            "当前模型不支持图片输入，请移除图片或选择支持图片的模型。"
           );
         }
         if (
@@ -647,23 +619,12 @@ async function _readJsonObject(
 ): Promise<Record<string, unknown>> {
   const maxToolRequestBytes = Math.min(config.maxRequestBytes, 128 * 1024);
   const declaredLength = Number(request.headers.get("content-length") ?? "0");
-  if (
-    Number.isFinite(declaredLength) &&
-    declaredLength > maxToolRequestBytes
-  ) {
-    throw new GuestHttpError(
-      413,
-      "request_too_large",
-      "工具请求内容过大。"
-    );
+  if (Number.isFinite(declaredLength) && declaredLength > maxToolRequestBytes) {
+    throw new GuestHttpError(413, "request_too_large", "工具请求内容过大。");
   }
   const text = await request.text();
   if (Buffer.byteLength(text, "utf8") > maxToolRequestBytes) {
-    throw new GuestHttpError(
-      413,
-      "request_too_large",
-      "工具请求内容过大。"
-    );
+    throw new GuestHttpError(413, "request_too_large", "工具请求内容过大。");
   }
   let value: unknown;
   try {
@@ -682,11 +643,7 @@ function _readBoundedString(
   field: string,
   maximum: number
 ): string {
-  if (
-    typeof value !== "string" ||
-    !value.trim() ||
-    value.length > maximum
-  ) {
+  if (typeof value !== "string" || !value.trim() || value.length > maximum) {
     throw new GuestHttpError(
       400,
       "invalid_tool_request",
@@ -918,7 +875,7 @@ function _enqueueModelUnavailable(
         error: {
           code: "model_service_unavailable",
           message:
-            "当前模型暂不可用，请在 Models 中切换其他智谱模型后重试。",
+            "当前模型额度或服务暂不可用，请在 Models 中切换其他免费模型后重试。",
           requestId,
         },
       })}\n\n`
@@ -979,10 +936,7 @@ function _assertJsonRequest(request: Request): void {
   }
 }
 
-function _publicQuota(
-  quota: GuestQuotaDecision,
-  config: GuestCloudConfig
-) {
+function _publicQuota(quota: GuestQuotaDecision, config: GuestCloudConfig) {
   return {
     model: config.modelId,
     browserDailyLimit: config.browserDailyLimit,
@@ -996,11 +950,7 @@ function _publicQuota(
 function _nextUtcDay(): Date {
   const now = new Date();
   return new Date(
-    Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate() + 1
-    )
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)
   );
 }
 
@@ -1009,14 +959,8 @@ function _setQuotaHeaders(
   quota: GuestQuotaDecision,
   config: GuestCloudConfig
 ): void {
-  headers.set(
-    "X-Guest-Quota-Limit",
-    String(config.browserDailyLimit)
-  );
-  headers.set(
-    "X-Guest-Quota-Remaining",
-    String(quota.browserRemaining)
-  );
+  headers.set("X-Guest-Quota-Limit", String(config.browserDailyLimit));
+  headers.set("X-Guest-Quota-Remaining", String(quota.browserRemaining));
 }
 
 function _json(body: unknown, init: ResponseInit = {}): Response {
@@ -1031,9 +975,6 @@ function _securityHeaders(initial?: HeadersInit): Headers {
   headers.set("Referrer-Policy", "no-referrer");
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("X-Frame-Options", "DENY");
-  headers.set(
-    "Permissions-Policy",
-    "camera=(), microphone=(), geolocation=()"
-  );
+  headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   return headers;
 }

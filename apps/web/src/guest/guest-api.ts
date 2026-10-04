@@ -4,9 +4,16 @@ import type {
   ModelConfig,
   ModelProviderGroup,
 } from "@llm-space/core";
+import {
+  createGuestModelProvider,
+  DEFAULT_FREE_GUEST_MODEL_ID,
+  DEFAULT_FREE_GUEST_PROVIDER,
+  isGuestModelAllowed,
+  isGuestProviderId,
+} from "@llm-space/core/guest-models";
 
-export const GUEST_PROVIDER_ID = "bigmodel";
-export const GUEST_MODEL_ID = "glm-4.5-air";
+export let GUEST_PROVIDER_ID: string = DEFAULT_FREE_GUEST_PROVIDER;
+export let GUEST_MODEL_ID: string = DEFAULT_FREE_GUEST_MODEL_ID;
 
 export interface GuestQuota {
   model: string;
@@ -51,68 +58,52 @@ export class GuestRunError extends Error {
   }
 }
 
-export const GUEST_FALLBACK_PROVIDER: ModelProviderGroup = {
-  id: GUEST_PROVIDER_ID,
-  name: "智谱 BigModel",
-  builtin: true,
-  apiKeyDetected: true,
-  profiles: [{ id: "guest-default", name: "游客服务器 Key" }],
-  models: [
-    _createFallbackModel(GUEST_MODEL_ID, "GLM-4.5-Air（推荐）", 128_000),
-    _createFallbackModel("glm-4.7", "GLM-4.7", 200_000),
-    _createFallbackModel("glm-4.6v", "GLM-4.6V", 128_000, true),
-  ],
-};
-
-const GUEST_FALLBACK_MODEL_IDS = new Set(
-  GUEST_FALLBACK_PROVIDER.models.map((model) => model.id)
+export const GUEST_FALLBACK_PROVIDER = createGuestModelProvider(
+  2048,
+  DEFAULT_FREE_GUEST_PROVIDER
 );
+let _guestProviders: ModelProviderGroup[] = [GUEST_FALLBACK_PROVIDER];
 
 export function isGuestModelConfigAvailable(model: ModelConfig): boolean {
-  return (
-    model.provider === GUEST_PROVIDER_ID &&
-    GUEST_FALLBACK_MODEL_IDS.has(model.id)
+  return _guestProviders.some(
+    (provider) =>
+      provider.id === model.provider &&
+      provider.models.some((entry) => entry.id === model.id)
   );
 }
 
-function _createFallbackModel(
-  id: string,
-  name: string,
-  contextWindow: number,
-  supportsImages = false
-): ModelProviderGroup["models"][number] {
-  return {
-    id,
-    name,
-    api: "openai-completions",
-    provider: GUEST_PROVIDER_ID,
-    baseUrl: "https://open.bigmodel.cn/api/paas/v4",
-    reasoning: true,
-    thinkingLevelMap: {
-      off: "disabled",
-      minimal: "enabled",
-      low: "enabled",
-      medium: "enabled",
-      high: "enabled",
-    },
-    input: supportsImages ? ["text", "image"] : ["text"],
-    cost: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-    },
-    contextWindow,
-    maxTokens: 2_048,
-    compat: {
-      supportsStore: false,
-      supportsDeveloperRole: false,
-      supportsReasoningEffort: false,
-      supportsUsageInStreaming: true,
-      maxTokensField: "max_tokens",
-      thinkingFormat: "zai",
-    },
-  };
+export function acceptGuestModels(payload: GuestModelsResponse): void {
+  if (
+    !payload ||
+    !Array.isArray(payload.providers) ||
+    payload.providers.length === 0 ||
+    payload.providers.some(
+      (provider) =>
+        !isGuestProviderId(provider.id) ||
+        !Array.isArray(provider.models) ||
+        provider.models.length === 0 ||
+        provider.models.some(
+          (model: ModelProviderGroup["models"][number]) =>
+            model.provider !== provider.id ||
+            !isGuestModelAllowed(model.id, provider.id)
+        )
+    ) ||
+    !payload.defaultModel ||
+    !payload.providers.some(
+      (provider) =>
+        provider.id === payload.defaultModel.provider &&
+        provider.models.some((model) => model.id === payload.defaultModel.id)
+    )
+  ) {
+    throw new Error("游客模型列表格式无效。");
+  }
+  _guestProviders = payload.providers;
+  GUEST_PROVIDER_ID = payload.defaultModel.provider;
+  GUEST_MODEL_ID = payload.defaultModel.id;
+}
+
+export function getGuestDefaultModel(): ModelConfig {
+  return { provider: GUEST_PROVIDER_ID, id: GUEST_MODEL_ID };
 }
 
 export interface GuestModelsResponse {
@@ -122,25 +113,16 @@ export interface GuestModelsResponse {
 
 export async function readGuestModels(): Promise<GuestModelsResponse> {
   const response = await fetch(_apiUrl("api/guest/models"), {
+    signal: AbortSignal.timeout(8_000),
     credentials: "same-origin",
     headers: { Accept: "application/json" },
   });
   if (!response.ok) {
-    throw new Error("暂时无法读取智谱模型列表，请稍后重试。");
+    throw new Error("暂时无法读取游客模型列表，请稍后重试。");
   }
-  const payload = (await response.json()) as Partial<GuestModelsResponse>;
-  if (
-    !payload.defaultModel ||
-    !Array.isArray(payload.providers) ||
-    payload.providers.length === 0 ||
-    payload.providers.some(
-      (provider) =>
-        provider.id !== GUEST_PROVIDER_ID || !Array.isArray(provider.models)
-    )
-  ) {
-    throw new Error("智谱模型列表格式无效。");
-  }
-  return payload as GuestModelsResponse;
+  const payload = (await response.json()) as GuestModelsResponse;
+  acceptGuestModels(payload);
+  return payload;
 }
 
 export async function readGuestQuota(): Promise<GuestQuota> {
@@ -221,7 +203,9 @@ async function* _readSseData(
   try {
     while (true) {
       const { done, value } = await reader.read();
-      buffer += decoder.decode(value, { stream: !done }).replaceAll("\r\n", "\n");
+      buffer += decoder
+        .decode(value, { stream: !done })
+        .replaceAll("\r\n", "\n");
       let separator = buffer.indexOf("\n\n");
       while (separator >= 0) {
         const block = buffer.slice(0, separator);
@@ -244,8 +228,7 @@ async function* _readSseData(
 export async function readGuestRunError(
   response: Response
 ): Promise<GuestRunError> {
-  const headerRequestId =
-    response.headers.get("X-Request-Id") ?? undefined;
+  const headerRequestId = response.headers.get("X-Request-Id") ?? undefined;
   try {
     const payload = (await response.json()) as {
       error?: {

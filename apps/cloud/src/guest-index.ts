@@ -10,6 +10,8 @@ const quotaStore = new GuestQuotaStore(
 );
 const execute = createGuestModelExecutor({
   apiKey: config.apiKey,
+  providerId: config.providerId,
+  providerApiKeys: config.providerApiKeys,
   modelId: config.modelId,
   maxOutputTokens: config.maxOutputTokens,
 });

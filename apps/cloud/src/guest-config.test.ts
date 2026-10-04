@@ -9,6 +9,55 @@ const BASE_ENV = {
 };
 
 describe("guest cloud config", () => {
+  test("can hide an exhausted provider without deleting its server credential", () => {
+    const config = loadGuestCloudConfig({
+      ...BASE_ENV,
+      SILICONFLOW_API_KEY: "silicon-test-key",
+      GUEST_ENABLED_PROVIDERS: "siliconflow",
+    });
+    expect(config.providerApiKeys).toEqual({ siliconflow: "silicon-test-key" });
+    expect(config.providerId).toBe("siliconflow");
+  });
+  test("loads free providers without requiring Zhipu and selects the matching server key", () => {
+    const config = loadGuestCloudConfig({
+      GUEST_PUBLIC_URL: BASE_ENV.GUEST_PUBLIC_URL,
+      GUEST_HMAC_SECRET: BASE_ENV.GUEST_HMAC_SECRET,
+      SILICONFLOW_API_KEY: "silicon-test-key",
+      OPENROUTER_API_KEY: "router-test-key",
+    });
+    expect(config.providerId).toBe("siliconflow");
+    expect(config.modelId).toBe("Qwen/Qwen3-8B");
+    expect(config.apiKey).toBe("silicon-test-key");
+    const router = loadGuestCloudConfig({
+      GUEST_PUBLIC_URL: BASE_ENV.GUEST_PUBLIC_URL,
+      GUEST_HMAC_SECRET: BASE_ENV.GUEST_HMAC_SECRET,
+      OPENROUTER_API_KEY: "router-test-key",
+      GUEST_PROVIDER: "openrouter",
+    });
+    expect(router.modelId).toBe("openrouter/free");
+    expect(router.apiKey).toBe("router-test-key");
+  });
+
+  test("rejects paid model IDs, forged providers, and providers without credentials", () => {
+    const env = {
+      ...BASE_ENV,
+      OPENROUTER_API_KEY: "router-test-key",
+      GUEST_PROVIDER: "openrouter",
+    };
+    expect(() =>
+      loadGuestCloudConfig({ ...env, GUEST_MODEL_ID: "openrouter/auto" })
+    ).toThrow("free model allowlist");
+    expect(() =>
+      loadGuestCloudConfig({
+        ...env,
+        GUEST_PROVIDER: "https://attacker.invalid",
+      })
+    ).toThrow("GUEST_PROVIDER");
+    expect(() =>
+      loadGuestCloudConfig({ ...BASE_ENV, GUEST_PROVIDER: "siliconflow" })
+    ).toThrow("SILICONFLOW_API_KEY");
+  });
+
   test("loads bounded defaults without exposing the API key elsewhere", () => {
     const config = loadGuestCloudConfig(BASE_ENV);
 

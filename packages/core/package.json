@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./client": "./src/client/index.ts",
+    "./guest-models": "./src/guest-models.ts",
     "./server": "./src/server/index.ts",
     "./storage": "./src/storage/index.ts",
     "./thread": "./src/thread/index.ts",

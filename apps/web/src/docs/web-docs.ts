@@ -32,7 +32,7 @@ export const WEB_DOCS: readonly WebDoc[] = [
   {
     slug: "models",
     title: "模型与免费额度",
-    summary: "选择智谱模型并理解游客额度",
+    summary: "选择免费模型并理解游客与供应商额度",
     group: "核心能力",
     content: models,
   },

@@ -2,10 +2,7 @@ import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { Message as PiMessage } from "@earendil-works/pi-ai";
 import type { AgentStreamRequest } from "@llm-space/core/types";
 
-import {
-  GUEST_PROVIDER_ID,
-  isGuestModelAllowed,
-} from "./guest-model-catalog";
+import { findGuestModel } from "./guest-model-catalog";
 
 const MAX_COACH_REQUEST_BYTES = 32 * 1024;
 const MAX_COACH_MESSAGES = 20;
@@ -96,7 +93,8 @@ export async function readGuestCoachRequest(
 
 export function createGuestCoachPlan(
   input: GuestCoachRequest,
-  fallbackModelId: string
+  fallbackModelId: string,
+  enabledProviders?: readonly string[]
 ): GuestCoachPlan {
   const resumed = _resumePlan(input);
   if (resumed) return resumed;
@@ -105,9 +103,14 @@ export function createGuestCoachPlan(
   const shortcut = _shortcutPlan(input, userText);
   if (shortcut) return shortcut;
 
-  const selectedModel = isGuestModelAllowed(input.context.selectedModel)
-    ? input.context.selectedModel
-    : fallbackModelId;
+  const requestedModel = findGuestModel(input.context.selectedModel);
+  const entry =
+    requestedModel &&
+    (!enabledProviders || enabledProviders.includes(requestedModel.provider))
+      ? requestedModel
+      : findGuestModel(fallbackModelId);
+  if (!entry) throw new Error("Guest coach model is not configured.");
+  const selectedModel = entry.id;
   const history: PiMessage[] = input.messages.slice(-8).map((message) =>
     message.role === "user"
       ? {
@@ -119,7 +122,7 @@ export function createGuestCoachPlan(
           role: "assistant",
           content: [{ type: "text" as const, text: message.content }],
           api: "openai-completions",
-          provider: GUEST_PROVIDER_ID,
+          provider: entry.provider,
           model: selectedModel,
           usage: {
             input: 0,
@@ -142,7 +145,7 @@ export function createGuestCoachPlan(
   return {
     kind: "model",
     request: {
-      model: { provider: GUEST_PROVIDER_ID, id: selectedModel },
+      model: { provider: entry.provider, id: selectedModel },
       config: { model: { maxTokens: 700, temperature: 0.3 } },
       context: {
         systemPrompt: _coachSystemPrompt(input.context),
@@ -183,7 +186,8 @@ export async function* streamGuestCoachModelEvents(
     }
     if (event.type === "message_end" && !emittedText) {
       const text =
-        event.message.role === "assistant" && Array.isArray(event.message.content)
+        event.message.role === "assistant" &&
+        Array.isArray(event.message.content)
           ? event.message.content
               .filter((part) => part.type === "text")
               .map((part) => part.text)
@@ -335,9 +339,7 @@ function _readResume(value: unknown): GuestCoachResumeEntry[] | undefined {
     {
       interruptId,
       status: entry.status,
-      ...(entry.payload === undefined
-        ? {}
-        : { payload: entry.payload }),
+      ...(entry.payload === undefined ? {} : { payload: entry.payload }),
     },
   ];
 }
@@ -551,7 +553,9 @@ function _coachSystemPrompt(context: GuestCoachPageContext): string {
 }
 
 function _lastUserText(input: GuestCoachRequest): string {
-  const message = [...input.messages].reverse().find((item) => item.role === "user");
+  const message = [...input.messages]
+    .reverse()
+    .find((item) => item.role === "user");
   if (!message) throw _invalidCoachRequest();
   return message.content.trim();
 }

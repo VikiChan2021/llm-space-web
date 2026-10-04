@@ -60,7 +60,7 @@ describe("游客 Run 恢复文案", () => {
     expect(presentation.retryable).toBeUndefined();
   });
 
-  test("图片模型不匹配时明确引导切换到 GLM-4.6V", () => {
+  test("图片模型不匹配时明确说明可选恢复路径", () => {
     const presentation = describeGuestRunFailure(
       new GuestRunError("当前模型不支持图片", {
         code: "guest_model_input_unsupported",
@@ -71,20 +71,20 @@ describe("游客 Run 恢复文案", () => {
     expect(presentation).toMatchObject({
       tone: "warning",
       title: "当前模型不支持图片输入",
-      description: "请在左侧 Models 中切换到 GLM-4.6V 后重新运行。",
+      description: "请移除图片或在 Models 中选择支持图片的模型后重新运行。",
     });
   });
 
   test("网络失败保留手动重试入口", () => {
-    expect(describeGuestRunFailure(new TypeError("Failed to fetch"))).toMatchObject(
-      {
-        title: "网络连接失败",
-        retryable: true,
-      }
-    );
+    expect(
+      describeGuestRunFailure(new TypeError("Failed to fetch"))
+    ).toMatchObject({
+      title: "网络连接失败",
+      retryable: true,
+    });
   });
 
-  test("模型服务错误建议切换其他智谱模型", () => {
+  test("模型服务错误建议切换其他免费模型", () => {
     const presentation = describeGuestRunFailure(
       new GuestRunError("当前模型不可用", {
         code: "model_service_unavailable",
@@ -96,6 +96,6 @@ describe("游客 Run 恢复文案", () => {
       title: "模型服务暂时不可用",
       retryable: true,
     });
-    expect(presentation.description).toContain("切换其他智谱模型");
+    expect(presentation.description).toContain("切换其他免费模型");
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   GUEST_FALLBACK_PROVIDER,
+  acceptGuestModels,
   GUEST_MODEL_ID,
   GuestRunError,
   isGuestModelConfigAvailable,
@@ -11,15 +12,41 @@ import {
 } from "./guest-api";
 
 describe("游客 Run 结构化错误", () => {
-  test("离线回退目录只包含三款已验证模型并默认 GLM-4.5-Air", () => {
-    expect(GUEST_MODEL_ID).toBe("glm-4.5-air");
+  test("rejects unlisted paid models and a forged provider in the public catalog", () => {
+    expect(() =>
+      acceptGuestModels({
+        defaultModel: { provider: "siliconflow", id: "paid-model" },
+        providers: [
+          {
+            ...GUEST_FALLBACK_PROVIDER,
+            models: [
+              { ...GUEST_FALLBACK_PROVIDER.models[0], id: "paid-model" },
+            ],
+          },
+        ],
+      })
+    ).toThrow("格式无效");
+    expect(() =>
+      acceptGuestModels({
+        defaultModel: { provider: "attacker", id: "Qwen/Qwen3-8B" },
+        providers: [{ ...GUEST_FALLBACK_PROVIDER, id: "attacker" }],
+      })
+    ).toThrow("格式无效");
+  });
+  test("离线回退默认使用白名单免费模型", () => {
+    acceptGuestModels({
+      defaultModel: { provider: "siliconflow", id: "Qwen/Qwen3-8B" },
+      providers: [GUEST_FALLBACK_PROVIDER],
+    });
+    expect(GUEST_MODEL_ID).toBe("Qwen/Qwen3-8B");
     expect(GUEST_FALLBACK_PROVIDER.models.map((model) => model.id)).toEqual([
-      "glm-4.5-air",
-      "glm-4.7",
-      "glm-4.6v",
+      "Qwen/Qwen3-8B",
     ]);
     expect(
-      isGuestModelConfigAvailable({ provider: "bigmodel", id: "glm-4.7" })
+      isGuestModelConfigAvailable({
+        provider: "siliconflow",
+        id: "Qwen/Qwen3-8B",
+      })
     ).toBe(true);
     expect(
       isGuestModelConfigAvailable({
@@ -30,12 +57,10 @@ describe("游客 Run 结构化错误", () => {
   });
 
   test("API 地址只保留一个路径分隔符", () => {
-    expect(
-      joinGuestApiUrl("/llm-space-web/", "/api/guest/mcp/call")
-    ).toBe("/llm-space-web/api/guest/mcp/call");
-    expect(joinGuestApiUrl("/", "api/guest/runs")).toBe(
-      "/api/guest/runs"
+    expect(joinGuestApiUrl("/llm-space-web/", "/api/guest/mcp/call")).toBe(
+      "/llm-space-web/api/guest/mcp/call"
     );
+    expect(joinGuestApiUrl("/", "api/guest/runs")).toBe("/api/guest/runs");
   });
 
   test("保留安全错误码、状态、请求编号和额度", async () => {

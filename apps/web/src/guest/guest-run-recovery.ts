@@ -37,7 +37,7 @@ export function describeGuestRunFailure(
       return {
         tone: "warning",
         title: "当前模型不支持图片输入",
-        description: "请在左侧 Models 中切换到 GLM-4.6V 后重新运行。",
+        description: "请移除图片或在 Models 中选择支持图片的模型后重新运行。",
         details,
       };
     }
@@ -71,7 +71,7 @@ export function describeGuestRunFailure(
       tone: "danger",
       title: "模型服务暂时不可用",
       description:
-        "Thread 已保留。请在 Models 中切换其他智谱模型后重试，或稍后重新运行。",
+        "Thread 已保留。请在 Models 中切换其他免费模型后重试，或稍后重新运行。",
       retryable: true,
       details,
     };
@@ -101,12 +101,8 @@ function _technicalDetails(
 ): RunRecoveryPresentation["details"] {
   return [
     { label: "错误码", value: error.code },
-    ...(error.status
-      ? [{ label: "HTTP", value: String(error.status) }]
-      : []),
-    ...(error.requestId
-      ? [{ label: "请求编号", value: error.requestId }]
-      : []),
+    ...(error.status ? [{ label: "HTTP", value: String(error.status) }] : []),
+    ...(error.requestId ? [{ label: "请求编号", value: error.requestId }] : []),
   ];
 }
 

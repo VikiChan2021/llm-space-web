@@ -13,14 +13,8 @@ import {
   isGuestModelConfigAvailable,
   readGuestModels,
 } from "@/guest/guest-api";
-import {
-  listGuestMcpServers,
-  listGuestMcpTools,
-} from "@/guest/guest-mcp";
-import {
-  GUEST_SKILLS_PATH,
-  listGuestSkills,
-} from "@/guest/guest-skills";
+import { listGuestMcpServers, listGuestMcpTools } from "@/guest/guest-mcp";
+import { GUEST_SKILLS_PATH, listGuestSkills } from "@/guest/guest-skills";
 import {
   canGuestAutoExecute,
   executeGuestTool,
@@ -58,11 +52,7 @@ export const webHost: HostServices = {
   createTransport: () => null,
   executeTool: GUEST_WORKBENCH_ENABLED
     ? async (tool, args, options) => {
-        const result = await executeGuestTool(
-          tool,
-          args,
-          options.runtimeId
-        );
+        const result = await executeGuestTool(tool, args, options.runtimeId);
         return {
           content: [{ type: "text", text: result.contentText }],
           isError: result.isError,
@@ -92,13 +82,9 @@ export const webHost: HostServices = {
   },
   mcp: {
     listServers: () =>
-      Promise.resolve(
-        GUEST_WORKBENCH_ENABLED ? listGuestMcpServers() : []
-      ),
+      Promise.resolve(GUEST_WORKBENCH_ENABLED ? listGuestMcpServers() : []),
     listTools: (serverId) =>
-      GUEST_WORKBENCH_ENABLED
-        ? listGuestMcpTools(serverId)
-        : unavailable(),
+      GUEST_WORKBENCH_ENABLED ? listGuestMcpTools(serverId) : unavailable(),
   },
   builtinTools: {
     list: () =>
@@ -134,8 +120,7 @@ export const webHost: HostServices = {
       }
     },
     openVariables: (variableName) => openVariablesBridge.open(variableName),
-    registerOpenVariables: (handler) =>
-      openVariablesBridge.register(handler),
+    registerOpenVariables: (handler) => openVariablesBridge.register(handler),
     registerRunThread: (run) => runThreadBridge.register(run),
   },
 };
@@ -205,7 +190,7 @@ async function _availableGuestModels() {
   try {
     return (await readGuestModels()).providers;
   } catch (error) {
-    console.warn("无法刷新智谱模型列表，暂时使用默认模型。", error);
+    console.warn("无法刷新游客模型列表，暂时使用默认模型。", error);
     return [GUEST_FALLBACK_PROVIDER];
   }
 }

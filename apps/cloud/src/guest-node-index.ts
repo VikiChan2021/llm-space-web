@@ -1,4 +1,8 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
 
 import { loadGuestCloudConfig } from "./guest-config";
 import { createGuestFetchHandler } from "./guest-http-server";
@@ -15,6 +19,8 @@ const handler = createGuestFetchHandler({
   quotaStore,
   execute: createGuestModelExecutor({
     apiKey: config.apiKey,
+    providerId: config.providerId,
+    providerApiKeys: config.providerApiKeys,
     modelId: config.modelId,
     maxOutputTokens: config.maxOutputTokens,
   }),

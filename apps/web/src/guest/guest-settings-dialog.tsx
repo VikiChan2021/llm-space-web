@@ -113,7 +113,10 @@ export function GuestSettingsDialog({
             value="appearance"
             className="min-h-0 space-y-5 overflow-y-auto pt-2 pr-1"
           >
-            <SettingSection title="主题" description="可跟随操作系统，也可固定浅色或深色。">
+            <SettingSection
+              title="主题"
+              description="可跟随操作系统，也可固定浅色或深色。"
+            >
               <ChoiceButtons
                 value={theme}
                 options={[
@@ -125,10 +128,13 @@ export function GuestSettingsDialog({
               />
             </SettingSection>
 
-            <SettingSection title="强调色" description="用于按钮、选中状态和焦点提示。">
+            <SettingSection
+              title="强调色"
+              description="用于按钮、选中状态和焦点提示。"
+            >
               <div className="flex flex-wrap items-center gap-3">
                 <label className="flex items-center gap-2 rounded-md border px-3 py-2">
-                  <PaletteIcon className="size-4 text-muted-foreground" />
+                  <PaletteIcon className="text-muted-foreground size-4" />
                   <input
                     type="color"
                     aria-label="选择强调色"
@@ -159,9 +165,7 @@ export function GuestSettingsDialog({
                   ["rich", "丰富模式"],
                   ["lite", "轻量模式"],
                 ]}
-                onChange={(value) =>
-                  setFidelity(value as RenderingFidelity)
-                }
+                onChange={(value) => setFidelity(value as RenderingFidelity)}
               />
             </SettingSection>
           </TabsContent>
@@ -172,19 +176,22 @@ export function GuestSettingsDialog({
           >
             <div className="rounded-md border p-4">
               <div className="flex items-start gap-3">
-                <SparklesIcon className="mt-0.5 size-5 text-muted-foreground" />
+                <SparklesIcon className="text-muted-foreground mt-0.5 size-5" />
                 <div>
                   <h3 className="text-sm font-medium">游客内置 Skills</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    可在 Variables 的 available_skills 中选择，也可给 Thread 添加 skill 工具读取完整工作流程。
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    可在 Variables 的 available_skills 中选择，也可给 Thread
+                    添加 skill 工具读取完整工作流程。
                   </p>
                 </div>
               </div>
             </div>
             {GUEST_SKILLS.map((skill) => (
               <div key={skill.name} className="rounded-md border px-3 py-2">
-                <div className="font-mono text-sm font-medium">{skill.name}</div>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                <div className="font-mono text-sm font-medium">
+                  {skill.name}
+                </div>
+                <p className="text-muted-foreground mt-1 text-xs leading-5">
                   {skill.description}
                 </p>
               </div>
@@ -203,7 +210,7 @@ export function GuestSettingsDialog({
                 aria-label="新 Thread 默认模型"
                 value={selectedModel}
                 onChange={(event) => void handleModelChange(event.target.value)}
-                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+                className="border-input bg-background focus:border-ring focus:ring-ring/30 h-9 w-full rounded-md border px-3 text-sm outline-none focus:ring-2"
               >
                 {models.map((model) => (
                   <option
@@ -215,8 +222,9 @@ export function GuestSettingsDialog({
                 ))}
               </select>
             </SettingSection>
-            <div className="rounded-md border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-muted-foreground">
-              游客调用使用服务器端智谱 Key。不同模型可能受账号权限、余额或上游繁忙影响；遇到模型错误时可切换其他模型重试。
+            <div className="text-muted-foreground rounded-md border border-amber-500/25 bg-amber-500/10 p-3 text-xs">
+              游客调用使用服务器端供应商 Key。硅基流动与 OpenRouter
+              仅开放白名单免费模型，仍受供应商额度和繁忙程度限制；遇到错误可手动切换模型。免费自动路由的实际模型可能变化，固定模型更适合前后对比。
             </div>
           </TabsContent>
 
@@ -226,13 +234,17 @@ export function GuestSettingsDialog({
           >
             <div className="rounded-md border p-4">
               <div className="flex items-start gap-3">
-                <CableIcon className="mt-0.5 size-5 text-muted-foreground" />
+                <CableIcon className="text-muted-foreground mt-0.5 size-5" />
                 <div className="min-w-0 flex-1">
                   <h3 className="text-sm font-medium">游客 MCP</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="text-muted-foreground mt-1 text-xs">
                     查看可真实执行的内置 MCP，以及公共远程 MCP 的安全开放状态。
                   </p>
-                  <Button className="mt-3" variant="outline" onClick={onOpenMcp}>
+                  <Button
+                    className="mt-3"
+                    variant="outline"
+                    onClick={onOpenMcp}
+                  >
                     管理 MCP
                   </Button>
                 </div>
@@ -258,7 +270,7 @@ function SettingSection({
     <section className="space-y-2">
       <div>
         <h3 className="text-sm font-medium">{title}</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+        <p className="text-muted-foreground mt-0.5 text-xs">{description}</p>
       </div>
       {children}
     </section>

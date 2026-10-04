@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import type { AgentStreamRequest } from "@llm-space/core/types";
 
 import type { GuestCloudConfig } from "./guest-config";
 import {
@@ -33,6 +34,65 @@ const CONFIG: GuestCloudConfig = {
 const GUEST_ID = "g".repeat(43);
 
 describe("guest HTTP API", () => {
+  test("only publishes configured providers and rejects unavailable or paid models before execution", async () => {
+    const config: GuestCloudConfig = {
+      ...CONFIG,
+      providerId: "siliconflow",
+      modelId: "Qwen/Qwen3-8B",
+      apiKey: "silicon-secret-test",
+      providerApiKeys: {
+        siliconflow: "silicon-secret-test",
+        openrouter: "router-secret-test",
+      },
+    };
+    const quotaStore = new GuestQuotaStore(":memory:", config.hmacSecret);
+    let calls = 0;
+    const handler = createGuestFetchHandler({
+      config,
+      quotaStore,
+      execute: async function* () {
+        calls++;
+        yield { type: "agent_start" };
+      },
+    });
+    const catalog = await (
+      await handler(new Request("http://internal/api/guest/models"))
+    ).text();
+    expect(catalog).toContain('"provider":"siliconflow"');
+    expect(catalog).toContain('"id":"openrouter/free"');
+    expect(catalog).not.toContain('"id":"bigmodel"');
+    expect(catalog).not.toContain(config.apiKey);
+    expect(catalog).not.toContain("router-secret-test");
+    for (const [provider, id] of [
+      ["openrouter", "openrouter/auto"],
+      ["bigmodel", "glm-4.7"],
+      ["openrouter", "Qwen/Qwen3-8B"],
+    ]) {
+      const request = _runRequest(GUEST_ID, CONFIG.publicUrl.origin, "hello");
+      const payload = (await request.json()) as AgentStreamRequest;
+      payload.model = { provider, id };
+      const response = await handler(
+        new Request(request.url, {
+          method: "POST",
+          headers: request.headers,
+          body: JSON.stringify(payload),
+        })
+      );
+      expect(response.status).toBe(400);
+    }
+    expect(calls).toBe(0);
+    expect(
+      quotaStore.read(
+        GUEST_ID,
+        "0.0.0.0",
+        new Date(),
+        config.browserDailyLimit,
+        config.ipDailyLimit
+      ).browserRemaining
+    ).toBe(config.browserDailyLimit);
+    quotaStore.close();
+  });
+
   test("issues an opaque cookie and returns quota metadata", async () => {
     const quotaStore = new GuestQuotaStore(":memory:", CONFIG.hmacSecret);
     const handler = createGuestFetchHandler({
@@ -48,9 +108,7 @@ describe("guest HTTP API", () => {
     const body = (await response.json()) as Record<string, unknown>;
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("set-cookie")).toContain(
-      "llm_space_guest="
-    );
+    expect(response.headers.get("set-cookie")).toContain("llm_space_guest=");
     expect(body).toMatchObject({
       model: "glm-4.5-air",
       browserDailyLimit: 2,
@@ -108,7 +166,13 @@ describe("guest HTTP API", () => {
     expect(selectedModel).toBe("glm-4.6v");
 
     const rejected = await handler(
-      _runRequest(GUEST_ID, CONFIG.publicUrl.origin, "hello", [], "forged-model")
+      _runRequest(
+        GUEST_ID,
+        CONFIG.publicUrl.origin,
+        "hello",
+        [],
+        "forged-model"
+      )
     );
     expect(rejected.status).toBe(400);
     expect(await rejected.text()).toContain('"code":"guest_model_unavailable"');
@@ -139,9 +203,7 @@ describe("guest HTTP API", () => {
     const text = await response.text();
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toContain(
-      "text/event-stream"
-    );
+    expect(response.headers.get("content-type")).toContain("text/event-stream");
     expect(response.headers.get("x-guest-quota-remaining")).toBe("1");
     expect(response.headers.get("x-request-id")).toMatch(/^[a-f0-9]{24}$/);
     expect(text).toContain("data: [START]");
@@ -238,7 +300,11 @@ describe("guest HTTP API", () => {
       yield { type: "agent_start" };
     };
     const quotaStore = new GuestQuotaStore(":memory:", CONFIG.hmacSecret);
-    const handler = createGuestFetchHandler({ config: CONFIG, quotaStore, execute });
+    const handler = createGuestFetchHandler({
+      config: CONFIG,
+      quotaStore,
+      execute,
+    });
     const image = {
       type: "image",
       mimeType: "image/png",
@@ -288,7 +354,9 @@ describe("guest HTTP API", () => {
       })
     );
     expect(unsupportedType.status).toBe(415);
-    expect(await unsupportedType.text()).toContain('"code":"unsupported_image"');
+    expect(await unsupportedType.text()).toContain(
+      '"code":"unsupported_image"'
+    );
 
     const invalidBase64 = await handler(
       _multimodalRunRequest(GUEST_ID, "glm-4.6v", {
@@ -511,7 +579,7 @@ describe("guest HTTP API", () => {
     expect(response.status).toBe(200);
     expect(body).toContain('"type":"guest_run_error"');
     expect(body).toContain('"code":"model_service_unavailable"');
-    expect(body).toContain("请在 Models 中切换其他智谱模型");
+    expect(body).toContain("请在 Models 中切换其他免费模型");
     expect(body).toContain("data: [DONE]");
     expect(body).not.toContain("upstream leaked");
     expect(body).not.toContain(CONFIG.apiKey);
@@ -562,7 +630,9 @@ describe("guest HTTP API", () => {
       execute: _completedExecutor,
     });
 
-    const interrupted = await handler(_coachRequest("运行当前 Thread", "run-1"));
+    const interrupted = await handler(
+      _coachRequest("运行当前 Thread", "run-1")
+    );
     const interruptedBody = await interrupted.text();
     expect(interruptedBody).toContain('"type":"interrupt"');
     expect(interruptedBody).toContain('"action":"request_run"');
@@ -583,9 +653,7 @@ describe("guest HTTP API", () => {
     const rerunInterrupted = await handler(
       _coachRequest("从第一条用户消息运行当前 Thread", "run-3")
     );
-    expect(await rerunInterrupted.text()).toContain(
-      '"action":"request_run"'
-    );
+    expect(await rerunInterrupted.text()).toContain('"action":"request_run"');
     expect(resumedBody).toContain('"outcome":{"type":"success"}');
     quotaStore.close();
   });
@@ -712,7 +780,11 @@ describe("guest HTTP API", () => {
       yield { type: "agent_end", messages: [] };
     };
     const quotaStore = new GuestQuotaStore(":memory:", CONFIG.hmacSecret);
-    const handler = createGuestFetchHandler({ config: CONFIG, quotaStore, execute });
+    const handler = createGuestFetchHandler({
+      config: CONFIG,
+      quotaStore,
+      execute,
+    });
 
     const response = await handler(_coachRequest("怎样调试一个 Agent？"));
     const body = await response.text();
@@ -807,10 +879,7 @@ function _coachRequest(
   });
 }
 
-function _toolRequest(
-  path: string,
-  body: Record<string, unknown>
-): Request {
+function _toolRequest(path: string, body: Record<string, unknown>): Request {
   return new Request(`http://internal${path}`, {
     method: "POST",
     headers: {

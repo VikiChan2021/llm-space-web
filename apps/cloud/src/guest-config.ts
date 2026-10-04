@@ -1,6 +1,10 @@
 import {
   DEFAULT_GUEST_MODEL_ID,
+  GUEST_PROVIDER_DEFINITIONS,
   isGuestModelAllowed,
+  isGuestProviderId,
+  type GuestProviderApiKeys,
+  type GuestProviderId,
 } from "./guest-model-catalog";
 
 export interface GuestCloudConfig {
@@ -8,6 +12,8 @@ export interface GuestCloudConfig {
   port: number;
   publicUrl: URL;
   apiKey: string;
+  providerId?: GuestProviderId;
+  providerApiKeys?: GuestProviderApiKeys;
   modelId: string;
   quotaDatabasePath: string;
   hmacSecret: string;
@@ -28,10 +34,7 @@ export interface GuestCloudConfig {
 export function loadGuestCloudConfig(
   environment: Record<string, string | undefined> = process.env
 ): GuestCloudConfig {
-  const publicUrl = _readUrl(
-    environment.GUEST_PUBLIC_URL,
-    "GUEST_PUBLIC_URL"
-  );
+  const publicUrl = _readUrl(environment.GUEST_PUBLIC_URL, "GUEST_PUBLIC_URL");
   const hmacSecret = _required(
     environment.GUEST_HMAC_SECRET,
     "GUEST_HMAC_SECRET"
@@ -39,23 +42,57 @@ export function loadGuestCloudConfig(
   if (Buffer.byteLength(hmacSecret, "utf8") < 32) {
     throw new Error("GUEST_HMAC_SECRET must be at least 32 bytes.");
   }
+  const providerApiKeys: GuestProviderApiKeys = {};
+  const enabledProviders = environment.GUEST_ENABLED_PROVIDERS?.split(",").map(
+    (provider) => provider.trim()
+  );
+  if (enabledProviders?.some((provider) => !isGuestProviderId(provider))) {
+    throw new Error("GUEST_ENABLED_PROVIDERS contains an unknown provider.");
+  }
+  for (const [id, definition] of Object.entries(GUEST_PROVIDER_DEFINITIONS)) {
+    if (enabledProviders && !enabledProviders.includes(id)) continue;
+    const key = environment[definition.keyEnvironment]?.trim();
+    if (key) providerApiKeys[id as GuestProviderId] = key;
+  }
+  const requestedProvider = environment.GUEST_PROVIDER?.trim();
+  if (requestedProvider && !isGuestProviderId(requestedProvider)) {
+    throw new Error("GUEST_PROVIDER is not allowed.");
+  }
+  const providerId: GuestProviderId =
+    (requestedProvider as GuestProviderId) ||
+    (providerApiKeys.siliconflow
+      ? "siliconflow"
+      : providerApiKeys.openrouter
+        ? "openrouter"
+        : "bigmodel");
+  const apiKey = _required(
+    providerApiKeys[providerId],
+    GUEST_PROVIDER_DEFINITIONS[providerId].keyEnvironment
+  );
   const requestedModelId = environment.GUEST_MODEL_ID?.trim();
+  if (
+    requestedModelId &&
+    providerId !== "bigmodel" &&
+    !isGuestModelAllowed(requestedModelId, providerId)
+  ) {
+    throw new Error(
+      "GUEST_MODEL_ID is not in the free model allowlist for GUEST_PROVIDER."
+    );
+  }
   const modelId =
-    requestedModelId && isGuestModelAllowed(requestedModelId)
+    requestedModelId && isGuestModelAllowed(requestedModelId, providerId)
       ? requestedModelId
-      : DEFAULT_GUEST_MODEL_ID;
+      : providerId === "bigmodel"
+        ? DEFAULT_GUEST_MODEL_ID
+        : GUEST_PROVIDER_DEFINITIONS[providerId].defaultModelId;
 
   return {
     host: environment.GUEST_HOST?.trim() || "127.0.0.1",
-    port: _readInteger(
-      environment.GUEST_PORT,
-      "GUEST_PORT",
-      8791,
-      1,
-      65_535
-    ),
+    port: _readInteger(environment.GUEST_PORT, "GUEST_PORT", 8791, 1, 65_535),
     publicUrl,
-    apiKey: _required(environment.ZHIPU_API_KEY, "ZHIPU_API_KEY"),
+    apiKey,
+    providerId,
+    providerApiKeys,
     modelId,
     quotaDatabasePath:
       environment.GUEST_QUOTA_DATABASE_PATH?.trim() ||
@@ -128,6 +165,28 @@ export function loadGuestCloudConfig(
     trustProxy: environment.GUEST_TRUST_PROXY === "1",
     secureCookies: publicUrl.protocol === "https:",
   };
+}
+
+export function getGuestProviderApiKeys(
+  config: Pick<GuestCloudConfig, "apiKey" | "providerId" | "providerApiKeys">
+): GuestProviderApiKeys {
+  return (
+    config.providerApiKeys ?? {
+      [config.providerId ?? "bigmodel"]: config.apiKey,
+    }
+  );
+}
+
+export function isConfiguredGuestModel(
+  config: GuestCloudConfig,
+  provider: string,
+  modelId: string
+): boolean {
+  return (
+    isGuestProviderId(provider) &&
+    Boolean(getGuestProviderApiKeys(config)[provider]) &&
+    isGuestModelAllowed(modelId, provider)
+  );
 }
 
 function _required(value: string | undefined, name: string): string {
