@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1140" width="1600" height="1140" data-generator="fireworks-tech-graph" data-quality-profile="showcase" role="img" aria-labelledby="diagram-title diagram-desc">
+<title id="diagram-title">02  一次 Desktop Run 的时序</title>
+<desc id="diagram-desc">时间从上往下；图中画单个模型回合。多回合工具循环在图 04。</desc>
+<style>text { font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif; }</style>
+<defs>
+<marker id="arrow-blue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#2563eb"/></marker>
+<marker id="arrow-green" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#16a34a"/></marker>
+<marker id="arrow-purple" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#9333ea"/></marker>
+<marker id="arrow-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#dc2626"/></marker>
+</defs>
+<rect width="1600" height="1140" fill="#ffffff" data-graph-role="background"/>
+<line x1="160" y1="230" x2="160" y2="915" stroke="#d1d5db" stroke-dasharray="5 6" data-graph-role="decoration"/>
+<line x1="410" y1="230" x2="410" y2="915" stroke="#d1d5db" stroke-dasharray="5 6" data-graph-role="decoration"/>
+<line x1="660" y1="230" x2="660" y2="915" stroke="#d1d5db" stroke-dasharray="5 6" data-graph-role="decoration"/>
+<line x1="910" y1="230" x2="910" y2="915" stroke="#d1d5db" stroke-dasharray="5 6" data-graph-role="decoration"/>
+<line x1="1160" y1="230" x2="1160" y2="915" stroke="#d1d5db" stroke-dasharray="5 6" data-graph-role="decoration"/>
+<line x1="1410" y1="230" x2="1410" y2="915" stroke="#d1d5db" stroke-dasharray="5 6" data-graph-role="decoration"/>
+<g data-graph-role="legend"><line x1="60" y1="1093" x2="92" y2="1093" stroke="#2563eb" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="350" y1="1093" x2="382" y2="1093" stroke="#9333ea" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="690" y1="1093" x2="722" y2="1093" stroke="#16a34a" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="1010" y1="1093" x2="1042" y2="1093" stroke="#dc2626" stroke-width="2.5"/></g>
+<path id="edge-1" data-edge-id="edge-1" data-graph-role="edge" data-source="p0" data-target="p1" d="M 160,285 L 410,285" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+<path id="edge-2" data-edge-id="edge-2" data-graph-role="edge" data-source="p1" data-target="p2" d="M 410,355 L 660,355" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+<path id="edge-3" data-edge-id="edge-3" data-graph-role="edge" data-source="p2" data-target="p3" d="M 660,425 L 910,425" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+<path id="edge-4" data-edge-id="edge-4" data-graph-role="edge" data-source="p3" data-target="p4" d="M 910,495 L 1160,495" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+<path id="edge-5" data-edge-id="edge-5" data-graph-role="edge" data-source="p4" data-target="p5" d="M 1160,565 L 1410,565" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+<path id="edge-6" data-edge-id="edge-6" data-graph-role="edge" data-source="p5" data-target="p4" d="M 1410,635 L 1160,635" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#arrow-purple)"/>
+<path id="edge-7" data-edge-id="edge-7" data-graph-role="edge" data-source="p4" data-target="p3" d="M 1160,705 L 910,705" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#arrow-purple)"/>
+<path id="edge-8" data-edge-id="edge-8" data-graph-role="edge" data-source="p3" data-target="p2" d="M 910,775 L 660,775" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#arrow-purple)"/>
+<path id="edge-9" data-edge-id="edge-9" data-graph-role="edge" data-source="p2" data-target="p1" d="M 660,845 L 410,845" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#arrow-purple)"/>
+<path id="edge-10" data-edge-id="edge-10" data-graph-role="edge" data-source="p1" data-target="p0" d="M 410,915 L 160,915" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#arrow-purple)"/>
+<g id="p0" data-graph-role="node" data-node-id="p0" data-graph-bounds="60,145,260,225"><title>Thread store — </title>
+<rect x="60" y="145" width="200" height="80" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 76,161 h 16 l 6,6 v 16 h -22 Z M 92,161 v 6 h 6" fill="none" stroke="#2563eb"/>
+</g>
+<text x="110" y="179" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Thread store</text>
+</g>
+<g id="p1" data-graph-role="node" data-node-id="p1" data-graph-bounds="310,145,510,225"><title>RPC transport — </title>
+<rect x="310" y="145" width="200" height="80" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 326,161 h 16 l 6,6 v 16 h -22 Z M 342,161 v 6 h 6" fill="none" stroke="#2563eb"/>
+</g>
+<text x="360" y="179" font-size="18.4" fill="#111827" font-weight="600" text-anchor="start">RPC transport</text>
+</g>
+<g id="p2" data-graph-role="node" data-node-id="p2" data-graph-bounds="560,145,760,225"><title>Bun RPC / Router — </title>
+<rect x="560" y="145" width="200" height="80" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 576,161 h 16 l 6,6 v 16 h -22 Z M 592,161 v 6 h 6" fill="none" stroke="#2563eb"/>
+</g>
+<text x="610" y="179" font-size="15.0" fill="#111827" font-weight="600" text-anchor="start">Bun RPC / Router</text>
+</g>
+<g id="p3" data-graph-role="node" data-node-id="p3" data-graph-bounds="810,145,1010,225"><title>LocalRuntimeClient — </title>
+<rect x="810" y="145" width="200" height="80" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 837,161 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="860" y="179" font-size="13.3" fill="#111827" font-weight="600" text-anchor="start">LocalRuntimeClient</text>
+</g>
+<g id="p4" data-graph-role="node" data-node-id="p4" data-graph-bounds="1060,145,1260,225"><title>streamAgent — </title>
+<rect x="1060" y="145" width="200" height="80" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1087,161 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="1110" y="179" font-size="19" fill="#111827" font-weight="600" text-anchor="start">streamAgent</text>
+</g>
+<g id="p5" data-graph-role="node" data-node-id="p5" data-graph-bounds="1310,145,1510,225"><title>Model provider — </title>
+<rect x="1310" y="145" width="200" height="80" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1337,161 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="1360" y="179" font-size="17.1" fill="#111827" font-weight="600" text-anchor="start">Model provider</text>
+</g>
+<text x="60" y="58" font-size="28" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">02  一次 Desktop Run 的时序</text>
+<text x="60" y="92" font-size="15" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">时间从上往下；图中画单个模型回合。多回合工具循环在图 04。</text>
+<rect x="157" y="254" width="366" height="23" fill="#ffffff" data-graph-role="decoration"/>
+<text x="160" y="271" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-1">1  streamThread：转换后的 request + connection</text>
+<rect x="407" y="324" width="390" height="23" fill="#ffffff" data-graph-role="decoration"/>
+<text x="410" y="341" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-2">2  sendStreamThreadRequest：runtimeId + streamId</text>
+<rect x="657" y="394" width="288" height="23" fill="#ffffff" data-graph-role="decoration"/>
+<text x="660" y="411" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-3">3  forwardStreamThread / getRuntime</text>
+<rect x="907" y="464" width="306" height="23" fill="#ffffff" data-graph-role="decoration"/>
+<text x="910" y="481" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-4">4  StreamThreadController：解析模型连接</text>
+<rect x="1157" y="534" width="398" height="23" fill="#ffffff" data-graph-role="decoration"/>
+<text x="1160" y="551" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-5">5  models.streamSimple：Prompt / messages / tools</text>
+<rect x="1157" y="604" width="116" height="23" fill="#ffffff" data-graph-role="decoration"/>
+<text x="1160" y="621" font-size="14" fill="#9333ea" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-6">6  流式模型输出</text>
+<rect x="907" y="674" width="112" height="23" fill="#ffffff" data-graph-role="decoration"/>
+<text x="910" y="691" font-size="14" fill="#9333ea" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-7">7  AgentEvent</text>
+<rect x="657" y="744" width="304" height="23" fill="#ffffff" data-graph-role="decoration"/>
+<text x="660" y="761" font-size="14" fill="#9333ea" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-8">8  { streamId, event / done / error }</text>
+<rect x="407" y="814" width="248" height="23" fill="#ffffff" data-graph-role="decoration"/>
+<text x="410" y="831" font-size="14" fill="#9333ea" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-9">9  receiveStreamThreadResponse</text>
+<rect x="157" y="884" width="332" height="23" fill="#ffffff" data-graph-role="decoration"/>
+<text x="160" y="901" font-size="14" fill="#9333ea" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-10">10  AsyncIterable → reduceMessages → UI</text>
+<text x="60" y="966" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">开始：idle → preparing（校验与模板渲染）→ running。结束：取消节流任务、结算结果与历史，再回到 idle。</text>
+<text x="60" y="1000" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">停止：AbortSignal → abortStreamThread(streamId) → RuntimeClient.abortStream → Controller AbortController。</text>
+<text x="60" y="1052" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">只有已收到事件、未失败且未中止的运行才写普通 Run history；失败 / 中止不伪装成成功快照。</text>
+<text x="102" y="1098" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">请求 / 主流程</text>
+<text x="392" y="1098" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">事件 / 结果 / 循环</text>
+<text x="732" y="1098" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">持久化 / 读取</text>
+<text x="1052" y="1098" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">检查 / 中止 / 边界</text>
+<text x="1540" y="58" font-size="13" fill="#6b7280" font-weight="400" text-anchor="end" data-graph-role="label">2026-09-03</text>
+</svg>

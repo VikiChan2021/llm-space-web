@@ -1,0 +1,1250 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LLM Space · 架构阅读图册</title>
+<style>*{box-sizing:border-box}body{margin:0;font:15px/1.65 "Microsoft YaHei",system-ui,sans-serif;color:#182235;background:#f4f6fa}button,a{touch-action:manipulation}button{font:inherit;cursor:pointer}header{background:#fff;border-bottom:1px solid #dce2eb;padding:23px 30px}h1{font-size:25px;margin:0}header p{margin:6px 0 0;color:#64748b}.layout{display:grid;grid-template-columns:260px minmax(0,1fr);min-height:85vh}nav{padding:20px;background:#fff;border-right:1px solid #dce2eb}nav button{display:block;width:100%;text-align:left;padding:12px;border:0;border-radius:7px;background:transparent;color:#334155;margin-bottom:5px}nav button[aria-current=true]{background:#eaf2ff;color:#1d4ed8;font-weight:600}main{min-width:0;padding:24px}.toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin:0 0 15px}.toolbar button,.toolbar a{border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:5px 12px;color:#1e40af;text-decoration:none}.toolbar output{min-width:54px;color:#64748b}.panel[hidden]{display:none}.viewport{background:white;border:1px solid #dce2eb;border-radius:10px;overflow:auto;max-height:78vh;min-height:240px}.viewport svg{display:block;max-width:none;height:auto}.reading{background:#fff;border:1px solid #dce2eb;border-radius:10px;padding:20px 25px;margin-top:18px}h2{font-size:19px;margin:0 0 12px}h3{font-size:16px;margin:22px 0 8px}li{margin:7px 0}a{color:#1d4ed8}code{overflow-wrap:anywhere;font-size:13px}.source-list{padding-left:20px}button:focus-visible,a:focus-visible{outline:3px solid #60a5fa;outline-offset:2px}.hint{font-size:13px;color:#64748b}footer{padding:16px 30px;color:#64748b} @media(max-width:760px){header{padding:18px}h1{font-size:21px}.layout{display:block}nav{display:flex;overflow-x:auto;border-right:0;padding:12px;gap:8px}nav button{flex:0 0 180px;margin:0}main{padding:12px}.viewport{max-height:65vh}.reading{padding:16px}}@media print{nav,.toolbar,header p{display:none}.layout{display:block}main{padding:0}.panel[hidden]{display:block}.panel{break-before:page}.viewport{max-height:none;overflow:visible;border:0}.viewport svg{width:100%!important}.reading{border:0}.source-list{font-size:11px}}</style></head><body>
+<header><h1>LLM Space · 架构阅读图册</h1><p>9 张源码导览图｜2026-09-03｜当前工作树基于 c5fd749｜源码分析，不代表线上验收</p></header>
+<div class="layout"><nav aria-label="图表导航">
+<button type="button" data-index="0" aria-current="true">01  项目运行架构</button>
+<button type="button" data-index="1" aria-current="false">02  一次 Desktop Run 的时序</button>
+<button type="button" data-index="2" aria-current="false">03  Guest Web 的数据流</button>
+<button type="button" data-index="3" aria-current="false">04  工具调用与 ReAct 循环</button>
+<button type="button" data-index="4" aria-current="false">05  Thread、快照与存储边界</button>
+<button type="button" data-index="5" aria-current="false">06  宿主能力矩阵</button>
+<button type="button" data-index="6" aria-current="false">07  Evaluation Lab V2 的改进循环</button>
+<button type="button" data-index="7" aria-current="false">08  Prompt 渲染与 Python 导出</button>
+<button type="button" data-index="8" aria-current="false">09  Remote Runtime 的连接与数据路径</button>
+</nav><main><div class="toolbar"><button id="zoom-out" aria-label="缩小图表">− 缩小</button><button id="fit">适合窗口</button><button id="zoom-in" aria-label="放大图表">＋ 放大</button><output id="zoom" aria-live="polite">100%</output><a id="svg-link" href="svg/01-system-architecture.svg" target="_blank" rel="noopener">打开 SVG</a><a id="png-link" href="png/01-system-architecture.png" target="_blank" rel="noopener">打开 PNG</a><a href="README.md">阅读指南</a></div><p class="hint">先选图，再放大查看；图面可横向滚动。所有图表内嵌，可离线打开；源码链接相对于项目目录。</p>
+<section class="panel" id="01-system-architecture" data-width="1600"><div class="viewport" tabindex="0" aria-label="01  项目运行架构可滚动画布"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1100" width="1600" height="1100" data-generator="fireworks-tech-graph" data-quality-profile="showcase" role="img" aria-labelledby="01-system-architecture-diagram-title 01-system-architecture-diagram-desc">
+<title id="01-system-architecture-diagram-title">01  项目运行架构</title>
+<desc id="01-system-architecture-diagram-desc">四条宿主路径；同名 core / UI 表示复用代码，不表示共享进程或相同权限。</desc>
+<style>text { font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif; }</style>
+<defs>
+<marker id="01-system-architecture-arrow-blue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#2563eb"/></marker>
+<marker id="01-system-architecture-arrow-green" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#16a34a"/></marker>
+<marker id="01-system-architecture-arrow-purple" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#9333ea"/></marker>
+<marker id="01-system-architecture-arrow-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#dc2626"/></marker>
+</defs>
+<rect width="1600" height="1100" fill="#ffffff" data-graph-role="background"/>
+<rect x="40" y="130" width="360" height="660" rx="12" fill="#eff6ff" fill-opacity="0.38" stroke="#d1d5db" stroke-dasharray="6 5" data-graph-role="container"/>
+<rect x="420" y="130" width="360" height="660" rx="12" fill="#eff6ff" fill-opacity="0.38" stroke="#d1d5db" stroke-dasharray="6 5" data-graph-role="container"/>
+<rect x="800" y="130" width="360" height="660" rx="12" fill="#faf5ff" fill-opacity="0.38" stroke="#d1d5db" stroke-dasharray="6 5" data-graph-role="container"/>
+<rect x="1180" y="130" width="360" height="660" rx="12" fill="#f0fdf4" fill-opacity="0.38" stroke="#d1d5db" stroke-dasharray="6 5" data-graph-role="container"/>
+<g data-graph-role="legend"><line x1="60" y1="1053" x2="92" y2="1053" stroke="#2563eb" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="350" y1="1053" x2="382" y2="1053" stroke="#9333ea" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="690" y1="1053" x2="722" y2="1053" stroke="#16a34a" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="1010" y1="1053" x2="1042" y2="1053" stroke="#dc2626" stroke-width="2.5"/></g>
+<path id="01-system-architecture-edge-1" data-edge-id="edge-1" data-graph-role="edge" data-source="d-ui" data-target="d-runtime" d="M 220.0,305 L 220.0,425" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#01-system-architecture-arrow-blue)"/>
+<path id="01-system-architecture-edge-2" data-edge-id="edge-2" data-graph-role="edge" data-source="d-runtime" data-target="d-core" d="M 220.0,535 L 220.0,655" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#01-system-architecture-arrow-blue)"/>
+<path id="01-system-architecture-edge-3" data-edge-id="edge-3" data-graph-role="edge" data-source="g-ui" data-target="g-api" d="M 600.0,305 L 600.0,425" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#01-system-architecture-arrow-blue)"/>
+<path id="01-system-architecture-edge-4" data-edge-id="edge-4" data-graph-role="edge" data-source="g-api" data-target="g-core" d="M 600.0,535 L 600.0,655" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#01-system-architecture-arrow-blue)"/>
+<path id="01-system-architecture-edge-5" data-edge-id="edge-5" data-graph-role="edge" data-source="v-ui" data-target="v-read" d="M 980.0,305 L 980.0,425" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#01-system-architecture-arrow-blue)"/>
+<path id="01-system-architecture-edge-6" data-edge-id="edge-6" data-graph-role="edge" data-source="v-read" data-target="v-gist" d="M 980.0,535 L 980.0,655" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#01-system-architecture-arrow-blue)"/>
+<path id="01-system-architecture-edge-7" data-edge-id="edge-7" data-graph-role="edge" data-source="i-user" data-target="i-api" d="M 1360.0,305 L 1360.0,425" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#01-system-architecture-arrow-green)"/>
+<path id="01-system-architecture-edge-8" data-edge-id="edge-8" data-graph-role="edge" data-source="i-api" data-target="i-db" d="M 1360.0,535 L 1360.0,655" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#01-system-architecture-arrow-green)"/>
+<g id="01-system-architecture-d-ui" data-graph-role="node" data-node-id="d-ui" data-graph-bounds="60,195,380,305"><title>Desktop renderer — apps/desktop · React / Electrobun / 注入 HostServices / ModelClient</title>
+<rect x="60" y="195" width="320" height="110" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<rect x="76" y="211" width="23" height="19" rx="3" fill="none" stroke="#2563eb"/>
+<path d="M 76,217 h 23" stroke="#2563eb"/>
+</g>
+<text x="110" y="229" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Desktop renderer</text>
+<text x="80" y="259" font-size="14" fill="#475569" font-weight="400" text-anchor="start">apps/desktop · React / Electrobun</text>
+<text x="80" y="283" font-size="14" fill="#475569" font-weight="400" text-anchor="start">注入 HostServices / ModelClient</text>
+</g>
+<g id="01-system-architecture-d-runtime" data-graph-role="node" data-node-id="d-runtime" data-graph-bounds="60,425,380,535"><title>Desktop Bun host — apps/desktop + packages/runtime / RuntimeRouter · models / tools</title>
+<rect x="60" y="425" width="320" height="110" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 87,441 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="110" y="459" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Desktop Bun host</text>
+<text x="80" y="489" font-size="14" fill="#475569" font-weight="400" text-anchor="start">apps/desktop + packages/runtime</text>
+<text x="80" y="513" font-size="14" fill="#475569" font-weight="400" text-anchor="start">RuntimeRouter · models / tools</text>
+</g>
+<g id="01-system-architecture-d-core" data-graph-role="node" data-node-id="d-core" data-graph-bounds="60,655,380,765"><title>core/server · Agent — streamAgent → pi-agent / pi-ai / 本机 Provider 配置与 API 凭据</title>
+<rect x="60" y="655" width="320" height="110" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 87,671 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="110" y="689" font-size="19" fill="#111827" font-weight="600" text-anchor="start">core/server · Agent</text>
+<text x="80" y="719" font-size="14" fill="#475569" font-weight="400" text-anchor="start">streamAgent → pi-agent / pi-ai</text>
+<text x="80" y="743" font-size="14" fill="#475569" font-weight="400" text-anchor="start">本机 Provider 配置与 API 凭据</text>
+</g>
+<g id="01-system-architecture-g-ui" data-graph-role="node" data-node-id="g-ui" data-graph-bounds="440,195,760,305"><title>GuestWorkbench — apps/web + packages/ui / Thread store · 浏览器本地工作区</title>
+<rect x="440" y="195" width="320" height="110" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<rect x="456" y="211" width="23" height="19" rx="3" fill="none" stroke="#2563eb"/>
+<path d="M 456,217 h 23" stroke="#2563eb"/>
+</g>
+<text x="490" y="229" font-size="19" fill="#111827" font-weight="600" text-anchor="start">GuestWorkbench</text>
+<text x="460" y="259" font-size="14" fill="#475569" font-weight="400" text-anchor="start">apps/web + packages/ui</text>
+<text x="460" y="283" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Thread store · 浏览器本地工作区</text>
+</g>
+<g id="01-system-architecture-g-api" data-graph-role="node" data-node-id="g-api" data-graph-bounds="440,425,760,535"><title>Guest API — apps/cloud · guest-index.ts / 请求校验 / 并发 / 额度 / 工具代理</title>
+<rect x="440" y="425" width="320" height="110" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 467,441 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="490" y="459" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Guest API</text>
+<text x="460" y="489" font-size="14" fill="#475569" font-weight="400" text-anchor="start">apps/cloud · guest-index.ts</text>
+<text x="460" y="513" font-size="14" fill="#475569" font-weight="400" text-anchor="start">请求校验 / 并发 / 额度 / 工具代理</text>
+</g>
+<g id="01-system-architecture-g-core" data-graph-role="node" data-node-id="g-core" data-graph-bounds="440,655,760,765"><title>core/server · Agent — streamAgent → 白名单模型 / Provider 凭据留在服务端</title>
+<rect x="440" y="655" width="320" height="110" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 467,671 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="490" y="689" font-size="19" fill="#111827" font-weight="600" text-anchor="start">core/server · Agent</text>
+<text x="460" y="719" font-size="14" fill="#475569" font-weight="400" text-anchor="start">streamAgent → 白名单模型</text>
+<text x="460" y="743" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Provider 凭据留在服务端</text>
+</g>
+<g id="01-system-architecture-v-ui" data-graph-role="node" data-node-id="v-ui" data-graph-bounds="820,195,1140,305"><title>ThreadViewer — apps/web + ThreadPlayground / readonly · 展示分享内容</title>
+<rect x="820" y="195" width="320" height="110" rx="8" fill="#faf5ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<rect x="836" y="211" width="23" height="19" rx="3" fill="none" stroke="#9333ea"/>
+<path d="M 836,217 h 23" stroke="#9333ea"/>
+</g>
+<text x="870" y="229" font-size="19" fill="#111827" font-weight="600" text-anchor="start">ThreadViewer</text>
+<text x="840" y="259" font-size="14" fill="#475569" font-weight="400" text-anchor="start">apps/web + ThreadPlayground</text>
+<text x="840" y="283" font-size="14" fill="#475569" font-weight="400" text-anchor="start">readonly · 展示分享内容</text>
+</g>
+<g id="01-system-architecture-v-read" data-graph-role="node" data-node-id="v-read" data-graph-bounds="820,425,1140,535"><title>Gist connector — packages/core/storage / 读取 Thread JSON 与元数据</title>
+<rect x="820" y="425" width="320" height="110" rx="8" fill="#faf5ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 836,441 h 16 l 6,6 v 16 h -22 Z M 852,441 v 6 h 6" fill="none" stroke="#9333ea"/>
+</g>
+<text x="870" y="459" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Gist connector</text>
+<text x="840" y="489" font-size="14" fill="#475569" font-weight="400" text-anchor="start">packages/core/storage</text>
+<text x="840" y="513" font-size="14" fill="#475569" font-weight="400" text-anchor="start">读取 Thread JSON 与元数据</text>
+</g>
+<g id="01-system-architecture-v-gist" data-graph-role="node" data-node-id="v-gist" data-graph-bounds="820,655,1140,765"><title>GitHub Gist — Desktop 分享流程写入 Gist / Viewer 无运行 transport</title>
+<rect x="820" y="655" width="320" height="110" rx="8" fill="#faf5ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 836,675 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#9333ea"/>
+<ellipse cx="847" cy="675" rx="11" ry="4" fill="none" stroke="#9333ea"/>
+</g>
+<text x="870" y="689" font-size="19" fill="#111827" font-weight="600" text-anchor="start">GitHub Gist</text>
+<text x="840" y="719" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Desktop 分享流程写入 Gist</text>
+<text x="840" y="743" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Viewer 无运行 transport</text>
+</g>
+<g id="01-system-architecture-i-user" data-graph-role="node" data-node-id="i-user" data-graph-bounds="1200,195,1520,305"><title>OAuth / Session — GitHub OAuth 回调与会话请求 / 独立于匿名 Guest Run 路径</title>
+<rect x="1200" y="195" width="320" height="110" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<rect x="1216" y="211" width="23" height="19" rx="3" fill="none" stroke="#16a34a"/>
+<path d="M 1216,217 h 23" stroke="#16a34a"/>
+</g>
+<text x="1250" y="229" font-size="19" fill="#111827" font-weight="600" text-anchor="start">OAuth / Session</text>
+<text x="1220" y="259" font-size="14" fill="#475569" font-weight="400" text-anchor="start">GitHub OAuth 回调与会话请求</text>
+<text x="1220" y="283" font-size="14" fill="#475569" font-weight="400" text-anchor="start">独立于匿名 Guest Run 路径</text>
+</g>
+<g id="01-system-architecture-i-api" data-graph-role="node" data-node-id="i-api" data-graph-bounds="1200,425,1520,535"><title>Cloud identity — apps/cloud · index.ts / OAuth / Cookie / tenant 初始化</title>
+<rect x="1200" y="425" width="320" height="110" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1227,441 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#16a34a"/>
+</g>
+<text x="1250" y="459" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Cloud identity</text>
+<text x="1220" y="489" font-size="14" fill="#475569" font-weight="400" text-anchor="start">apps/cloud · index.ts</text>
+<text x="1220" y="513" font-size="14" fill="#475569" font-weight="400" text-anchor="start">OAuth / Cookie / tenant 初始化</text>
+</g>
+<g id="01-system-architecture-i-db" data-graph-role="node" data-node-id="i-db" data-graph-bounds="1200,655,1520,765"><title>PostgreSQL — 用户 / 租户 / membership / session / RLS；表存在不等于业务 API 完整</title>
+<rect x="1200" y="655" width="320" height="110" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1216,675 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="1227" cy="675" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="1250" y="689" font-size="19" fill="#111827" font-weight="600" text-anchor="start">PostgreSQL</text>
+<text x="1220" y="719" font-size="14" fill="#475569" font-weight="400" text-anchor="start">用户 / 租户 / membership / session</text>
+<text x="1220" y="743" font-size="14" fill="#475569" font-weight="400" text-anchor="start">RLS；表存在不等于业务 API 完整</text>
+</g>
+<text x="60" y="58" font-size="28" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">01  项目运行架构</text>
+<text x="60" y="92" font-size="15" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">四条宿主路径；同名 core / UI 表示复用代码，不表示共享进程或相同权限。</text>
+<text x="62" y="162" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">Desktop / 本地桌面</text>
+<text x="442" y="162" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">Guest Web / 浏览器游客</text>
+<text x="822" y="162" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">Viewer / 分享阅读</text>
+<text x="1202" y="162" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">Identity / 身份服务</text>
+<text x="234.0" y="365.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-1">typed RPC</text>
+<text x="234.0" y="595.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-2">AgentStreamRequest</text>
+<text x="614.0" y="365.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-3">HTTP / SSE</text>
+<text x="614.0" y="595.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-4">受限请求</text>
+<text x="994.0" y="365.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-5">分享 locator</text>
+<text x="994.0" y="595.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-6">读取请求</text>
+<text x="1374.0" y="365.0" font-size="14" fill="#16a34a" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-7">OAuth code / cookie</text>
+<text x="1374.0" y="595.0" font-size="14" fill="#16a34a" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-8">会话与租户数据</text>
+<text x="60" y="842" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">packages/ui：共享交互与状态；HostServices 负责宿主能力，ModelClient 负责模型目录与连接选择。</text>
+<text x="60" y="879" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">packages/core：Thread / Prompt / 转换 / reducer；core/server：Agent 流与服务端存储。packages/runtime：可信宿主的集成与路由。</text>
+<text x="60" y="916" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">Remote Runtime：Desktop Bun 可切换到 apps/server，再复用 runtime / core；远端连接与请求路径见图 09。</text>
+<text x="60" y="1012" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">证据边界：当前源码的组件与连接；没有据此宣称已部署或线上可用。</text>
+<text x="102" y="1058" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">请求 / 主流程</text>
+<text x="392" y="1058" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">事件 / 结果 / 循环</text>
+<text x="732" y="1058" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">持久化 / 读取</text>
+<text x="1052" y="1058" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">检查 / 中止 / 边界</text>
+<text x="1540" y="58" font-size="13" fill="#6b7280" font-weight="400" text-anchor="end" data-graph-role="label">2026-09-03</text>
+</svg></div><div class="reading"><h2>01  项目运行架构</h2>
+<p>从宿主开始阅读，再追踪共享包。身份服务和 Guest API 是不同入口。</p>
+<p>共享 UI 不授予文件系统、Bash、MCP 或 Provider 凭据访问权。</p>
+<h3>读图后自检</h3><ul>
+<li>为什么 web bundle 不能导入 core/server？</li>
+<li>如果换成远程模型执行，哪些 UI 代码无需变化？</li>
+</ul><details><summary>对应源码与当前行号</summary><ul class="source-list">
+<li><a href="../../apps/desktop/src/bun/app/start-desktop-app.ts#L59"><code>apps/desktop/src/bun/app/start-desktop-app.ts</code></a> · L59 · <code>const workspacePath</code></li>
+<li><a href="../../packages/ui/src/host/types.ts#L70"><code>packages/ui/src/host/types.ts</code></a> · L70 · <code>export interface ToolExecutionPolicy</code></li>
+<li><a href="../../apps/web/src/host/web-host.ts#L56"><code>apps/web/src/host/web-host.ts</code></a> · L56 · <code>export const webHost</code></li>
+<li><a href="../../apps/web/src/thread-viewer.tsx#L8"><code>apps/web/src/thread-viewer.tsx</code></a> · L8 · <code>ThreadPlayground</code></li>
+<li><a href="../../apps/cloud/src/guest-index.ts#L7"><code>apps/cloud/src/guest-index.ts</code></a> · L7 · <code>const quotaStore</code></li>
+<li><a href="../../apps/cloud/src/index.ts#L14"><code>apps/cloud/src/index.ts</code></a> · L14 · <code>assertRuntimeDatabaseIsolation(config.databaseUrl)</code></li>
+<li><a href="../../apps/cloud/src/http-server.ts#L131"><code>apps/cloud/src/http-server.ts</code></a> · L131 · <code>url.pathname === &quot;/api/session&quot;</code></li>
+<li><a href="../../apps/cloud/migrations/0001_identity_and_tenants.sql#L4"><code>apps/cloud/migrations/0001_identity_and_tenants.sql</code></a> · L4 · <code>CREATE TABLE</code></li>
+<li><a href="../../packages/core/package.json#L9"><code>packages/core/package.json</code></a> · L9 · <code>&quot;./server&quot;</code></li>
+</ul></details></div></section>
+<section class="panel" id="02-desktop-run-sequence" data-width="1600" hidden><div class="viewport" tabindex="0" aria-label="02  一次 Desktop Run 的时序可滚动画布"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1140" width="1600" height="1140" data-generator="fireworks-tech-graph" data-quality-profile="showcase" role="img" aria-labelledby="02-desktop-run-sequence-diagram-title 02-desktop-run-sequence-diagram-desc">
+<title id="02-desktop-run-sequence-diagram-title">02  一次 Desktop Run 的时序</title>
+<desc id="02-desktop-run-sequence-diagram-desc">时间从上往下；图中画单个模型回合。多回合工具循环在图 04。</desc>
+<style>text { font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif; }</style>
+<defs>
+<marker id="02-desktop-run-sequence-arrow-blue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#2563eb"/></marker>
+<marker id="02-desktop-run-sequence-arrow-green" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#16a34a"/></marker>
+<marker id="02-desktop-run-sequence-arrow-purple" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#9333ea"/></marker>
+<marker id="02-desktop-run-sequence-arrow-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#dc2626"/></marker>
+</defs>
+<rect width="1600" height="1140" fill="#ffffff" data-graph-role="background"/>
+<line x1="160" y1="230" x2="160" y2="915" stroke="#d1d5db" stroke-dasharray="5 6" data-graph-role="decoration"/>
+<line x1="410" y1="230" x2="410" y2="915" stroke="#d1d5db" stroke-dasharray="5 6" data-graph-role="decoration"/>
+<line x1="660" y1="230" x2="660" y2="915" stroke="#d1d5db" stroke-dasharray="5 6" data-graph-role="decoration"/>
+<line x1="910" y1="230" x2="910" y2="915" stroke="#d1d5db" stroke-dasharray="5 6" data-graph-role="decoration"/>
+<line x1="1160" y1="230" x2="1160" y2="915" stroke="#d1d5db" stroke-dasharray="5 6" data-graph-role="decoration"/>
+<line x1="1410" y1="230" x2="1410" y2="915" stroke="#d1d5db" stroke-dasharray="5 6" data-graph-role="decoration"/>
+<g data-graph-role="legend"><line x1="60" y1="1093" x2="92" y2="1093" stroke="#2563eb" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="350" y1="1093" x2="382" y2="1093" stroke="#9333ea" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="690" y1="1093" x2="722" y2="1093" stroke="#16a34a" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="1010" y1="1093" x2="1042" y2="1093" stroke="#dc2626" stroke-width="2.5"/></g>
+<path id="02-desktop-run-sequence-edge-1" data-edge-id="edge-1" data-graph-role="edge" data-source="p0" data-target="p1" d="M 160,285 L 410,285" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#02-desktop-run-sequence-arrow-blue)"/>
+<path id="02-desktop-run-sequence-edge-2" data-edge-id="edge-2" data-graph-role="edge" data-source="p1" data-target="p2" d="M 410,355 L 660,355" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#02-desktop-run-sequence-arrow-blue)"/>
+<path id="02-desktop-run-sequence-edge-3" data-edge-id="edge-3" data-graph-role="edge" data-source="p2" data-target="p3" d="M 660,425 L 910,425" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#02-desktop-run-sequence-arrow-blue)"/>
+<path id="02-desktop-run-sequence-edge-4" data-edge-id="edge-4" data-graph-role="edge" data-source="p3" data-target="p4" d="M 910,495 L 1160,495" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#02-desktop-run-sequence-arrow-blue)"/>
+<path id="02-desktop-run-sequence-edge-5" data-edge-id="edge-5" data-graph-role="edge" data-source="p4" data-target="p5" d="M 1160,565 L 1410,565" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#02-desktop-run-sequence-arrow-blue)"/>
+<path id="02-desktop-run-sequence-edge-6" data-edge-id="edge-6" data-graph-role="edge" data-source="p5" data-target="p4" d="M 1410,635 L 1160,635" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#02-desktop-run-sequence-arrow-purple)"/>
+<path id="02-desktop-run-sequence-edge-7" data-edge-id="edge-7" data-graph-role="edge" data-source="p4" data-target="p3" d="M 1160,705 L 910,705" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#02-desktop-run-sequence-arrow-purple)"/>
+<path id="02-desktop-run-sequence-edge-8" data-edge-id="edge-8" data-graph-role="edge" data-source="p3" data-target="p2" d="M 910,775 L 660,775" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#02-desktop-run-sequence-arrow-purple)"/>
+<path id="02-desktop-run-sequence-edge-9" data-edge-id="edge-9" data-graph-role="edge" data-source="p2" data-target="p1" d="M 660,845 L 410,845" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#02-desktop-run-sequence-arrow-purple)"/>
+<path id="02-desktop-run-sequence-edge-10" data-edge-id="edge-10" data-graph-role="edge" data-source="p1" data-target="p0" d="M 410,915 L 160,915" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#02-desktop-run-sequence-arrow-purple)"/>
+<g id="02-desktop-run-sequence-p0" data-graph-role="node" data-node-id="p0" data-graph-bounds="60,145,260,225"><title>Thread store — </title>
+<rect x="60" y="145" width="200" height="80" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 76,161 h 16 l 6,6 v 16 h -22 Z M 92,161 v 6 h 6" fill="none" stroke="#2563eb"/>
+</g>
+<text x="110" y="179" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Thread store</text>
+</g>
+<g id="02-desktop-run-sequence-p1" data-graph-role="node" data-node-id="p1" data-graph-bounds="310,145,510,225"><title>RPC transport — </title>
+<rect x="310" y="145" width="200" height="80" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 326,161 h 16 l 6,6 v 16 h -22 Z M 342,161 v 6 h 6" fill="none" stroke="#2563eb"/>
+</g>
+<text x="360" y="179" font-size="18.4" fill="#111827" font-weight="600" text-anchor="start">RPC transport</text>
+</g>
+<g id="02-desktop-run-sequence-p2" data-graph-role="node" data-node-id="p2" data-graph-bounds="560,145,760,225"><title>Bun RPC / Router — </title>
+<rect x="560" y="145" width="200" height="80" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 576,161 h 16 l 6,6 v 16 h -22 Z M 592,161 v 6 h 6" fill="none" stroke="#2563eb"/>
+</g>
+<text x="610" y="179" font-size="15.0" fill="#111827" font-weight="600" text-anchor="start">Bun RPC / Router</text>
+</g>
+<g id="02-desktop-run-sequence-p3" data-graph-role="node" data-node-id="p3" data-graph-bounds="810,145,1010,225"><title>LocalRuntimeClient — </title>
+<rect x="810" y="145" width="200" height="80" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 837,161 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="860" y="179" font-size="13.3" fill="#111827" font-weight="600" text-anchor="start">LocalRuntimeClient</text>
+</g>
+<g id="02-desktop-run-sequence-p4" data-graph-role="node" data-node-id="p4" data-graph-bounds="1060,145,1260,225"><title>streamAgent — </title>
+<rect x="1060" y="145" width="200" height="80" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1087,161 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="1110" y="179" font-size="19" fill="#111827" font-weight="600" text-anchor="start">streamAgent</text>
+</g>
+<g id="02-desktop-run-sequence-p5" data-graph-role="node" data-node-id="p5" data-graph-bounds="1310,145,1510,225"><title>Model provider — </title>
+<rect x="1310" y="145" width="200" height="80" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1337,161 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="1360" y="179" font-size="17.1" fill="#111827" font-weight="600" text-anchor="start">Model provider</text>
+</g>
+<text x="60" y="58" font-size="28" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">02  一次 Desktop Run 的时序</text>
+<text x="60" y="92" font-size="15" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">时间从上往下；图中画单个模型回合。多回合工具循环在图 04。</text>
+<rect x="157" y="254" width="366" height="23" fill="#ffffff" data-graph-role="decoration"/>
+<text x="160" y="271" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-1">1  streamThread：转换后的 request + connection</text>
+<rect x="407" y="324" width="390" height="23" fill="#ffffff" data-graph-role="decoration"/>
+<text x="410" y="341" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-2">2  sendStreamThreadRequest：runtimeId + streamId</text>
+<rect x="657" y="394" width="288" height="23" fill="#ffffff" data-graph-role="decoration"/>
+<text x="660" y="411" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-3">3  forwardStreamThread / getRuntime</text>
+<rect x="907" y="464" width="306" height="23" fill="#ffffff" data-graph-role="decoration"/>
+<text x="910" y="481" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-4">4  StreamThreadController：解析模型连接</text>
+<rect x="1157" y="534" width="398" height="23" fill="#ffffff" data-graph-role="decoration"/>
+<text x="1160" y="551" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-5">5  models.streamSimple：Prompt / messages / tools</text>
+<rect x="1157" y="604" width="116" height="23" fill="#ffffff" data-graph-role="decoration"/>
+<text x="1160" y="621" font-size="14" fill="#9333ea" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-6">6  流式模型输出</text>
+<rect x="907" y="674" width="112" height="23" fill="#ffffff" data-graph-role="decoration"/>
+<text x="910" y="691" font-size="14" fill="#9333ea" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-7">7  AgentEvent</text>
+<rect x="657" y="744" width="304" height="23" fill="#ffffff" data-graph-role="decoration"/>
+<text x="660" y="761" font-size="14" fill="#9333ea" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-8">8  { streamId, event / done / error }</text>
+<rect x="407" y="814" width="248" height="23" fill="#ffffff" data-graph-role="decoration"/>
+<text x="410" y="831" font-size="14" fill="#9333ea" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-9">9  receiveStreamThreadResponse</text>
+<rect x="157" y="884" width="332" height="23" fill="#ffffff" data-graph-role="decoration"/>
+<text x="160" y="901" font-size="14" fill="#9333ea" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-10">10  AsyncIterable → reduceMessages → UI</text>
+<text x="60" y="966" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">开始：idle → preparing（校验与模板渲染）→ running。结束：取消节流任务、结算结果与历史，再回到 idle。</text>
+<text x="60" y="1000" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">停止：AbortSignal → abortStreamThread(streamId) → RuntimeClient.abortStream → Controller AbortController。</text>
+<text x="60" y="1052" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">只有已收到事件、未失败且未中止的运行才写普通 Run history；失败 / 中止不伪装成成功快照。</text>
+<text x="102" y="1098" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">请求 / 主流程</text>
+<text x="392" y="1098" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">事件 / 结果 / 循环</text>
+<text x="732" y="1098" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">持久化 / 读取</text>
+<text x="1052" y="1098" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">检查 / 中止 / 边界</text>
+<text x="1540" y="58" font-size="13" fill="#6b7280" font-weight="400" text-anchor="end" data-graph-role="label">2026-09-03</text>
+</svg></div><div class="reading"><h2>02  一次 Desktop Run 的时序</h2>
+<p>streamId 用于过滤不同运行的事件；runtimeId 用于选择执行宿主。</p>
+<p>Thread store 负责把每个回合的增量事件还原成预览与最终消息。</p>
+<h3>读图后自检</h3><ul>
+<li>为什么保存一个 AbortController 还不足以取消远端请求？</li>
+<li>模型失败时为什么不能只根据收到过事件就记录成功 Run？</li>
+</ul><details><summary>对应源码与当前行号</summary><ul class="source-list">
+<li><a href="../../packages/ui/src/components/thread-playground/stores/thread-store.ts#L1137"><code>packages/ui/src/components/thread-playground/stores/thread-store.ts</code></a> · L1137 · <code>async run(fromMessageId</code></li>
+<li><a href="../../apps/desktop/src/client/rpc-transport.ts#L18"><code>apps/desktop/src/client/rpc-transport.ts</code></a> · L18 · <code>export function createRpcTransport</code></li>
+<li><a href="../../apps/desktop/src/bun/rpc/stream-thread-request.ts#L8"><code>apps/desktop/src/bun/rpc/stream-thread-request.ts</code></a> · L8 · <code>export async function forwardStreamThread</code></li>
+<li><a href="../../apps/desktop/src/bun/rpc/index.ts#L532"><code>apps/desktop/src/bun/rpc/index.ts</code></a> · L532 · <code>forwardStreamThread(</code></li>
+<li><a href="../../packages/runtime/src/runtime/local-runtime-client.ts#L428"><code>packages/runtime/src/runtime/local-runtime-client.ts</code></a> · L428 · <code>streamThread(</code></li>
+<li><a href="../../packages/runtime/src/streaming/stream-thread.ts#L12"><code>packages/runtime/src/streaming/stream-thread.ts</code></a> · L12 · <code>export class StreamThreadController</code></li>
+<li><a href="../../packages/core/src/server/agent/stream.ts#L22"><code>packages/core/src/server/agent/stream.ts</code></a> · L22 · <code>export async function* streamAgent</code></li>
+<li><a href="../../packages/core/src/client/reducer.ts#L35"><code>packages/core/src/client/reducer.ts</code></a> · L35 · <code>export function reduceMessages</code></li>
+</ul></details></div></section>
+<section class="panel" id="03-guest-data-flow" data-width="1600" hidden><div class="viewport" tabindex="0" aria-label="03  Guest Web 的数据流可滚动画布"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1140" width="1600" height="1140" data-generator="fireworks-tech-graph" data-quality-profile="showcase" role="img" aria-labelledby="03-guest-data-flow-diagram-title 03-guest-data-flow-diagram-desc">
+<title id="03-guest-data-flow-diagram-title">03  Guest Web 的数据流</title>
+<desc id="03-guest-data-flow-diagram-desc">顺着蓝色请求向右，再沿紫色结果向左；浏览器状态与服务端额度分别持久化。</desc>
+<style>text { font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif; }</style>
+<defs>
+<marker id="03-guest-data-flow-arrow-blue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#2563eb"/></marker>
+<marker id="03-guest-data-flow-arrow-green" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#16a34a"/></marker>
+<marker id="03-guest-data-flow-arrow-purple" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#9333ea"/></marker>
+<marker id="03-guest-data-flow-arrow-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#dc2626"/></marker>
+</defs>
+<rect width="1600" height="1140" fill="#ffffff" data-graph-role="background"/>
+<rect x="40" y="135" width="440" height="775" rx="12" fill="#eff6ff" fill-opacity="0.38" stroke="#d1d5db" stroke-dasharray="6 5" data-graph-role="container"/>
+<rect x="580" y="135" width="440" height="775" rx="12" fill="#fef2f2" fill-opacity="0.38" stroke="#d1d5db" stroke-dasharray="6 5" data-graph-role="container"/>
+<rect x="1120" y="135" width="440" height="775" rx="12" fill="#faf5ff" fill-opacity="0.38" stroke="#d1d5db" stroke-dasharray="6 5" data-graph-role="container"/>
+<g data-graph-role="legend"><line x1="60" y1="1093" x2="92" y2="1093" stroke="#2563eb" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="350" y1="1093" x2="382" y2="1093" stroke="#9333ea" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="690" y1="1093" x2="722" y2="1093" stroke="#16a34a" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="1010" y1="1093" x2="1042" y2="1093" stroke="#dc2626" stroke-width="2.5"/></g>
+<path id="03-guest-data-flow-edge-1" data-edge-id="edge-1" data-graph-role="edge" data-source="browser" data-target="gate" d="M 450,270.0 L 610,270.0" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#03-guest-data-flow-arrow-blue)"/>
+<path id="03-guest-data-flow-edge-2" data-edge-id="edge-2" data-graph-role="edge" data-source="gate" data-target="model" d="M 990,270.0 L 1150,270.0" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#03-guest-data-flow-arrow-blue)"/>
+<path id="03-guest-data-flow-edge-3" data-edge-id="edge-3" data-graph-role="edge" data-source="model" data-target="model-events" d="M 1340.0,330 L 1340.0,565" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#03-guest-data-flow-arrow-purple)"/>
+<path id="03-guest-data-flow-edge-4" data-edge-id="edge-4" data-graph-role="edge" data-source="model-events" data-target="sse" d="M 1150,625 L 990,625" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#03-guest-data-flow-arrow-purple)"/>
+<path id="03-guest-data-flow-edge-5" data-edge-id="edge-5" data-graph-role="edge" data-source="sse" data-target="ui-results" d="M 610,625 L 450,625" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#03-guest-data-flow-arrow-purple)"/>
+<path id="03-guest-data-flow-edge-6" data-edge-id="edge-6" data-graph-role="edge" data-source="gate" data-target="quota" d="M 740,330 L 740,405" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#03-guest-data-flow-arrow-green)"/>
+<path id="03-guest-data-flow-edge-7" data-edge-id="edge-7" data-graph-role="edge" data-source="quota" data-target="gate" d="M 850,405 L 850,330" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#03-guest-data-flow-arrow-green)"/>
+<path id="03-guest-data-flow-edge-8" data-edge-id="edge-8" data-graph-role="edge" data-source="ui-results" data-target="local" d="M 260.0,685 L 260.0,760" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#03-guest-data-flow-arrow-green)"/>
+<g id="03-guest-data-flow-browser" data-graph-role="node" data-node-id="browser" data-graph-bounds="70,210,450,330"><title>Guest Thread — 模板、消息、模型、工具定义 / createGuestTransport(request)</title>
+<rect x="70" y="210" width="380" height="120" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<rect x="86" y="226" width="23" height="19" rx="3" fill="none" stroke="#2563eb"/>
+<path d="M 86,232 h 23" stroke="#2563eb"/>
+</g>
+<text x="120" y="244" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Guest Thread</text>
+<text x="90" y="274" font-size="14" fill="#475569" font-weight="400" text-anchor="start">模板、消息、模型、工具定义</text>
+<text x="90" y="298" font-size="14" fill="#475569" font-weight="400" text-anchor="start">createGuestTransport(request)</text>
+</g>
+<g id="03-guest-data-flow-gate" data-graph-role="node" data-node-id="gate" data-graph-bounds="610,210,990,330"><title>Guest 请求检查 — Origin / 大小 / 模型与工具白名单 / 按 guest 限并发；guest / IP 额度</title>
+<rect x="610" y="210" width="380" height="120" rx="8" fill="#fef2f2" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 637,226 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#dc2626"/>
+</g>
+<text x="660" y="244" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Guest 请求检查</text>
+<text x="630" y="274" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Origin / 大小 / 模型与工具白名单</text>
+<text x="630" y="298" font-size="14" fill="#475569" font-weight="400" text-anchor="start">按 guest 限并发；guest / IP 额度</text>
+</g>
+<g id="03-guest-data-flow-model" data-graph-role="node" data-node-id="model" data-graph-bounds="1150,210,1530,330"><title>GuestModelExecutor — 服务端 streamAgent → BigModel / 受限配置；API key 不返回浏览器</title>
+<rect x="1150" y="210" width="380" height="120" rx="8" fill="#faf5ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1177,226 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#9333ea"/>
+</g>
+<text x="1200" y="244" font-size="19" fill="#111827" font-weight="600" text-anchor="start">GuestModelExecutor</text>
+<text x="1170" y="274" font-size="14" fill="#475569" font-weight="400" text-anchor="start">服务端 streamAgent → BigModel</text>
+<text x="1170" y="298" font-size="14" fill="#475569" font-weight="400" text-anchor="start">受限配置；API key 不返回浏览器</text>
+</g>
+<g id="03-guest-data-flow-ui-results" data-graph-role="node" data-node-id="ui-results" data-graph-bounds="70,565,450,685"><title>消息与 Run 结果 — parseGuestStreamData → reduceMessages / 文本 / toolCall / usage / 错误</title>
+<rect x="70" y="565" width="380" height="120" rx="8" fill="#faf5ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<rect x="86" y="581" width="23" height="19" rx="3" fill="none" stroke="#9333ea"/>
+<path d="M 86,587 h 23" stroke="#9333ea"/>
+</g>
+<text x="120" y="599" font-size="19" fill="#111827" font-weight="600" text-anchor="start">消息与 Run 结果</text>
+<text x="90" y="629" font-size="14" fill="#475569" font-weight="400" text-anchor="start">parseGuestStreamData → reduceMessages</text>
+<text x="90" y="653" font-size="14" fill="#475569" font-weight="400" text-anchor="start">文本 / toolCall / usage / 错误</text>
+</g>
+<g id="03-guest-data-flow-sse" data-graph-role="node" data-node-id="sse" data-graph-bounds="610,565,990,685"><title>SSE response — AgentEvent + [START] / [DONE] / 失败转换为 guest_run_error</title>
+<rect x="610" y="565" width="380" height="120" rx="8" fill="#faf5ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 626,581 h 16 l 6,6 v 16 h -22 Z M 642,581 v 6 h 6" fill="none" stroke="#9333ea"/>
+</g>
+<text x="660" y="599" font-size="19" fill="#111827" font-weight="600" text-anchor="start">SSE response</text>
+<text x="630" y="629" font-size="14" fill="#475569" font-weight="400" text-anchor="start">AgentEvent + [START] / [DONE]</text>
+<text x="630" y="653" font-size="14" fill="#475569" font-weight="400" text-anchor="start">失败转换为 guest_run_error</text>
+</g>
+<g id="03-guest-data-flow-model-events" data-graph-role="node" data-node-id="model-events" data-graph-bounds="1150,565,1530,685"><title>模型事件 — 增量消息、工具请求、结束事件 / 本轮结果；不直接执行浏览器工具</title>
+<rect x="1150" y="565" width="380" height="120" rx="8" fill="#faf5ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1166,581 h 16 l 6,6 v 16 h -22 Z M 1182,581 v 6 h 6" fill="none" stroke="#9333ea"/>
+</g>
+<text x="1200" y="599" font-size="19" fill="#111827" font-weight="600" text-anchor="start">模型事件</text>
+<text x="1170" y="629" font-size="14" fill="#475569" font-weight="400" text-anchor="start">增量消息、工具请求、结束事件</text>
+<text x="1170" y="653" font-size="14" fill="#475569" font-weight="400" text-anchor="start">本轮结果；不直接执行浏览器工具</text>
+</g>
+<g id="03-guest-data-flow-local" data-graph-role="node" data-node-id="local" data-graph-bounds="70,760,450,880"><title>localStorage — Thread / 偏好 / 虚拟文件 / 评测实验单独存储（图 07）</title>
+<rect x="70" y="760" width="380" height="120" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 86,780 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="97" cy="780" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="120" y="794" font-size="19" fill="#111827" font-weight="600" text-anchor="start">localStorage</text>
+<text x="90" y="824" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Thread / 偏好 / 虚拟文件</text>
+<text x="90" y="848" font-size="14" fill="#475569" font-weight="400" text-anchor="start">评测实验单独存储（图 07）</text>
+</g>
+<g id="03-guest-data-flow-quota" data-graph-role="node" data-node-id="quota" data-graph-bounds="610,405,990,515"><title>额度计数存储 — Bun: SQLite；Node 入口: JSON / HMAC(guest / IP) + day + run_count</title>
+<rect x="610" y="405" width="380" height="110" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 626,425 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="637" cy="425" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="660" y="439" font-size="19" fill="#111827" font-weight="600" text-anchor="start">额度计数存储</text>
+<text x="630" y="469" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Bun: SQLite；Node 入口: JSON</text>
+<text x="630" y="493" font-size="14" fill="#475569" font-weight="400" text-anchor="start">HMAC(guest / IP) + day + run_count</text>
+</g>
+<g id="03-guest-data-flow-tools" data-graph-role="node" data-node-id="tools" data-graph-bounds="1150,760,1530,880"><title>受限工具通道 — 浏览器虚拟工具；Web / MCP 代理 / 独立端点与网络 / 输出 / 并发限制</title>
+<rect x="1150" y="760" width="380" height="120" rx="8" fill="#fef2f2" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1177,776 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#dc2626"/>
+</g>
+<text x="1200" y="794" font-size="19" fill="#111827" font-weight="600" text-anchor="start">受限工具通道</text>
+<text x="1170" y="824" font-size="14" fill="#475569" font-weight="400" text-anchor="start">浏览器虚拟工具；Web / MCP 代理</text>
+<text x="1170" y="848" font-size="14" fill="#475569" font-weight="400" text-anchor="start">独立端点与网络 / 输出 / 并发限制</text>
+</g>
+<text x="60" y="58" font-size="28" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">03  Guest Web 的数据流</text>
+<text x="60" y="92" font-size="15" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">顺着蓝色请求向右，再沿紫色结果向左；浏览器状态与服务端额度分别持久化。</text>
+<text x="62" y="167" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">浏览器 · apps/web + packages/ui</text>
+<text x="602" y="167" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">服务端 · apps/cloud Guest API</text>
+<text x="1142" y="167" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">模型适配 / 外部供应商</text>
+<text x="530.0" y="258.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-1">POST /runs</text>
+<text x="1070.0" y="258.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-2">受限请求</text>
+<text x="1354.0" y="447.5" font-size="14" fill="#9333ea" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-3">AgentEvent</text>
+<text x="1070" y="613" font-size="14" fill="#9333ea" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-4">SSE data</text>
+<text x="530" y="613" font-size="14" fill="#9333ea" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-5">AgentEvent</text>
+<text x="726" y="372" font-size="14" fill="#16a34a" font-weight="400" text-anchor="end" data-graph-role="label" data-owner="edge-6">guestId / IP</text>
+<text x="864" y="372" font-size="14" fill="#16a34a" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-7">额度决策</text>
+<text x="274.0" y="722.5" font-size="14" fill="#16a34a" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-8">Thread JSON</text>
+<text x="610" y="785" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">额度在开始模型流之前消耗。</text>
+<text x="610" y="822" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">计数存储不保存对话正文。</text>
+<text x="70" y="950" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">工具分支（图 04）：toolCall → Host 策略 → 浏览器虚拟工作区，或 /api/guest/tools/*、/api/guest/mcp/* → toolResult。</text>
+<text x="70" y="984" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">普通 Guest ReAct：最多 6 个模型回合、8 次自动工具调用；每个模型回合重新经过 /api/guest/runs 检查并消耗额度。</text>
+<text x="60" y="1052" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">浏览器预检帮助用户理解限制；服务端独立执行输入、模型、并发和额度检查。</text>
+<text x="102" y="1098" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">请求 / 主流程</text>
+<text x="392" y="1098" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">事件 / 结果 / 循环</text>
+<text x="732" y="1098" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">持久化 / 读取</text>
+<text x="1052" y="1098" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">检查 / 中止 / 边界</text>
+<text x="1540" y="58" font-size="13" fill="#6b7280" font-weight="400" text-anchor="end" data-graph-role="label">2026-09-03</text>
+</svg></div><div class="reading"><h2>03  Guest Web 的数据流</h2>
+<p>SSE 是同一次 HTTP 请求的流式响应。图按请求和返回拆行，便于区分两种方向。</p>
+<p>额度存储节点表示 gate 的内部依赖；模型响应失败不等于自动返还已消耗额度。</p>
+<h3>读图后自检</h3><ul>
+<li>为什么删除 localStorage 不等于重置 IP 额度？</li>
+<li>一个有两轮模型调用的 ReAct Run 经过几次服务端额度检查？</li>
+</ul><details><summary>对应源码与当前行号</summary><ul class="source-list">
+<li><a href="../../apps/web/src/guest/guest-api.ts#L161"><code>apps/web/src/guest/guest-api.ts</code></a> · L161 · <code>export function createGuestTransport</code></li>
+<li><a href="../../apps/cloud/src/guest-http-server.ts#L290"><code>apps/cloud/src/guest-http-server.ts</code></a> · L290 · <code>url.pathname === &quot;/api/guest/runs&quot;</code></li>
+<li><a href="../../apps/cloud/src/guest-http-server.ts#L448"><code>apps/cloud/src/guest-http-server.ts</code></a> · L448 · <code>request.model?.provider</code></li>
+<li><a href="../../apps/cloud/src/guest-model.ts#L17"><code>apps/cloud/src/guest-model.ts</code></a> · L17 · <code>export function createGuestModelExecutor</code></li>
+<li><a href="../../apps/cloud/src/guest-quota.ts#L22"><code>apps/cloud/src/guest-quota.ts</code></a> · L22 · <code>export class GuestQuotaStore</code></li>
+<li><a href="../../apps/cloud/src/guest-node-index.ts#L9"><code>apps/cloud/src/guest-node-index.ts</code></a> · L9 · <code>const quotaStore</code></li>
+<li><a href="../../apps/web/src/guest/guest-workspace.ts#L339"><code>apps/web/src/guest/guest-workspace.ts</code></a> · L339 · <code>persistGuestThreadUpdate</code></li>
+<li><a href="../../apps/web/src/guest/guest-tools.ts#L251"><code>apps/web/src/guest/guest-tools.ts</code></a> · L251 · <code>canGuestAutoExecute</code></li>
+<li><a href="../../apps/cloud/src/guest-tool-service.ts#L17"><code>apps/cloud/src/guest-tool-service.ts</code></a> · L17 · <code>export</code></li>
+<li><a href="../../apps/web/src/host/web-host.ts#L56"><code>apps/web/src/host/web-host.ts</code></a> · L56 · <code>export const webHost</code></li>
+</ul></details></div></section>
+<section class="panel" id="04-tool-loop" data-width="1740" hidden><div class="viewport" tabindex="0" aria-label="04  工具调用与 ReAct 循环可滚动画布"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1740 1060" width="1740" height="1060" data-generator="fireworks-tech-graph" data-quality-profile="showcase" role="img" aria-labelledby="04-tool-loop-diagram-title 04-tool-loop-diagram-desc">
+<title id="04-tool-loop-diagram-title">04  工具调用与 ReAct 循环</title>
+<desc id="04-tool-loop-diagram-desc">模型提出工具请求；共享 Thread store 驱动策略检查、工具执行和下一次模型调用。</desc>
+<style>text { font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif; }</style>
+<defs>
+<marker id="04-tool-loop-arrow-blue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#2563eb"/></marker>
+<marker id="04-tool-loop-arrow-green" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#16a34a"/></marker>
+<marker id="04-tool-loop-arrow-purple" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#9333ea"/></marker>
+<marker id="04-tool-loop-arrow-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#dc2626"/></marker>
+</defs>
+<rect width="1740" height="1060" fill="#ffffff" data-graph-role="background"/>
+<g data-graph-role="legend"><line x1="60" y1="1013" x2="92" y2="1013" stroke="#2563eb" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="350" y1="1013" x2="382" y2="1013" stroke="#9333ea" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="690" y1="1013" x2="722" y2="1013" stroke="#16a34a" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="1010" y1="1013" x2="1042" y2="1013" stroke="#dc2626" stroke-width="2.5"/></g>
+<path id="04-tool-loop-edge-1" data-edge-id="edge-1" data-graph-role="edge" data-source="turn" data-target="calls" d="M 400,250.0 L 540,250.0" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#04-tool-loop-arrow-purple)"/>
+<path id="04-tool-loop-edge-2" data-edge-id="edge-2" data-graph-role="edge" data-source="calls" data-target="allow" d="M 880,250.0 L 1020,250.0" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#04-tool-loop-arrow-purple)"/>
+<path id="04-tool-loop-edge-3" data-edge-id="edge-3" data-graph-role="edge" data-source="allow" data-target="review" d="M 1360,250.0 L 1480,250.0" fill="none" stroke="#dc2626" stroke-width="2.5" marker-end="url(#04-tool-loop-arrow-red)"/>
+<path id="04-tool-loop-edge-4" data-edge-id="edge-4" data-graph-role="edge" data-source="allow" data-target="execute" d="M 1190.0,320 L 1190.0,480" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#04-tool-loop-arrow-blue)"/>
+<path id="04-tool-loop-edge-5" data-edge-id="edge-5" data-graph-role="edge" data-source="execute" data-target="results" d="M 1020,550 L 880,550" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#04-tool-loop-arrow-purple)"/>
+<path id="04-tool-loop-edge-6" data-edge-id="edge-6" data-graph-role="edge" data-source="results" data-target="repeat" d="M 540,550 L 400,550" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#04-tool-loop-arrow-purple)"/>
+<path id="04-tool-loop-edge-7" data-edge-id="edge-7" data-graph-role="edge" data-source="repeat" data-target="turn" d="M 230,480 L 230,320" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#04-tool-loop-arrow-purple)"/>
+<path id="04-tool-loop-edge-8" data-edge-id="edge-8" data-graph-role="edge" data-source="repeat" data-target="settle" d="M 230.0,620 L 230.0,790" fill="none" stroke="#dc2626" stroke-width="2.5" marker-end="url(#04-tool-loop-arrow-red)"/>
+<g id="04-tool-loop-turn" data-graph-role="node" data-node-id="turn" data-graph-bounds="60,180,400,320"><title>streamTurn — 准备上下文 → transport → 模型 / core 的工具执行器返回 terminate / 真实工具交给宿主执行</title>
+<rect x="60" y="180" width="340" height="140" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 87,196 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="110" y="214" font-size="19" fill="#111827" font-weight="600" text-anchor="start">streamTurn</text>
+<text x="80" y="244" font-size="14" fill="#475569" font-weight="400" text-anchor="start">准备上下文 → transport → 模型</text>
+<text x="80" y="268" font-size="14" fill="#475569" font-weight="400" text-anchor="start">core 的工具执行器返回 terminate</text>
+<text x="80" y="292" font-size="14" fill="#475569" font-weight="400" text-anchor="start">真实工具交给宿主执行</text>
+</g>
+<g id="04-tool-loop-calls" data-graph-role="node" data-node-id="calls" data-graph-bounds="540,180,880,320"><title>reduceMessages — assistant.toolCalls / 工具名 + arguments + call id</title>
+<rect x="540" y="180" width="340" height="140" rx="8" fill="#faf5ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 556,196 h 16 l 6,6 v 16 h -22 Z M 572,196 v 6 h 6" fill="none" stroke="#9333ea"/>
+</g>
+<text x="590" y="214" font-size="19" fill="#111827" font-weight="600" text-anchor="start">reduceMessages</text>
+<text x="560" y="244" font-size="14" fill="#475569" font-weight="400" text-anchor="start">assistant.toolCalls</text>
+<text x="560" y="268" font-size="14" fill="#475569" font-weight="400" text-anchor="start">工具名 + arguments + call id</text>
+</g>
+<g id="04-tool-loop-allow" data-graph-role="node" data-node-id="allow" data-graph-bounds="1020,180,1360,320"><title>允许自动执行？ — 全部工具可执行 / 策略 / 风险 / 调用数</title>
+<path d="M 1190.0,180 L 1360,250.0 L 1190.0,320 L 1020,250.0 Z" fill="#fef2f2" stroke="#dc2626" stroke-width="1.5"/>
+<text x="1190.0" y="242.0" font-size="19" fill="#111827" font-weight="600" text-anchor="middle">允许自动执行？</text>
+<text x="1190.0" y="267.0" font-size="13" fill="#111827" font-weight="400" text-anchor="middle">全部工具可执行</text>
+<text x="1190.0" y="289.0" font-size="13" fill="#111827" font-weight="400" text-anchor="middle">策略 / 风险 / 调用数</text>
+</g>
+<g id="04-tool-loop-review" data-graph-role="node" data-node-id="review" data-graph-bounds="1480,180,1680,320"><title>暂停待审 — 手动处理 / 补结果 / 不自动越过限制</title>
+<rect x="1480" y="180" width="200" height="140" rx="8" fill="#fef2f2" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1496,196 h 16 l 6,6 v 16 h -22 Z M 1512,196 v 6 h 6" fill="none" stroke="#dc2626"/>
+</g>
+<text x="1530" y="214" font-size="19" fill="#111827" font-weight="600" text-anchor="start">暂停待审</text>
+<text x="1500" y="244" font-size="14" fill="#475569" font-weight="400" text-anchor="start">手动处理 / 补结果</text>
+<text x="1500" y="268" font-size="14" fill="#475569" font-weight="400" text-anchor="start">不自动越过限制</text>
+</g>
+<g id="04-tool-loop-execute" data-graph-role="node" data-node-id="execute" data-graph-bounds="1020,480,1360,620"><title>Host executeTool — Builtin / MCP / Plugin / 同一批工具 Promise.all / 实际权限由宿主与服务端决定</title>
+<rect x="1020" y="480" width="340" height="140" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1047,496 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="1070" y="514" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Host executeTool</text>
+<text x="1040" y="544" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Builtin / MCP / Plugin</text>
+<text x="1040" y="568" font-size="14" fill="#475569" font-weight="400" text-anchor="start">同一批工具 Promise.all</text>
+<text x="1040" y="592" font-size="14" fill="#475569" font-weight="400" text-anchor="start">实际权限由宿主与服务端决定</text>
+</g>
+<g id="04-tool-loop-results" data-graph-role="node" data-node-id="results" data-graph-bounds="540,480,880,620"><title>工具结果入消息 — content + isError + call id / 绑定原 toolCall.output</title>
+<rect x="540" y="480" width="340" height="140" rx="8" fill="#faf5ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 556,496 h 16 l 6,6 v 16 h -22 Z M 572,496 v 6 h 6" fill="none" stroke="#9333ea"/>
+</g>
+<text x="590" y="514" font-size="19" fill="#111827" font-weight="600" text-anchor="start">工具结果入消息</text>
+<text x="560" y="544" font-size="14" fill="#475569" font-weight="400" text-anchor="start">content + isError + call id</text>
+<text x="560" y="568" font-size="14" fill="#475569" font-weight="400" text-anchor="start">绑定原 toolCall.output</text>
+</g>
+<g id="04-tool-loop-repeat" data-graph-role="node" data-node-id="repeat" data-graph-bounds="60,480,400,620"><title>继续回合？ — reactLoop 开启 / 仍在回合上限内</title>
+<path d="M 230.0,480 L 400,550.0 L 230.0,620 L 60,550.0 Z" fill="#fef2f2" stroke="#dc2626" stroke-width="1.5"/>
+<text x="230.0" y="542.0" font-size="19" fill="#111827" font-weight="600" text-anchor="middle">继续回合？</text>
+<text x="230.0" y="567.0" font-size="13" fill="#111827" font-weight="400" text-anchor="middle">reactLoop 开启</text>
+<text x="230.0" y="589.0" font-size="13" fill="#111827" font-weight="400" text-anchor="middle">仍在回合上限内</text>
+</g>
+<g id="04-tool-loop-settle" data-graph-role="node" data-node-id="settle" data-graph-bounds="60,790,400,900"><title>结算运行 — 停止循环 → finalizeActiveRun / 清理状态 / 按结果保存历史</title>
+<rect x="60" y="790" width="340" height="110" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 76,806 h 16 l 6,6 v 16 h -22 Z M 92,806 v 6 h 6" fill="none" stroke="#16a34a"/>
+</g>
+<text x="110" y="824" font-size="19" fill="#111827" font-weight="600" text-anchor="start">结算运行</text>
+<text x="80" y="854" font-size="14" fill="#475569" font-weight="400" text-anchor="start">停止循环 → finalizeActiveRun</text>
+<text x="80" y="878" font-size="14" fill="#475569" font-weight="400" text-anchor="start">清理状态 / 按结果保存历史</text>
+</g>
+<text x="60" y="58" font-size="28" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">04  工具调用与 ReAct 循环</text>
+<text x="60" y="92" font-size="15" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">模型提出工具请求；共享 Thread store 驱动策略检查、工具执行和下一次模型调用。</text>
+<text x="470.0" y="238.0" font-size="14" fill="#9333ea" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-1">AgentEvent</text>
+<text x="950.0" y="238.0" font-size="14" fill="#9333ea" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-2">toolCalls</text>
+<text x="1420.0" y="238.0" font-size="14" fill="#dc2626" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-3">否</text>
+<text x="1204.0" y="400.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-4">是：受控调用</text>
+<text x="950" y="538" font-size="14" fill="#9333ea" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-5">toolResult</text>
+<text x="470" y="538" font-size="14" fill="#9333ea" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-6">含结果的上下文</text>
+<text x="246" y="407" font-size="14" fill="#9333ea" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-7">是：下一回合</text>
+<text x="244.0" y="705.0" font-size="14" fill="#dc2626" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-8">否</text>
+<text x="540" y="760" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">autoRunTools = false：首轮完成后停止，保留待执行工具调用。</text>
+<text x="540" y="805" font-size="16" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">autoRunTools = true、reactLoop = false：自动执行本轮工具，然后停止。</text>
+<text x="540" y="850" font-size="16" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">reactLoop = true：工具结果回填后再次请求模型；无工具、失败、中止或限额都会结束。</text>
+<text x="540" y="895" font-size="16" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">function stub 需要手填结果；破坏性 Bash 与不满足宿主策略的工具不会自动执行。</text>
+<text x="60" y="972" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">图示展开“有待执行工具”的路径；provider-hosted native tools 由供应商执行，不经过 Host executeTool。</text>
+<text x="102" y="1018" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">请求 / 主流程</text>
+<text x="392" y="1018" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">事件 / 结果 / 循环</text>
+<text x="732" y="1018" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">持久化 / 读取</text>
+<text x="1052" y="1018" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">检查 / 中止 / 边界</text>
+<text x="1680" y="58" font-size="13" fill="#6b7280" font-weight="400" text-anchor="end" data-graph-role="label">2026-09-03</text>
+</svg></div><div class="reading"><h2>04  工具调用与 ReAct 循环</h2>
+<p>autoRunTools 与 reactLoop 是两个不同开关，不能用“工具执行成功”代表模型最终回答完成。</p>
+<p>本图外层循环位于 packages/ui 的 Thread store，而不是全部藏在服务端 Agent 内。</p>
+<h3>读图后自检</h3><ul>
+<li>为什么模型返回 bash 参数不能视为用户授权？</li>
+<li>function、builtin、MCP、Plugin 和 provider-hosted tool 的执行位置有什么区别？</li>
+</ul><details><summary>对应源码与当前行号</summary><ul class="source-list">
+<li><a href="../../packages/ui/src/components/thread-playground/stores/thread-store.ts#L594"><code>packages/ui/src/components/thread-playground/stores/thread-store.ts</code></a> · L594 · <code>const executePendingToolCalls</code></li>
+<li><a href="../../packages/ui/src/components/thread-playground/stores/thread-store.ts#L1137"><code>packages/ui/src/components/thread-playground/stores/thread-store.ts</code></a> · L1137 · <code>async run(fromMessageId</code></li>
+<li><a href="../../packages/core/src/server/agent/stream.ts#L22"><code>packages/core/src/server/agent/stream.ts</code></a> · L22 · <code>export async function* streamAgent</code></li>
+<li><a href="../../packages/ui/src/host/types.ts#L70"><code>packages/ui/src/host/types.ts</code></a> · L70 · <code>export interface ToolExecutionPolicy</code></li>
+<li><a href="../../apps/web/src/guest/guest-tools.ts#L251"><code>apps/web/src/guest/guest-tools.ts</code></a> · L251 · <code>canGuestAutoExecute</code></li>
+<li><a href="../../apps/web/src/host/web-host.ts#L56"><code>apps/web/src/host/web-host.ts</code></a> · L56 · <code>export const webHost</code></li>
+</ul></details></div></section>
+<section class="panel" id="05-persistence" data-width="1600" hidden><div class="viewport" tabindex="0" aria-label="05  Thread、快照与存储边界可滚动画布"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1180" width="1600" height="1180" data-generator="fireworks-tech-graph" data-quality-profile="showcase" role="img" aria-labelledby="05-persistence-diagram-title 05-persistence-diagram-desc">
+<title id="05-persistence-diagram-title">05  Thread、快照与存储边界</title>
+<desc id="05-persistence-diagram-desc">区分可编辑内容、派生运行快照、瞬时 UI 状态，以及游客与身份服务各自的数据。</desc>
+<style>text { font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif; }</style>
+<defs>
+<marker id="05-persistence-arrow-blue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#2563eb"/></marker>
+<marker id="05-persistence-arrow-green" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#16a34a"/></marker>
+<marker id="05-persistence-arrow-purple" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#9333ea"/></marker>
+<marker id="05-persistence-arrow-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#dc2626"/></marker>
+</defs>
+<rect width="1600" height="1180" fill="#ffffff" data-graph-role="background"/>
+<rect x="40" y="135" width="920" height="680" rx="12" fill="#f0fdf4" fill-opacity="0.38" stroke="#d1d5db" stroke-dasharray="6 5" data-graph-role="container"/>
+<rect x="1020" y="135" width="540" height="680" rx="12" fill="#eff6ff" fill-opacity="0.38" stroke="#d1d5db" stroke-dasharray="6 5" data-graph-role="container"/>
+<g data-graph-role="legend"><line x1="60" y1="1133" x2="92" y2="1133" stroke="#2563eb" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="350" y1="1133" x2="382" y2="1133" stroke="#9333ea" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="690" y1="1133" x2="722" y2="1133" stroke="#16a34a" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="1010" y1="1133" x2="1042" y2="1133" stroke="#dc2626" stroke-width="2.5"/></g>
+<path id="05-persistence-edge-1" data-edge-id="edge-1" data-graph-role="edge" data-source="thread-store" data-target="save" d="M 440,270.0 L 560,270.0" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#05-persistence-arrow-green)"/>
+<path id="05-persistence-edge-2" data-edge-id="edge-2" data-graph-role="edge" data-source="save" data-target="workspace" d="M 745.0,335 L 745.0,465" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#05-persistence-arrow-green)"/>
+<path id="05-persistence-edge-3" data-edge-id="edge-3" data-graph-role="edge" data-source="workspace" data-target="history" d="M 560,530 L 440,530" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#05-persistence-arrow-green)"/>
+<g id="05-persistence-thread-store" data-graph-role="node" data-node-id="thread-store" data-graph-bounds="70,205,440,335"><title>Thread store（内存） — thread / streamingMessage / status / changeHistory（Undo / Redo） / runHistory 与评估引用</title>
+<rect x="70" y="205" width="370" height="130" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<rect x="86" y="221" width="23" height="19" rx="3" fill="none" stroke="#2563eb"/>
+<path d="M 86,227 h 23" stroke="#2563eb"/>
+</g>
+<text x="120" y="239" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Thread store（内存）</text>
+<text x="90" y="269" font-size="14" fill="#475569" font-weight="400" text-anchor="start">thread / streamingMessage / status</text>
+<text x="90" y="293" font-size="14" fill="#475569" font-weight="400" text-anchor="start">changeHistory（Undo / Redo）</text>
+<text x="90" y="317" font-size="14" fill="#475569" font-weight="400" text-anchor="start">runHistory 与评估引用</text>
+</g>
+<g id="05-persistence-save" data-graph-role="node" data-node-id="save" data-graph-bounds="560,205,930,335"><title>SerializedPersistence — ThreadTabPane 防抖、串行写入 / runtimeId 绑定正确存储宿主 / LocalFileSystem.write / archiveRun</title>
+<rect x="560" y="205" width="370" height="130" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 576,221 h 16 l 6,6 v 16 h -22 Z M 592,221 v 6 h 6" fill="none" stroke="#16a34a"/>
+</g>
+<text x="610" y="239" font-size="19" fill="#111827" font-weight="600" text-anchor="start">SerializedPersistence</text>
+<text x="580" y="269" font-size="14" fill="#475569" font-weight="400" text-anchor="start">ThreadTabPane 防抖、串行写入</text>
+<text x="580" y="293" font-size="14" fill="#475569" font-weight="400" text-anchor="start">runtimeId 绑定正确存储宿主</text>
+<text x="580" y="317" font-size="14" fill="#475569" font-weight="400" text-anchor="start">LocalFileSystem.write / archiveRun</text>
+</g>
+<g id="05-persistence-workspace" data-graph-role="node" data-node-id="workspace" data-graph-bounds="560,465,930,595"><title>workspace/ — 用户 Thread JSON / runHistoryIndex 保存轻量引用 / 规范化 → schema → 原子文件写入</title>
+<rect x="560" y="465" width="370" height="130" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 576,485 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="587" cy="485" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="610" y="499" font-size="19" fill="#111827" font-weight="600" text-anchor="start">workspace/</text>
+<text x="580" y="529" font-size="14" fill="#475569" font-weight="400" text-anchor="start">用户 Thread JSON</text>
+<text x="580" y="553" font-size="14" fill="#475569" font-weight="400" text-anchor="start">runHistoryIndex 保存轻量引用</text>
+<text x="580" y="577" font-size="14" fill="#475569" font-weight="400" text-anchor="start">规范化 → schema → 原子文件写入</text>
+</g>
+<g id="05-persistence-history" data-graph-role="node" data-node-id="history" data-graph-bounds="70,465,440,595"><title>history/ — sha256(resourceKey) / index.json / entryRef → 完整运行快照 / 不把派生文件放进 workspace</title>
+<rect x="70" y="465" width="370" height="130" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 86,485 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="97" cy="485" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="120" y="499" font-size="19" fill="#111827" font-weight="600" text-anchor="start">history/</text>
+<text x="90" y="529" font-size="14" fill="#475569" font-weight="400" text-anchor="start">sha256(resourceKey) / index.json</text>
+<text x="90" y="553" font-size="14" fill="#475569" font-weight="400" text-anchor="start">entryRef → 完整运行快照</text>
+<text x="90" y="577" font-size="14" fill="#475569" font-weight="400" text-anchor="start">不把派生文件放进 workspace</text>
+</g>
+<g id="05-persistence-settings" data-graph-role="node" data-node-id="settings" data-graph-bounds="70,680,440,780"><title>settings/ — 模型连接 / MCP / 网络等配置</title>
+<rect x="70" y="680" width="370" height="100" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 86,700 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="97" cy="700" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="120" y="714" font-size="19" fill="#111827" font-weight="600" text-anchor="start">settings/</text>
+<text x="90" y="744" font-size="14" fill="#475569" font-weight="400" text-anchor="start">模型连接 / MCP / 网络等配置</text>
+</g>
+<g id="05-persistence-traces" data-graph-role="node" data-node-id="traces" data-graph-bounds="560,680,930,780"><title>traces/ + plugins — 独立管理；不等同于 Thread 本文</title>
+<rect x="560" y="680" width="370" height="100" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 576,700 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="587" cy="700" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="610" y="714" font-size="19" fill="#111827" font-weight="600" text-anchor="start">traces/ + plugins</text>
+<text x="580" y="744" font-size="14" fill="#475569" font-weight="400" text-anchor="start">独立管理；不等同于 Thread 本文</text>
+</g>
+<g id="05-persistence-guest-store" data-graph-role="node" data-node-id="guest-store" data-graph-bounds="1050,205,1530,335"><title>Guest localStorage — 工作区与虚拟文件在浏览器 / 评测实验独立 key，含失败证据 / 没有在此建立 PostgreSQL 同步边</title>
+<rect x="1050" y="205" width="480" height="130" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1066,225 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="1077" cy="225" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="1100" y="239" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Guest localStorage</text>
+<text x="1070" y="269" font-size="14" fill="#475569" font-weight="400" text-anchor="start">工作区与虚拟文件在浏览器</text>
+<text x="1070" y="293" font-size="14" fill="#475569" font-weight="400" text-anchor="start">评测实验独立 key，含失败证据</text>
+<text x="1070" y="317" font-size="14" fill="#475569" font-weight="400" text-anchor="start">没有在此建立 PostgreSQL 同步边</text>
+</g>
+<g id="05-persistence-quota-store" data-graph-role="node" data-node-id="quota-store" data-graph-bounds="1050,425,1530,555"><title>Guest 额度 — SQLite（Bun）/ JSON（Node 入口） / 按 HMAC 身份与 UTC day 计数</title>
+<rect x="1050" y="425" width="480" height="130" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1066,445 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="1077" cy="445" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="1100" y="459" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Guest 额度</text>
+<text x="1070" y="489" font-size="14" fill="#475569" font-weight="400" text-anchor="start">SQLite（Bun）/ JSON（Node 入口）</text>
+<text x="1070" y="513" font-size="14" fill="#475569" font-weight="400" text-anchor="start">按 HMAC 身份与 UTC day 计数</text>
+</g>
+<g id="05-persistence-identity-store" data-graph-role="node" data-node-id="identity-store" data-graph-bounds="1050,645,1530,775"><title>Cloud PostgreSQL — 用户、租户、会话与 RLS schema / 当前 HTTP 入口主要是 OAuth / session</title>
+<rect x="1050" y="645" width="480" height="130" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1066,665 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="1077" cy="665" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="1100" y="679" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Cloud PostgreSQL</text>
+<text x="1070" y="709" font-size="14" fill="#475569" font-weight="400" text-anchor="start">用户、租户、会话与 RLS schema</text>
+<text x="1070" y="733" font-size="14" fill="#475569" font-weight="400" text-anchor="start">当前 HTTP 入口主要是 OAuth / session</text>
+</g>
+<text x="60" y="58" font-size="28" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">05  Thread、快照与存储边界</text>
+<text x="60" y="92" font-size="15" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">区分可编辑内容、派生运行快照、瞬时 UI 状态，以及游客与身份服务各自的数据。</text>
+<text x="62" y="167" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">Desktop / Remote：各自的 LLM_SPACE_HOME</text>
+<text x="500.0" y="258.0" font-size="14" fill="#16a34a" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-1">Thread</text>
+<text x="759.0" y="400.0" font-size="14" fill="#16a34a" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-2">规范化 Thread JSON</text>
+<text x="500" y="518" font-size="14" fill="#16a34a" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-3">snapshotRef</text>
+<text x="1042" y="167" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">其他持久化域</text>
+<text x="60" y="865" font-size="16" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">文件复制 cp：复制并重新关联历史；移动 mv：历史随 resourceKey 重键；写入时 prune 清除不再引用的快照。</text>
+<text x="60" y="910" font-size="16" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">删除 Thread：历史不会立即删除。maintain 首次发现资源缺失时记录 orphanedAt，超过 30 天保留期后回收。</text>
+<text x="60" y="955" font-size="16" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">Run history：保存成功完成的运行。changeHistory：为编辑与 Undo / Redo 服务。Trace：用于查看运行与工具证据。</text>
+<text x="60" y="1000" font-size="16" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">保存快照与保存 Thread 属于不同阶段；请以各层错误处理为准，不把多文件操作描述成跨文件数据库事务。</text>
+<text x="60" y="1092" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">一份 Thread 内容可以复用；数据归属始终跟随 runtime、浏览器来源或租户边界。</text>
+<text x="102" y="1138" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">请求 / 主流程</text>
+<text x="392" y="1138" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">事件 / 结果 / 循环</text>
+<text x="732" y="1138" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">持久化 / 读取</text>
+<text x="1052" y="1138" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">检查 / 中止 / 边界</text>
+<text x="1540" y="58" font-size="13" fill="#6b7280" font-weight="400" text-anchor="end" data-graph-role="label">2026-09-03</text>
+</svg></div><div class="reading"><h2>05  Thread、快照与存储边界</h2>
+<p>虚线框表示不同持久化归属，不表示自动同步。</p>
+<p>运行失败可能保留部分消息，普通成功历史与评测失败证据的策略不同。</p>
+<h3>读图后自检</h3><ul>
+<li>为什么移动 Thread 时必须同步 re-key 历史？</li>
+<li>清理 history 与删除 workspace 文件，恢复能力有何不同？</li>
+</ul><details><summary>对应源码与当前行号</summary><ul class="source-list">
+<li><a href="../../apps/desktop/src/components/thread-tabs/thread-tab-pane.tsx#L139"><code>apps/desktop/src/components/thread-tabs/thread-tab-pane.tsx</code></a> · L139 · <code>new SerializedPersistence</code></li>
+<li><a href="../../packages/ui/src/components/thread-playground/stores/thread-store.ts#L1137"><code>packages/ui/src/components/thread-playground/stores/thread-store.ts</code></a> · L1137 · <code>async run(fromMessageId</code></li>
+<li><a href="../../packages/core/src/server/storage/local/file-system.ts#L156"><code>packages/core/src/server/storage/local/file-system.ts</code></a> · L156 · <code>async write(p: string</code></li>
+<li><a href="../../packages/core/src/server/storage/local/run-history-store.ts#L47"><code>packages/core/src/server/storage/local/run-history-store.ts</code></a> · L47 · <code>export class RunHistoryStore</code></li>
+<li><a href="../../apps/desktop/src/bun/app/start-desktop-app.ts#L59"><code>apps/desktop/src/bun/app/start-desktop-app.ts</code></a> · L59 · <code>const workspacePath</code></li>
+<li><a href="../../apps/web/src/guest/guest-workspace.ts#L339"><code>apps/web/src/guest/guest-workspace.ts</code></a> · L339 · <code>persistGuestThreadUpdate</code></li>
+<li><a href="../../apps/web/src/guest/guest-evaluation-lab.ts#L19"><code>apps/web/src/guest/guest-evaluation-lab.ts</code></a> · L19 · <code>export const GUEST_EVALUATION_LAB_STORAGE_KEY</code></li>
+<li><a href="../../apps/cloud/src/guest-quota.ts#L22"><code>apps/cloud/src/guest-quota.ts</code></a> · L22 · <code>export class GuestQuotaStore</code></li>
+<li><a href="../../apps/cloud/src/guest-node-index.ts#L9"><code>apps/cloud/src/guest-node-index.ts</code></a> · L9 · <code>const quotaStore</code></li>
+<li><a href="../../apps/cloud/src/http-server.ts#L131"><code>apps/cloud/src/http-server.ts</code></a> · L131 · <code>url.pathname === &quot;/api/session&quot;</code></li>
+<li><a href="../../apps/cloud/migrations/0001_identity_and_tenants.sql#L4"><code>apps/cloud/migrations/0001_identity_and_tenants.sql</code></a> · L4 · <code>CREATE TABLE</code></li>
+</ul></details></div></section>
+<section class="panel" id="06-capability-matrix" data-width="1600" hidden><div class="viewport" tabindex="0" aria-label="06  宿主能力矩阵可滚动画布"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" width="1600" height="1000" data-generator="fireworks-tech-graph" data-quality-profile="showcase" role="img" aria-labelledby="06-capability-matrix-diagram-title 06-capability-matrix-diagram-desc">
+<title id="06-capability-matrix-diagram-title">06  宿主能力矩阵</title>
+<desc id="06-capability-matrix-diagram-desc">同一套 ThreadPlayground，根据 HostServices、transport 与服务端策略得到不同能力。</desc>
+<style>text { font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif; }</style>
+<defs>
+<marker id="06-capability-matrix-arrow-blue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#2563eb"/></marker>
+<marker id="06-capability-matrix-arrow-green" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#16a34a"/></marker>
+<marker id="06-capability-matrix-arrow-purple" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#9333ea"/></marker>
+<marker id="06-capability-matrix-arrow-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#dc2626"/></marker>
+</defs>
+<rect width="1600" height="1000" fill="#ffffff" data-graph-role="background"/>
+<rect x="60" y="150" width="250" height="68" fill="#eff6ff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="310" y="150" width="305" height="68" fill="#eff6ff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="615" y="150" width="305" height="68" fill="#eff6ff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="920" y="150" width="305" height="68" fill="#eff6ff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="1225" y="150" width="305" height="68" fill="#eff6ff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="60" y="218" width="250" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="310" y="218" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="615" y="218" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="920" y="218" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="1225" y="218" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="60" y="286" width="250" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="310" y="286" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="615" y="286" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="920" y="286" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="1225" y="286" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="60" y="354" width="250" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="310" y="354" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="615" y="354" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="920" y="354" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="1225" y="354" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="60" y="422" width="250" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="310" y="422" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="615" y="422" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="920" y="422" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="1225" y="422" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="60" y="490" width="250" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="310" y="490" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="615" y="490" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="920" y="490" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="1225" y="490" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="60" y="558" width="250" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="310" y="558" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="615" y="558" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="920" y="558" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="1225" y="558" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="60" y="626" width="250" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="310" y="626" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="615" y="626" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="920" y="626" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="1225" y="626" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="60" y="694" width="250" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="310" y="694" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="615" y="694" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="920" y="694" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="1225" y="694" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<g data-graph-role="legend"><line x1="60" y1="953" x2="92" y2="953" stroke="#2563eb" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="350" y1="953" x2="382" y2="953" stroke="#9333ea" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="690" y1="953" x2="722" y2="953" stroke="#16a34a" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="1010" y1="953" x2="1042" y2="953" stroke="#dc2626" stroke-width="2.5"/></g>
+<text x="60" y="58" font-size="28" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">06  宿主能力矩阵</text>
+<text x="60" y="92" font-size="15" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">同一套 ThreadPlayground，根据 HostServices、transport 与服务端策略得到不同能力。</text>
+<text x="78" y="191" font-size="16" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">能力 / 数据归属</text>
+<text x="328" y="191" font-size="16" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">Desktop Local</text>
+<text x="633" y="191" font-size="16" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">Desktop → Remote</text>
+<text x="938" y="191" font-size="16" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">Guest Web</text>
+<text x="1243" y="191" font-size="16" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">Shared Viewer</text>
+<text x="78" y="259" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">运行模型</text>
+<text x="328" y="259" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">本机 Provider 连接</text>
+<text x="633" y="259" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">远端 Provider 连接</text>
+<text x="938" y="259" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">Guest API 白名单</text>
+<text x="1243" y="259" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">无运行 transport</text>
+<text x="78" y="327" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">模型凭据</text>
+<text x="328" y="327" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">Desktop Bun 管理</text>
+<text x="633" y="327" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">远端 runtime 管理</text>
+<text x="938" y="327" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">Guest 服务端持有</text>
+<text x="1243" y="327" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">不需要模型凭据</text>
+<text x="78" y="395" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">工具执行</text>
+<text x="328" y="395" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">Builtin / MCP / Plugin</text>
+<text x="633" y="395" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">远端能力约定 / RPC</text>
+<text x="938" y="395" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">虚拟工具 + 受限代理</text>
+<text x="1243" y="395" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">不可执行</text>
+<text x="78" y="463" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">真实文件 / Bash</text>
+<text x="328" y="463" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">宿主支持；受策略约束</text>
+<text x="633" y="463" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">远端文件与 Shell</text>
+<text x="938" y="463" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">不提供真实文件 / Shell</text>
+<text x="1243" y="463" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">不可访问</text>
+<text x="78" y="531" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">MCP</text>
+<text x="328" y="531" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">本机配置与管理</text>
+<text x="633" y="531" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">按远端 capabilities</text>
+<text x="938" y="531" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">受限 HTTP/MCP；无 stdio</text>
+<text x="1243" y="531" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">不可调用</text>
+<text x="78" y="599" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">Thread 持久化</text>
+<text x="328" y="599" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">本机 workspace / history</text>
+<text x="633" y="599" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">远端 workspace / history</text>
+<text x="938" y="599" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">浏览器 localStorage</text>
+<text x="1243" y="599" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">读取分享 Gist</text>
+<text x="78" y="667" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">运行鉴权 / 限制</text>
+<text x="328" y="667" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">本机连接配置</text>
+<text x="633" y="667" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">Bearer + 兼容性协商</text>
+<text x="938" y="667" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">Guest / IP 额度与并发</text>
+<text x="1243" y="667" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">只读分享内容</text>
+<text x="78" y="735" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">LangGraph 导出</text>
+<text x="328" y="735" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">Desktop generator</text>
+<text x="633" y="735" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">取决于导出宿主实现</text>
+<text x="938" y="735" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">generator = null</text>
+<text x="1243" y="735" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">不可导出项目</text>
+<text x="60" y="824" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">读取方式：先确定当前宿主，再判断 transport、工具策略、数据归属；界面上出现工具名不代表工具可执行。</text>
+<text x="60" y="866" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">Remote 是 Desktop 选择的执行位置；Cloud identity 是独立身份服务，不能据此推定 Guest 已有账号同步或团队协作。</text>
+<text x="60" y="912" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">矩阵列出源码能力边界；外部配置、凭据、网络和部署可用性仍需独立验证。</text>
+<text x="102" y="958" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">请求 / 主流程</text>
+<text x="392" y="958" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">事件 / 结果 / 循环</text>
+<text x="732" y="958" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">持久化 / 读取</text>
+<text x="1052" y="958" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">检查 / 中止 / 边界</text>
+<text x="1540" y="58" font-size="13" fill="#6b7280" font-weight="400" text-anchor="end" data-graph-role="label">2026-09-03</text>
+</svg></div><div class="reading"><h2>06  宿主能力矩阵</h2>
+<p>HostServices 是能力注入界面，不是绕过服务端权限的凭证。</p>
+<p>Remote 的 API 能力由协议协商结果决定，不应假设本机所有操作均等价可用。</p>
+<h3>读图后自检</h3><ul>
+<li>为什么 Guest 工具列表出现 bash 仍不能执行真实 Shell？</li>
+<li>Viewer 和 Guest 复用 UI，为什么依然要分别验证能力？</li>
+</ul><details><summary>对应源码与当前行号</summary><ul class="source-list">
+<li><a href="../../packages/ui/src/host/types.ts#L70"><code>packages/ui/src/host/types.ts</code></a> · L70 · <code>export interface ToolExecutionPolicy</code></li>
+<li><a href="../../apps/web/src/host/web-host.ts#L56"><code>apps/web/src/host/web-host.ts</code></a> · L56 · <code>export const webHost</code></li>
+<li><a href="../../apps/web/src/thread-viewer.tsx#L8"><code>apps/web/src/thread-viewer.tsx</code></a> · L8 · <code>ThreadPlayground</code></li>
+<li><a href="../../apps/web/src/guest/guest-tools.ts#L251"><code>apps/web/src/guest/guest-tools.ts</code></a> · L251 · <code>canGuestAutoExecute</code></li>
+<li><a href="../../apps/cloud/src/guest-tool-service.ts#L17"><code>apps/cloud/src/guest-tool-service.ts</code></a> · L17 · <code>export</code></li>
+<li><a href="../../packages/runtime/src/runtime/types.ts#L90"><code>packages/runtime/src/runtime/types.ts</code></a> · L90 · <code>export interface RuntimeClient</code></li>
+<li><a href="../../apps/desktop/src/bun/remote/remote-runtime-client.ts#L191"><code>apps/desktop/src/bun/remote/remote-runtime-client.ts</code></a> · L191 · <code>async streamThread(</code></li>
+<li><a href="../../apps/server/src/http-server.ts#L33"><code>apps/server/src/http-server.ts</code></a> · L33 · <code>assertAuthorized(request</code></li>
+<li><a href="../../apps/desktop/src/bun/fs/generator-project.ts#L32"><code>apps/desktop/src/bun/fs/generator-project.ts</code></a> · L32 · <code>export</code></li>
+</ul></details></div></section>
+<section class="panel" id="07-evaluation-loop" data-width="1600" hidden><div class="viewport" tabindex="0" aria-label="07  Evaluation Lab V2 的改进循环可滚动画布"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1180" width="1600" height="1180" data-generator="fireworks-tech-graph" data-quality-profile="showcase" role="img" aria-labelledby="07-evaluation-loop-diagram-title 07-evaluation-loop-diagram-desc">
+<title id="07-evaluation-loop-diagram-title">07  Evaluation Lab V2 的改进循环</title>
+<desc id="07-evaluation-loop-diagram-desc">从冻结的源 Thread 出发，在隔离实验中比较 Baseline / Candidate，审阅差异后有条件地应用。</desc>
+<style>text { font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif; }</style>
+<defs>
+<marker id="07-evaluation-loop-arrow-blue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#2563eb"/></marker>
+<marker id="07-evaluation-loop-arrow-green" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#16a34a"/></marker>
+<marker id="07-evaluation-loop-arrow-purple" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#9333ea"/></marker>
+<marker id="07-evaluation-loop-arrow-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#dc2626"/></marker>
+</defs>
+<rect width="1600" height="1180" fill="#ffffff" data-graph-role="background"/>
+<g data-graph-role="legend"><line x1="60" y1="1133" x2="92" y2="1133" stroke="#2563eb" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="350" y1="1133" x2="382" y2="1133" stroke="#9333ea" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="690" y1="1133" x2="722" y2="1133" stroke="#16a34a" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="1010" y1="1133" x2="1042" y2="1133" stroke="#dc2626" stroke-width="2.5"/></g>
+<path id="07-evaluation-loop-edge-1" data-edge-id="edge-1" data-graph-role="edge" data-source="source" data-target="batch" d="M 440,255.0 L 610,255.0" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#07-evaluation-loop-arrow-blue)"/>
+<path id="07-evaluation-loop-edge-2" data-edge-id="edge-2" data-graph-role="edge" data-source="batch" data-target="evidence" d="M 990,255.0 L 1160,255.0" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#07-evaluation-loop-arrow-blue)"/>
+<path id="07-evaluation-loop-edge-3" data-edge-id="edge-3" data-graph-role="edge" data-source="evidence" data-target="review-eval" d="M 1350.0,330 L 1350.0,495" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#07-evaluation-loop-arrow-purple)"/>
+<path id="07-evaluation-loop-edge-4" data-edge-id="edge-4" data-graph-role="edge" data-source="review-eval" data-target="apply" d="M 1160,570 L 990,570" fill="none" stroke="#dc2626" stroke-width="2.5" marker-end="url(#07-evaluation-loop-arrow-red)"/>
+<path id="07-evaluation-loop-edge-5" data-edge-id="edge-5" data-graph-role="edge" data-source="apply" data-target="next" d="M 610,570 L 440,570" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#07-evaluation-loop-arrow-green)"/>
+<path id="07-evaluation-loop-edge-6" data-edge-id="edge-6" data-graph-role="edge" data-source="next" data-target="source" d="M 250,495 L 250,330" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#07-evaluation-loop-arrow-purple)"/>
+<g id="07-evaluation-loop-source" data-graph-role="node" data-node-id="source" data-graph-bounds="60,180,440,330"><title>冻结实验输入 — sourceThread → Baseline / Candidate 可编辑模型与 Prompt / Cases / expectations / rubrics</title>
+<rect x="60" y="180" width="380" height="150" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 87,196 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="110" y="214" font-size="19" fill="#111827" font-weight="600" text-anchor="start">冻结实验输入</text>
+<text x="80" y="244" font-size="14" fill="#475569" font-weight="400" text-anchor="start">sourceThread → Baseline</text>
+<text x="80" y="268" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Candidate 可编辑模型与 Prompt</text>
+<text x="80" y="292" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Cases / expectations / rubrics</text>
+</g>
+<g id="07-evaluation-loop-batch" data-graph-role="node" data-node-id="batch" data-graph-bounds="610,180,990,330"><title>批次预检与顺序运行 — selected cases × 两个 variant / 额度预估；逐项 await / 每项独立 Thread store</title>
+<rect x="610" y="180" width="380" height="150" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 637,196 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="660" y="214" font-size="19" fill="#111827" font-weight="600" text-anchor="start">批次预检与顺序运行</text>
+<text x="630" y="244" font-size="14" fill="#475569" font-weight="400" text-anchor="start">selected cases × 两个 variant</text>
+<text x="630" y="268" font-size="14" fill="#475569" font-weight="400" text-anchor="start">额度预估；逐项 await</text>
+<text x="630" y="292" font-size="14" fill="#475569" font-weight="400" text-anchor="start">每项独立 Thread store</text>
+</g>
+<g id="07-evaluation-loop-evidence" data-graph-role="node" data-node-id="evidence" data-graph-bounds="1160,180,1540,330"><title>收集运行证据 — 最多 3 模型回合 / 8 自动工具 / checks / token / duration / tool / completed / failed / needs_review</title>
+<rect x="1160" y="180" width="380" height="150" rx="8" fill="#faf5ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1187,196 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#9333ea"/>
+</g>
+<text x="1210" y="214" font-size="19" fill="#111827" font-weight="600" text-anchor="start">收集运行证据</text>
+<text x="1180" y="244" font-size="14" fill="#475569" font-weight="400" text-anchor="start">最多 3 模型回合 / 8 自动工具</text>
+<text x="1180" y="268" font-size="14" fill="#475569" font-weight="400" text-anchor="start">checks / token / duration / tool</text>
+<text x="1180" y="292" font-size="14" fill="#475569" font-weight="400" text-anchor="start">completed / failed / needs_review</text>
+</g>
+<g id="07-evaluation-loop-review-eval" data-graph-role="node" data-node-id="review-eval" data-graph-bounds="1160,495,1540,645"><title>回归比较与人工评价 — improved / regressed / unchanged / unknown；复核队列与重跑 / 导出 JSON / HTML 报告</title>
+<rect x="1160" y="495" width="380" height="150" rx="8" fill="#faf5ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1187,511 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#9333ea"/>
+</g>
+<text x="1210" y="529" font-size="19" fill="#111827" font-weight="600" text-anchor="start">回归比较与人工评价</text>
+<text x="1180" y="559" font-size="14" fill="#475569" font-weight="400" text-anchor="start">improved / regressed / unchanged</text>
+<text x="1180" y="583" font-size="14" fill="#475569" font-weight="400" text-anchor="start">unknown；复核队列与重跑</text>
+<text x="1180" y="607" font-size="14" fill="#475569" font-weight="400" text-anchor="start">导出 JSON / HTML 报告</text>
+</g>
+<g id="07-evaluation-loop-apply" data-graph-role="node" data-node-id="apply" data-graph-bounds="610,495,990,645"><title>预览并应用 Candidate — 对照 source / current / candidate / 有冲突 → 拒绝应用 / 先持久化成功，再恢复 UI</title>
+<rect x="610" y="495" width="380" height="150" rx="8" fill="#fef2f2" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 637,511 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#dc2626"/>
+</g>
+<text x="660" y="529" font-size="19" fill="#111827" font-weight="600" text-anchor="start">预览并应用 Candidate</text>
+<text x="630" y="559" font-size="14" fill="#475569" font-weight="400" text-anchor="start">对照 source / current / candidate</text>
+<text x="630" y="583" font-size="14" fill="#475569" font-weight="400" text-anchor="start">有冲突 → 拒绝应用</text>
+<text x="630" y="607" font-size="14" fill="#475569" font-weight="400" text-anchor="start">先持久化成功，再恢复 UI</text>
+</g>
+<g id="07-evaluation-loop-next" data-graph-role="node" data-node-id="next" data-graph-bounds="60,495,440,645"><title>下一轮实验 — 新 sourceThread + lineage / 继承 Cases；清空 runs / 评价 / 保留旧实验的历史证据</title>
+<rect x="60" y="495" width="380" height="150" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 87,511 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#16a34a"/>
+</g>
+<text x="110" y="529" font-size="19" fill="#111827" font-weight="600" text-anchor="start">下一轮实验</text>
+<text x="80" y="559" font-size="14" fill="#475569" font-weight="400" text-anchor="start">新 sourceThread + lineage</text>
+<text x="80" y="583" font-size="14" fill="#475569" font-weight="400" text-anchor="start">继承 Cases；清空 runs / 评价</text>
+<text x="80" y="607" font-size="14" fill="#475569" font-weight="400" text-anchor="start">保留旧实验的历史证据</text>
+</g>
+<g id="07-evaluation-loop-eval-storage" data-graph-role="node" data-node-id="eval-storage" data-graph-bounds="60,825,740,945"><title>localStorage · evaluation-lab.v2 — 实验与普通 Thread / Run history 分离；v1 可迁移 / 最多 10 个实验、每实验最多 50 Cases；默认批次 3 Cases</title>
+<rect x="60" y="825" width="680" height="120" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 76,845 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="87" cy="845" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="110" y="859" font-size="19" fill="#111827" font-weight="600" text-anchor="start">localStorage · evaluation-lab.v2</text>
+<text x="80" y="889" font-size="14" fill="#475569" font-weight="400" text-anchor="start">实验与普通 Thread / Run history 分离；v1 可迁移</text>
+<text x="80" y="913" font-size="14" fill="#475569" font-weight="400" text-anchor="start">最多 10 个实验、每实验最多 50 Cases；默认批次 3 Cases</text>
+</g>
+<g id="07-evaluation-loop-current-thread" data-graph-role="node" data-node-id="current-thread" data-graph-bounds="860,825,1540,945"><title>应用范围：当前 Thread 的选定字段 — model.provider / id / temperature / maxTokens + systemPrompt / 保留当前消息、工具、历史；不把整份实验结果覆盖回 Thread</title>
+<rect x="860" y="825" width="680" height="120" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 876,845 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="887" cy="845" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="910" y="859" font-size="19" fill="#111827" font-weight="600" text-anchor="start">应用范围：当前 Thread 的选定字段</text>
+<text x="880" y="889" font-size="14" fill="#475569" font-weight="400" text-anchor="start">model.provider / id / temperature / maxTokens + systemPrompt</text>
+<text x="880" y="913" font-size="14" fill="#475569" font-weight="400" text-anchor="start">保留当前消息、工具、历史；不把整份实验结果覆盖回 Thread</text>
+</g>
+<text x="60" y="58" font-size="28" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">07  Evaluation Lab V2 的改进循环</text>
+<text x="60" y="92" font-size="15" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">从冻结的源 Thread 出发，在隔离实验中比较 Baseline / Candidate，审阅差异后有条件地应用。</text>
+<text x="525.0" y="243.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-1">实验快照</text>
+<text x="1075.0" y="243.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-2">隔离运行</text>
+<text x="1364.0" y="412.5" font-size="14" fill="#9333ea" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-3">结果与检查</text>
+<text x="1075" y="558" font-size="14" fill="#dc2626" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-4">人工确认</text>
+<text x="525" y="558" font-size="14" fill="#16a34a" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-5">应用成功</text>
+<text x="268" y="418" font-size="14" fill="#9333ea" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-6">继续比较</text>
+<text x="60" y="732" font-size="16" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">额度估算：所选 Run 项数 × 3 个模型回合；正常首次批次通常为所选 Case 数 × 2 个 variant × 3。</text>
+<text x="60" y="774" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">普通运行仍经过 Guest API；实验没有绕过白名单、单用户并发或服务端额度，也没有自动 LLM Judge。</text>
+<text x="60" y="1092" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">当前源码已含 V2 lineage / 回归 / 应用逻辑；此图不代表本轮已执行模型评测或验证线上版本。</text>
+<text x="102" y="1138" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">请求 / 主流程</text>
+<text x="392" y="1138" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">事件 / 结果 / 循环</text>
+<text x="732" y="1138" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">持久化 / 读取</text>
+<text x="1052" y="1138" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">检查 / 中止 / 边界</text>
+<text x="1540" y="58" font-size="13" fill="#6b7280" font-weight="400" text-anchor="end" data-graph-role="label">2026-09-03</text>
+</svg></div><div class="reading"><h2>07  Evaluation Lab V2 的改进循环</h2>
+<p>不要沿用旧文档中“V2 仅计划”的描述；本图以当前源码为依据。</p>
+<p>应用时再次计算冲突；若当前 Thread 已改变或浏览器保存失败，不应在 UI 中假装应用成功。</p>
+<h3>读图后自检</h3><ul>
+<li>为什么跑实验时不能直接修改用户正在编辑的 Thread？</li>
+<li>若评测后用户修改了模型，应用 Candidate 时应该发生什么？</li>
+</ul><details><summary>对应源码与当前行号</summary><ul class="source-list">
+<li><a href="../../packages/core/src/thread/evaluation-experiment.ts#L22"><code>packages/core/src/thread/evaluation-experiment.ts</code></a> · L22 · <code>export const EVALUATION_LAB_VERSION</code></li>
+<li><a href="../../packages/core/src/thread/evaluation-experiment.ts#L279"><code>packages/core/src/thread/evaluation-experiment.ts</code></a> · L279 · <code>export function planEvaluationPromotion</code></li>
+<li><a href="../../packages/core/src/thread/evaluation-experiment.ts#L338"><code>packages/core/src/thread/evaluation-experiment.ts</code></a> · L338 · <code>export function createNextEvaluationExperiment</code></li>
+<li><a href="../../apps/web/src/guest/guest-evaluation-runner.ts#L27"><code>apps/web/src/guest/guest-evaluation-runner.ts</code></a> · L27 · <code>export async function runGuestEvaluationItem</code></li>
+<li><a href="../../apps/web/src/guest/guest-evaluation-lab-dialog.tsx#L294"><code>apps/web/src/guest/guest-evaluation-lab-dialog.tsx</code></a> · L294 · <code>const runItems</code></li>
+<li><a href="../../apps/web/src/guest/guest-workbench.tsx#L541"><code>apps/web/src/guest/guest-workbench.tsx</code></a> · L541 · <code>const applyEvaluationCandidate</code></li>
+<li><a href="../../apps/web/src/guest/guest-evaluation-lab.ts#L19"><code>apps/web/src/guest/guest-evaluation-lab.ts</code></a> · L19 · <code>export const GUEST_EVALUATION_LAB_STORAGE_KEY</code></li>
+</ul></details></div></section>
+<section class="panel" id="08-prompt-and-export" data-width="1600" hidden><div class="viewport" tabindex="0" aria-label="08  Prompt 渲染与 Python 导出可滚动画布"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1100" width="1600" height="1100" data-generator="fireworks-tech-graph" data-quality-profile="showcase" role="img" aria-labelledby="08-prompt-and-export-diagram-title 08-prompt-and-export-diagram-desc">
+<title id="08-prompt-and-export-diagram-title">08  Prompt 渲染与 Python 导出</title>
+<desc id="08-prompt-and-export-diagram-desc">编辑态模板、运行态请求、冻结快照与独立导出项目是不同的数据形态。</desc>
+<style>text { font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif; }</style>
+<defs>
+<marker id="08-prompt-and-export-arrow-blue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#2563eb"/></marker>
+<marker id="08-prompt-and-export-arrow-green" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#16a34a"/></marker>
+<marker id="08-prompt-and-export-arrow-purple" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#9333ea"/></marker>
+<marker id="08-prompt-and-export-arrow-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#dc2626"/></marker>
+</defs>
+<rect width="1600" height="1100" fill="#ffffff" data-graph-role="background"/>
+<g data-graph-role="legend"><line x1="60" y1="1053" x2="92" y2="1053" stroke="#2563eb" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="350" y1="1053" x2="382" y2="1053" stroke="#9333ea" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="690" y1="1053" x2="722" y2="1053" stroke="#16a34a" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="1010" y1="1053" x2="1042" y2="1053" stroke="#dc2626" stroke-width="2.5"/></g>
+<path id="08-prompt-and-export-edge-1" data-edge-id="edge-1" data-graph-role="edge" data-source="editable" data-target="render" d="M 460,245.0 L 610,245.0" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#08-prompt-and-export-arrow-blue)"/>
+<path id="08-prompt-and-export-edge-2" data-edge-id="edge-2" data-graph-role="edge" data-source="render" data-target="request" d="M 1010,245.0 L 1160,245.0" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#08-prompt-and-export-arrow-blue)"/>
+<path id="08-prompt-and-export-edge-3" data-edge-id="edge-3" data-graph-role="edge" data-source="render" data-target="snapshot" d="M 810.0,310 L 810.0,465" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#08-prompt-and-export-arrow-green)"/>
+<path id="08-prompt-and-export-edge-4" data-edge-id="edge-4" data-graph-role="edge" data-source="editable" data-target="generator" d="M 260,310 L 260,765" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#08-prompt-and-export-arrow-blue)"/>
+<path id="08-prompt-and-export-edge-5" data-edge-id="edge-5" data-graph-role="edge" data-source="generator" data-target="python" d="M 460,835.0 L 610,835.0" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#08-prompt-and-export-arrow-green)"/>
+<path id="08-prompt-and-export-edge-6" data-edge-id="edge-6" data-graph-role="edge" data-source="python" data-target="followup" d="M 1010,835.0 L 1160,835.0" fill="none" stroke="#dc2626" stroke-width="2.5" marker-end="url(#08-prompt-and-export-arrow-red)"/>
+<g id="08-prompt-and-export-editable" data-graph-role="node" data-node-id="editable" data-graph-bounds="60,180,460,310"><title>编辑态 ThreadContext — systemPrompt / messages / tools / 变量定义与模板仍可编辑 / 不把模板直接当作最终模型输入</title>
+<rect x="60" y="180" width="400" height="130" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 76,196 h 16 l 6,6 v 16 h -22 Z M 92,196 v 6 h 6" fill="none" stroke="#2563eb"/>
+</g>
+<text x="110" y="214" font-size="19" fill="#111827" font-weight="600" text-anchor="start">编辑态 ThreadContext</text>
+<text x="80" y="244" font-size="14" fill="#475569" font-weight="400" text-anchor="start">systemPrompt / messages / tools</text>
+<text x="80" y="268" font-size="14" fill="#475569" font-weight="400" text-anchor="start">变量定义与模板仍可编辑</text>
+<text x="80" y="292" font-size="14" fill="#475569" font-weight="400" text-anchor="start">不把模板直接当作最终模型输入</text>
+</g>
+<g id="08-prompt-and-export-render" data-graph-role="node" data-node-id="render" data-graph-bounds="610,180,1010,310"><title>renderThreadPromptVariables — 加载变量、Skills、文件 / renderTemplateText / Nunjucks / 得到 rendered context + snapshot</title>
+<rect x="610" y="180" width="400" height="130" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 637,196 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="660" y="214" font-size="19" fill="#111827" font-weight="600" text-anchor="start">renderThreadPromptVariables</text>
+<text x="630" y="244" font-size="14" fill="#475569" font-weight="400" text-anchor="start">加载变量、Skills、文件</text>
+<text x="630" y="268" font-size="14" fill="#475569" font-weight="400" text-anchor="start">renderTemplateText / Nunjucks</text>
+<text x="630" y="292" font-size="14" fill="#475569" font-weight="400" text-anchor="start">得到 rendered context + snapshot</text>
+</g>
+<g id="08-prompt-and-export-request" data-graph-role="node" data-node-id="request" data-graph-bounds="1160,180,1540,310"><title>运行请求 — streamThread → convertToPiContext / AgentStreamRequest / transport → core/server</title>
+<rect x="1160" y="180" width="380" height="130" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1187,196 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="1210" y="214" font-size="19" fill="#111827" font-weight="600" text-anchor="start">运行请求</text>
+<text x="1180" y="244" font-size="14" fill="#475569" font-weight="400" text-anchor="start">streamThread → convertToPiContext</text>
+<text x="1180" y="268" font-size="14" fill="#475569" font-weight="400" text-anchor="start">AgentStreamRequest</text>
+<text x="1180" y="292" font-size="14" fill="#475569" font-weight="400" text-anchor="start">transport → core/server</text>
+</g>
+<g id="08-prompt-and-export-snapshot" data-graph-role="node" data-node-id="snapshot" data-graph-bounds="610,465,1010,595"><title>Prompt snapshot — 冻结变量与渲染输出 / 随运行快照记录，供检查 / 重放 / 编辑变量或模板时按语义失效</title>
+<rect x="610" y="465" width="400" height="130" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 626,485 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="637" cy="485" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="660" y="499" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Prompt snapshot</text>
+<text x="630" y="529" font-size="14" fill="#475569" font-weight="400" text-anchor="start">冻结变量与渲染输出</text>
+<text x="630" y="553" font-size="14" fill="#475569" font-weight="400" text-anchor="start">随运行快照记录，供检查 / 重放</text>
+<text x="630" y="577" font-size="14" fill="#475569" font-weight="400" text-anchor="start">编辑变量或模板时按语义失效</text>
+</g>
+<g id="08-prompt-and-export-generator" data-graph-role="node" data-node-id="generator" data-graph-bounds="60,765,460,905"><title>langgraphGenerator — Desktop 宿主选择目标目录 / 按 Thread / 模型 / 工具确定性生成 / 生成过程不调用 LLM</title>
+<rect x="60" y="765" width="400" height="140" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 87,781 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="110" y="799" font-size="19" fill="#111827" font-weight="600" text-anchor="start">langgraphGenerator</text>
+<text x="80" y="829" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Desktop 宿主选择目标目录</text>
+<text x="80" y="853" font-size="14" fill="#475569" font-weight="400" text-anchor="start">按 Thread / 模型 / 工具确定性生成</text>
+<text x="80" y="877" font-size="14" fill="#475569" font-weight="400" text-anchor="start">生成过程不调用 LLM</text>
+</g>
+<g id="08-prompt-and-export-python" data-graph-role="node" data-node-id="python" data-graph-bounds="610,765,1010,905"><title>Python / uv 项目 — agent / model / variables.py / 受支持 built-in 工具的真实实现 / MCP 配置；自定义 function stub</title>
+<rect x="610" y="765" width="400" height="140" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 626,781 h 16 l 6,6 v 16 h -22 Z M 642,781 v 6 h 6" fill="none" stroke="#16a34a"/>
+</g>
+<text x="660" y="799" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Python / uv 项目</text>
+<text x="630" y="829" font-size="14" fill="#475569" font-weight="400" text-anchor="start">agent / model / variables.py</text>
+<text x="630" y="853" font-size="14" fill="#475569" font-weight="400" text-anchor="start">受支持 built-in 工具的真实实现</text>
+<text x="630" y="877" font-size="14" fill="#475569" font-weight="400" text-anchor="start">MCP 配置；自定义 function stub</text>
+</g>
+<g id="08-prompt-and-export-followup" data-graph-role="node" data-node-id="followup" data-graph-bounds="1160,765,1540,905"><title>导出边界 — references/ + PLAN.md 说明待办 / Plugin / provider-hosted tools 拒绝 / 未知 built-in 不自动补成真实实现</title>
+<rect x="1160" y="765" width="380" height="140" rx="8" fill="#fef2f2" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1176,781 h 16 l 6,6 v 16 h -22 Z M 1192,781 v 6 h 6" fill="none" stroke="#dc2626"/>
+</g>
+<text x="1210" y="799" font-size="19" fill="#111827" font-weight="600" text-anchor="start">导出边界</text>
+<text x="1180" y="829" font-size="14" fill="#475569" font-weight="400" text-anchor="start">references/ + PLAN.md 说明待办</text>
+<text x="1180" y="853" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Plugin / provider-hosted tools 拒绝</text>
+<text x="1180" y="877" font-size="14" fill="#475569" font-weight="400" text-anchor="start">未知 built-in 不自动补成真实实现</text>
+</g>
+<text x="60" y="58" font-size="28" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">08  Prompt 渲染与 Python 导出</text>
+<text x="60" y="92" font-size="15" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">编辑态模板、运行态请求、冻结快照与独立导出项目是不同的数据形态。</text>
+<text x="535.0" y="233.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-1">模板 / 变量</text>
+<text x="1085.0" y="233.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-2">渲染结果</text>
+<text x="824.0" y="387.5" font-size="14" fill="#16a34a" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-3">snapshot</text>
+<text x="276" y="565" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-4">导出输入（另一路径）</text>
+<text x="535.0" y="823.0" font-size="14" fill="#16a34a" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-5">源码文件</text>
+<text x="1085.0" y="823.0" font-size="14" fill="#dc2626" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-6">检查待办</text>
+<text x="60" y="980" font-size="16" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">修改内置变量 / 函数 / filter / macro：同时维护 TypeScript 与生成的 Python，并执行生成 Python 的回归验证。</text>
+<text x="60" y="1012" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">可导出不等于所有工具都已实现；阅读 PLAN.md 与 references，再验证生成项目的实际运行能力。</text>
+<text x="102" y="1058" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">请求 / 主流程</text>
+<text x="392" y="1058" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">事件 / 结果 / 循环</text>
+<text x="732" y="1058" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">持久化 / 读取</text>
+<text x="1052" y="1058" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">检查 / 中止 / 边界</text>
+<text x="1540" y="58" font-size="13" fill="#6b7280" font-weight="400" text-anchor="end" data-graph-role="label">2026-09-03</text>
+</svg></div><div class="reading"><h2>08  Prompt 渲染与 Python 导出</h2>
+<p>图中竖向导出箭头表示独立功能入口，导出宿主仍会准备渲染结果和模型/工具配置。</p>
+<p>Thread 的编辑态内容与运行快照分开，便于解释“当时到底向模型发送了什么”。</p>
+<h3>读图后自检</h3><ul>
+<li>为什么回看历史时不能只用当前变量重新渲染？</li>
+<li>为什么改变 Prompt 内置函数需要验证 TypeScript / Python 两端？</li>
+</ul><details><summary>对应源码与当前行号</summary><ul class="source-list">
+<li><a href="../../packages/core/src/thread/prompt-variables.ts#L431"><code>packages/core/src/thread/prompt-variables.ts</code></a> · L431 · <code>export async function renderThreadPromptVariables</code></li>
+<li><a href="../../packages/core/src/thread/template-render.ts#L235"><code>packages/core/src/thread/template-render.ts</code></a> · L235 · <code>renderTemplateText</code></li>
+<li><a href="../../packages/core/src/client/api.ts#L14"><code>packages/core/src/client/api.ts</code></a> · L14 · <code>export async function* streamThread</code></li>
+<li><a href="../../packages/core/src/client/converters.ts#L12"><code>packages/core/src/client/converters.ts</code></a> · L12 · <code>convertToPiContext</code></li>
+<li><a href="../../packages/core/src/generator/langgraph/index.ts#L106"><code>packages/core/src/generator/langgraph/index.ts</code></a> · L106 · <code>export const langgraphGenerator</code></li>
+<li><a href="../../packages/core/src/generator/langgraph/variables.py#L30"><code>packages/core/src/generator/langgraph/variables.py</code></a> · L30 · <code>def </code></li>
+<li><a href="../../apps/desktop/src/bun/fs/generator-project.ts#L32"><code>apps/desktop/src/bun/fs/generator-project.ts</code></a> · L32 · <code>export</code></li>
+<li><a href="../../packages/core/tests/generator/langgraph/index.test.ts#L9"><code>packages/core/tests/generator/langgraph/index.test.ts</code></a> · L9 · <code>test(</code></li>
+</ul></details></div></section>
+<section class="panel" id="09-remote-runtime" data-width="1600" hidden><div class="viewport" tabindex="0" aria-label="09  Remote Runtime 的连接与数据路径可滚动画布"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1200" width="1600" height="1200" data-generator="fireworks-tech-graph" data-quality-profile="showcase" role="img" aria-labelledby="09-remote-runtime-diagram-title 09-remote-runtime-diagram-desc">
+<title id="09-remote-runtime-diagram-title">09  Remote Runtime 的连接与数据路径</title>
+<desc id="09-remote-runtime-diagram-desc">Desktop 是控制界面；远端 apps/server 是执行宿主。连接管理与模型数据流分开理解。</desc>
+<style>text { font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif; }</style>
+<defs>
+<marker id="09-remote-runtime-arrow-blue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#2563eb"/></marker>
+<marker id="09-remote-runtime-arrow-green" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#16a34a"/></marker>
+<marker id="09-remote-runtime-arrow-purple" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#9333ea"/></marker>
+<marker id="09-remote-runtime-arrow-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#dc2626"/></marker>
+</defs>
+<rect width="1600" height="1200" fill="#ffffff" data-graph-role="background"/>
+<rect x="40" y="135" width="1520" height="345" rx="12" fill="#fef2f2" fill-opacity="0.38" stroke="#d1d5db" stroke-dasharray="6 5" data-graph-role="container"/>
+<rect x="40" y="530" width="1520" height="420" rx="12" fill="#eff6ff" fill-opacity="0.38" stroke="#d1d5db" stroke-dasharray="6 5" data-graph-role="container"/>
+<line x1="800" y1="745" x2="800" y2="905" stroke="#d1d5db" stroke-dasharray="5 6" data-graph-role="decoration"/>
+<line x1="260" y1="745" x2="260" y2="905" stroke="#d1d5db" stroke-dasharray="5 6" data-graph-role="decoration"/>
+<g data-graph-role="legend"><line x1="60" y1="1153" x2="92" y2="1153" stroke="#2563eb" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="350" y1="1153" x2="382" y2="1153" stroke="#9333ea" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="690" y1="1153" x2="722" y2="1153" stroke="#16a34a" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="1010" y1="1153" x2="1042" y2="1153" stroke="#dc2626" stroke-width="2.5"/></g>
+<path id="09-remote-runtime-edge-1" data-edge-id="edge-1" data-graph-role="edge" data-source="connect" data-target="health" d="M 450,275.0 L 610,275.0" fill="none" stroke="#dc2626" stroke-width="2.5" marker-end="url(#09-remote-runtime-arrow-red)"/>
+<path id="09-remote-runtime-edge-2" data-edge-id="edge-2" data-graph-role="edge" data-source="health" data-target="register" d="M 990,275.0 L 1150,275.0" fill="none" stroke="#dc2626" stroke-width="2.5" marker-end="url(#09-remote-runtime-arrow-red)"/>
+<path id="09-remote-runtime-edge-3" data-edge-id="edge-3" data-graph-role="edge" data-source="desktop" data-target="server" d="M 450,680.0 L 610,680.0" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#09-remote-runtime-arrow-blue)"/>
+<path id="09-remote-runtime-edge-4" data-edge-id="edge-4" data-graph-role="edge" data-source="server" data-target="remote-core" d="M 990,680.0 L 1150,680.0" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#09-remote-runtime-arrow-blue)"/>
+<path id="09-remote-runtime-edge-5" data-edge-id="edge-5" data-graph-role="edge" data-source="remote-core" data-target="server" d="M 1150,710 L 1080,710 L 1080,850 L 800,850" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#09-remote-runtime-arrow-purple)"/>
+<path id="09-remote-runtime-edge-6" data-edge-id="edge-6" data-graph-role="edge" data-source="server" data-target="desktop" d="M 800,850 L 260,850" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#09-remote-runtime-arrow-purple)"/>
+<g id="09-remote-runtime-connect" data-graph-role="node" data-node-id="connect" data-graph-bounds="70,210,450,340"><title>RemoteServerManager — SSH 托管连接或手工 HTTP 地址 / SSH 路径需主机身份信任 / 远端 server 启动 / 连接管理</title>
+<rect x="70" y="210" width="380" height="130" rx="8" fill="#fef2f2" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 97,226 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#dc2626"/>
+</g>
+<text x="120" y="244" font-size="19" fill="#111827" font-weight="600" text-anchor="start">RemoteServerManager</text>
+<text x="90" y="274" font-size="14" fill="#475569" font-weight="400" text-anchor="start">SSH 托管连接或手工 HTTP 地址</text>
+<text x="90" y="298" font-size="14" fill="#475569" font-weight="400" text-anchor="start">SSH 路径需主机身份信任</text>
+<text x="90" y="322" font-size="14" fill="#475569" font-weight="400" text-anchor="start">远端 server 启动 / 连接管理</text>
+</g>
+<g id="09-remote-runtime-health" data-graph-role="node" data-node-id="health" data-graph-bounds="610,210,990,340"><title>RemoteRuntimeClient — Bearer GET /health / 核对 protocol / version / capabilities / 失败不注册成可用 runtime</title>
+<rect x="610" y="210" width="380" height="130" rx="8" fill="#fef2f2" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 637,226 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#dc2626"/>
+</g>
+<text x="660" y="244" font-size="19" fill="#111827" font-weight="600" text-anchor="start">RemoteRuntimeClient</text>
+<text x="630" y="274" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Bearer GET /health</text>
+<text x="630" y="298" font-size="14" fill="#475569" font-weight="400" text-anchor="start">核对 protocol / version / capabilities</text>
+<text x="630" y="322" font-size="14" fill="#475569" font-weight="400" text-anchor="start">失败不注册成可用 runtime</text>
+</g>
+<g id="09-remote-runtime-register" data-graph-role="node" data-node-id="register" data-graph-bounds="1150,210,1530,340"><title>RuntimeRouter — 注册 RuntimeClient / 使用 runtimeId 选择本机或远端 / 共享 UI 继续使用相同宿主接口</title>
+<rect x="1150" y="210" width="380" height="130" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1177,226 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="1200" y="244" font-size="19" fill="#111827" font-weight="600" text-anchor="start">RuntimeRouter</text>
+<text x="1170" y="274" font-size="14" fill="#475569" font-weight="400" text-anchor="start">注册 RuntimeClient</text>
+<text x="1170" y="298" font-size="14" fill="#475569" font-weight="400" text-anchor="start">使用 runtimeId 选择本机或远端</text>
+<text x="1170" y="322" font-size="14" fill="#475569" font-weight="400" text-anchor="start">共享 UI 继续使用相同宿主接口</text>
+</g>
+<g id="09-remote-runtime-desktop" data-graph-role="node" data-node-id="desktop" data-graph-bounds="70,615,450,745"><title>Desktop Bun client — Renderer RPC → RemoteRuntimeClient / POST /rpc：文件 / 模型 / 工具等 / POST /stream：request + connection</title>
+<rect x="70" y="615" width="380" height="130" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 97,631 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="120" y="649" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Desktop Bun client</text>
+<text x="90" y="679" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Renderer RPC → RemoteRuntimeClient</text>
+<text x="90" y="703" font-size="14" fill="#475569" font-weight="400" text-anchor="start">POST /rpc：文件 / 模型 / 工具等</text>
+<text x="90" y="727" font-size="14" fill="#475569" font-weight="400" text-anchor="start">POST /stream：request + connection</text>
+</g>
+<g id="09-remote-runtime-server" data-graph-role="node" data-node-id="server" data-graph-bounds="610,615,990,745"><title>apps/server — assertAuthorized → HTTP 路由 / LocalRuntimeClient / Controller / 自己的文件、模型连接与工具配置</title>
+<rect x="610" y="615" width="380" height="130" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 637,631 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="660" y="649" font-size="19" fill="#111827" font-weight="600" text-anchor="start">apps/server</text>
+<text x="630" y="679" font-size="14" fill="#475569" font-weight="400" text-anchor="start">assertAuthorized → HTTP 路由</text>
+<text x="630" y="703" font-size="14" fill="#475569" font-weight="400" text-anchor="start">LocalRuntimeClient / Controller</text>
+<text x="630" y="727" font-size="14" fill="#475569" font-weight="400" text-anchor="start">自己的文件、模型连接与工具配置</text>
+</g>
+<g id="09-remote-runtime-remote-core" data-graph-role="node" data-node-id="remote-core" data-graph-bounds="1150,615,1530,745"><title>远端 core/server — streamAgent → Provider / 执行位置与凭据属于远端宿主 / 共享语义与本机路径相同</title>
+<rect x="1150" y="615" width="380" height="130" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1177,631 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="1200" y="649" font-size="19" fill="#111827" font-weight="600" text-anchor="start">远端 core/server</text>
+<text x="1170" y="679" font-size="14" fill="#475569" font-weight="400" text-anchor="start">streamAgent → Provider</text>
+<text x="1170" y="703" font-size="14" fill="#475569" font-weight="400" text-anchor="start">执行位置与凭据属于远端宿主</text>
+<text x="1170" y="727" font-size="14" fill="#475569" font-weight="400" text-anchor="start">共享语义与本机路径相同</text>
+</g>
+<text x="60" y="58" font-size="28" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">09  Remote Runtime 的连接与数据路径</text>
+<text x="60" y="92" font-size="15" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">Desktop 是控制界面；远端 apps/server 是执行宿主。连接管理与模型数据流分开理解。</text>
+<text x="62" y="167" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">连接建立 / 控制面</text>
+<text x="530.0" y="263.0" font-size="14" fill="#dc2626" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-1">连接信息</text>
+<text x="1070.0" y="263.0" font-size="14" fill="#dc2626" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-2">协商结果</text>
+<text x="70" y="421" font-size="16" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">SSH 解决连接与远端生命周期；HTTP API 仍校验 Bearer。协议兼容性与业务操作能力分别检查。</text>
+<text x="62" y="562" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">运行数据 / 数据面</text>
+<text x="530.0" y="668.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-3">Bearer HTTP</text>
+<text x="1070.0" y="668.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-4">Agent request</text>
+<text x="965" y="835" font-size="14" fill="#9333ea" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-5">AgentEvent</text>
+<text x="530" y="835" font-size="14" fill="#9333ea" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-6">SSE data → RPC events → UI reducer</text>
+<text x="60" y="1008" font-size="16" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">中止：Desktop abortStream → 取消远端 fetch；服务端响应 cancel → runtime.abortStream(streamId)。</text>
+<text x="60" y="1050" font-size="16" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">/health、/rpc、/stream、/shutdown 都在鉴权之后；不要把 apps/server 当作匿名 Guest API。</text>
+<text x="60" y="1112" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">远端文件和本机文件是两个归属域；runtimeId 必须沿查询、工具执行、保存和历史读取路径保留。</text>
+<text x="102" y="1158" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">请求 / 主流程</text>
+<text x="392" y="1158" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">事件 / 结果 / 循环</text>
+<text x="732" y="1158" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">持久化 / 读取</text>
+<text x="1052" y="1158" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">检查 / 中止 / 边界</text>
+<text x="1540" y="58" font-size="13" fill="#6b7280" font-weight="400" text-anchor="end" data-graph-role="label">2026-09-03</text>
+</svg></div><div class="reading"><h2>09  Remote Runtime 的连接与数据路径</h2>
+<p>返回通道画到竖向参与者延长线；紫色箭头方向明确表示从远端回到桌面。</p>
+<p>远端 HTTP /rpc 是统一能力接口，与 Guest 的受限工具代理不是同一个服务。</p>
+<h3>读图后自检</h3><ul>
+<li>只验证远端 /health 为 200 是否足以判断能运行某个工具？</li>
+<li>为什么切换 runtime 后仍使用相同 Thread store？</li>
+</ul><details><summary>对应源码与当前行号</summary><ul class="source-list">
+<li><a href="../../apps/desktop/src/bun/remote/remote-server-manager.ts#L162"><code>apps/desktop/src/bun/remote/remote-server-manager.ts</code></a> · L162 · <code>connectServer(</code></li>
+<li><a href="../../apps/desktop/src/bun/remote/remote-runtime-manager.ts#L13"><code>apps/desktop/src/bun/remote/remote-runtime-manager.ts</code></a> · L13 · <code>registerConfiguredRemoteRuntime</code></li>
+<li><a href="../../apps/desktop/src/bun/remote/remote-runtime-client.ts#L191"><code>apps/desktop/src/bun/remote/remote-runtime-client.ts</code></a> · L191 · <code>async streamThread(</code></li>
+<li><a href="../../packages/runtime/src/runtime/runtime-router.ts#L3"><code>packages/runtime/src/runtime/runtime-router.ts</code></a> · L3 · <code>export class RuntimeRouter</code></li>
+<li><a href="../../packages/runtime/src/runtime/types.ts#L90"><code>packages/runtime/src/runtime/types.ts</code></a> · L90 · <code>export interface RuntimeClient</code></li>
+<li><a href="../../apps/server/src/http-server.ts#L33"><code>apps/server/src/http-server.ts</code></a> · L33 · <code>assertAuthorized(request</code></li>
+<li><a href="../../apps/server/src/stream.ts#L10"><code>apps/server/src/stream.ts</code></a> · L10 · <code>export function createStreamResponse</code></li>
+<li><a href="../../apps/server/src/runtime-factory.ts#L19"><code>apps/server/src/runtime-factory.ts</code></a> · L19 · <code>export</code></li>
+</ul></details></div></section>
+</main></div><footer>使用 fireworks-tech-graph · Flat Icon 风格。SVG / PNG / 离线 HTML / 可维护生成器 / 源码指纹。</footer>
+<script>"use strict";const panels=[...document.querySelectorAll(".panel")],buttons=[...document.querySelectorAll("nav button")];let current=0,zoom=1;function draw(){const panel=panels[current],viewport=panel.querySelector(".viewport"),svg=panel.querySelector("svg");svg.style.width=(Math.max(240,viewport.clientWidth-2)*zoom)+"px";document.getElementById("zoom").textContent=Math.round(zoom*100)+"%"}function select(index){current=index;panels.forEach((p,i)=>p.hidden=i!==index);buttons.forEach((b,i)=>b.setAttribute("aria-current",String(i===index)));zoom=1;const slug=panels[index].id;document.getElementById("svg-link").href="svg/"+slug+".svg";document.getElementById("png-link").href="png/"+slug+".png";history.replaceState(null,"","#"+slug);draw()}buttons.forEach((b,i)=>b.addEventListener("click",()=>select(i)));document.getElementById("zoom-in").addEventListener("click",()=>{zoom=Math.min(3,zoom+.25);draw()});document.getElementById("zoom-out").addEventListener("click",()=>{zoom=Math.max(.5,zoom-.25);draw()});document.getElementById("fit").addEventListener("click",()=>{zoom=1;draw()});window.addEventListener("resize",draw);const initial=panels.findIndex(p=>"#"+p.id===location.hash);select(initial<0?0:initial);</script></body></html>

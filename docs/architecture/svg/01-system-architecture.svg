@@ -1,0 +1,165 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1100" width="1600" height="1100" data-generator="fireworks-tech-graph" data-quality-profile="showcase" role="img" aria-labelledby="diagram-title diagram-desc">
+<title id="diagram-title">01  项目运行架构</title>
+<desc id="diagram-desc">四条宿主路径；同名 core / UI 表示复用代码，不表示共享进程或相同权限。</desc>
+<style>text { font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif; }</style>
+<defs>
+<marker id="arrow-blue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#2563eb"/></marker>
+<marker id="arrow-green" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#16a34a"/></marker>
+<marker id="arrow-purple" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#9333ea"/></marker>
+<marker id="arrow-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#dc2626"/></marker>
+</defs>
+<rect width="1600" height="1100" fill="#ffffff" data-graph-role="background"/>
+<rect x="40" y="130" width="360" height="660" rx="12" fill="#eff6ff" fill-opacity="0.38" stroke="#d1d5db" stroke-dasharray="6 5" data-graph-role="container"/>
+<rect x="420" y="130" width="360" height="660" rx="12" fill="#eff6ff" fill-opacity="0.38" stroke="#d1d5db" stroke-dasharray="6 5" data-graph-role="container"/>
+<rect x="800" y="130" width="360" height="660" rx="12" fill="#faf5ff" fill-opacity="0.38" stroke="#d1d5db" stroke-dasharray="6 5" data-graph-role="container"/>
+<rect x="1180" y="130" width="360" height="660" rx="12" fill="#f0fdf4" fill-opacity="0.38" stroke="#d1d5db" stroke-dasharray="6 5" data-graph-role="container"/>
+<g data-graph-role="legend"><line x1="60" y1="1053" x2="92" y2="1053" stroke="#2563eb" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="350" y1="1053" x2="382" y2="1053" stroke="#9333ea" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="690" y1="1053" x2="722" y2="1053" stroke="#16a34a" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="1010" y1="1053" x2="1042" y2="1053" stroke="#dc2626" stroke-width="2.5"/></g>
+<path id="edge-1" data-edge-id="edge-1" data-graph-role="edge" data-source="d-ui" data-target="d-runtime" d="M 220.0,305 L 220.0,425" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+<path id="edge-2" data-edge-id="edge-2" data-graph-role="edge" data-source="d-runtime" data-target="d-core" d="M 220.0,535 L 220.0,655" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+<path id="edge-3" data-edge-id="edge-3" data-graph-role="edge" data-source="g-ui" data-target="g-api" d="M 600.0,305 L 600.0,425" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+<path id="edge-4" data-edge-id="edge-4" data-graph-role="edge" data-source="g-api" data-target="g-core" d="M 600.0,535 L 600.0,655" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+<path id="edge-5" data-edge-id="edge-5" data-graph-role="edge" data-source="v-ui" data-target="v-read" d="M 980.0,305 L 980.0,425" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+<path id="edge-6" data-edge-id="edge-6" data-graph-role="edge" data-source="v-read" data-target="v-gist" d="M 980.0,535 L 980.0,655" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+<path id="edge-7" data-edge-id="edge-7" data-graph-role="edge" data-source="i-user" data-target="i-api" d="M 1360.0,305 L 1360.0,425" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+<path id="edge-8" data-edge-id="edge-8" data-graph-role="edge" data-source="i-api" data-target="i-db" d="M 1360.0,535 L 1360.0,655" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+<g id="d-ui" data-graph-role="node" data-node-id="d-ui" data-graph-bounds="60,195,380,305"><title>Desktop renderer — apps/desktop · React / Electrobun / 注入 HostServices / ModelClient</title>
+<rect x="60" y="195" width="320" height="110" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<rect x="76" y="211" width="23" height="19" rx="3" fill="none" stroke="#2563eb"/>
+<path d="M 76,217 h 23" stroke="#2563eb"/>
+</g>
+<text x="110" y="229" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Desktop renderer</text>
+<text x="80" y="259" font-size="14" fill="#475569" font-weight="400" text-anchor="start">apps/desktop · React / Electrobun</text>
+<text x="80" y="283" font-size="14" fill="#475569" font-weight="400" text-anchor="start">注入 HostServices / ModelClient</text>
+</g>
+<g id="d-runtime" data-graph-role="node" data-node-id="d-runtime" data-graph-bounds="60,425,380,535"><title>Desktop Bun host — apps/desktop + packages/runtime / RuntimeRouter · models / tools</title>
+<rect x="60" y="425" width="320" height="110" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 87,441 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="110" y="459" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Desktop Bun host</text>
+<text x="80" y="489" font-size="14" fill="#475569" font-weight="400" text-anchor="start">apps/desktop + packages/runtime</text>
+<text x="80" y="513" font-size="14" fill="#475569" font-weight="400" text-anchor="start">RuntimeRouter · models / tools</text>
+</g>
+<g id="d-core" data-graph-role="node" data-node-id="d-core" data-graph-bounds="60,655,380,765"><title>core/server · Agent — streamAgent → pi-agent / pi-ai / 本机 Provider 配置与 API 凭据</title>
+<rect x="60" y="655" width="320" height="110" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 87,671 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="110" y="689" font-size="19" fill="#111827" font-weight="600" text-anchor="start">core/server · Agent</text>
+<text x="80" y="719" font-size="14" fill="#475569" font-weight="400" text-anchor="start">streamAgent → pi-agent / pi-ai</text>
+<text x="80" y="743" font-size="14" fill="#475569" font-weight="400" text-anchor="start">本机 Provider 配置与 API 凭据</text>
+</g>
+<g id="g-ui" data-graph-role="node" data-node-id="g-ui" data-graph-bounds="440,195,760,305"><title>GuestWorkbench — apps/web + packages/ui / Thread store · 浏览器本地工作区</title>
+<rect x="440" y="195" width="320" height="110" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<rect x="456" y="211" width="23" height="19" rx="3" fill="none" stroke="#2563eb"/>
+<path d="M 456,217 h 23" stroke="#2563eb"/>
+</g>
+<text x="490" y="229" font-size="19" fill="#111827" font-weight="600" text-anchor="start">GuestWorkbench</text>
+<text x="460" y="259" font-size="14" fill="#475569" font-weight="400" text-anchor="start">apps/web + packages/ui</text>
+<text x="460" y="283" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Thread store · 浏览器本地工作区</text>
+</g>
+<g id="g-api" data-graph-role="node" data-node-id="g-api" data-graph-bounds="440,425,760,535"><title>Guest API — apps/cloud · guest-index.ts / 请求校验 / 并发 / 额度 / 工具代理</title>
+<rect x="440" y="425" width="320" height="110" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 467,441 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="490" y="459" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Guest API</text>
+<text x="460" y="489" font-size="14" fill="#475569" font-weight="400" text-anchor="start">apps/cloud · guest-index.ts</text>
+<text x="460" y="513" font-size="14" fill="#475569" font-weight="400" text-anchor="start">请求校验 / 并发 / 额度 / 工具代理</text>
+</g>
+<g id="g-core" data-graph-role="node" data-node-id="g-core" data-graph-bounds="440,655,760,765"><title>core/server · Agent — streamAgent → 白名单模型 / Provider 凭据留在服务端</title>
+<rect x="440" y="655" width="320" height="110" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 467,671 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="490" y="689" font-size="19" fill="#111827" font-weight="600" text-anchor="start">core/server · Agent</text>
+<text x="460" y="719" font-size="14" fill="#475569" font-weight="400" text-anchor="start">streamAgent → 白名单模型</text>
+<text x="460" y="743" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Provider 凭据留在服务端</text>
+</g>
+<g id="v-ui" data-graph-role="node" data-node-id="v-ui" data-graph-bounds="820,195,1140,305"><title>ThreadViewer — apps/web + ThreadPlayground / readonly · 展示分享内容</title>
+<rect x="820" y="195" width="320" height="110" rx="8" fill="#faf5ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<rect x="836" y="211" width="23" height="19" rx="3" fill="none" stroke="#9333ea"/>
+<path d="M 836,217 h 23" stroke="#9333ea"/>
+</g>
+<text x="870" y="229" font-size="19" fill="#111827" font-weight="600" text-anchor="start">ThreadViewer</text>
+<text x="840" y="259" font-size="14" fill="#475569" font-weight="400" text-anchor="start">apps/web + ThreadPlayground</text>
+<text x="840" y="283" font-size="14" fill="#475569" font-weight="400" text-anchor="start">readonly · 展示分享内容</text>
+</g>
+<g id="v-read" data-graph-role="node" data-node-id="v-read" data-graph-bounds="820,425,1140,535"><title>Gist connector — packages/core/storage / 读取 Thread JSON 与元数据</title>
+<rect x="820" y="425" width="320" height="110" rx="8" fill="#faf5ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 836,441 h 16 l 6,6 v 16 h -22 Z M 852,441 v 6 h 6" fill="none" stroke="#9333ea"/>
+</g>
+<text x="870" y="459" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Gist connector</text>
+<text x="840" y="489" font-size="14" fill="#475569" font-weight="400" text-anchor="start">packages/core/storage</text>
+<text x="840" y="513" font-size="14" fill="#475569" font-weight="400" text-anchor="start">读取 Thread JSON 与元数据</text>
+</g>
+<g id="v-gist" data-graph-role="node" data-node-id="v-gist" data-graph-bounds="820,655,1140,765"><title>GitHub Gist — Desktop 分享流程写入 Gist / Viewer 无运行 transport</title>
+<rect x="820" y="655" width="320" height="110" rx="8" fill="#faf5ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 836,675 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#9333ea"/>
+<ellipse cx="847" cy="675" rx="11" ry="4" fill="none" stroke="#9333ea"/>
+</g>
+<text x="870" y="689" font-size="19" fill="#111827" font-weight="600" text-anchor="start">GitHub Gist</text>
+<text x="840" y="719" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Desktop 分享流程写入 Gist</text>
+<text x="840" y="743" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Viewer 无运行 transport</text>
+</g>
+<g id="i-user" data-graph-role="node" data-node-id="i-user" data-graph-bounds="1200,195,1520,305"><title>OAuth / Session — GitHub OAuth 回调与会话请求 / 独立于匿名 Guest Run 路径</title>
+<rect x="1200" y="195" width="320" height="110" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<rect x="1216" y="211" width="23" height="19" rx="3" fill="none" stroke="#16a34a"/>
+<path d="M 1216,217 h 23" stroke="#16a34a"/>
+</g>
+<text x="1250" y="229" font-size="19" fill="#111827" font-weight="600" text-anchor="start">OAuth / Session</text>
+<text x="1220" y="259" font-size="14" fill="#475569" font-weight="400" text-anchor="start">GitHub OAuth 回调与会话请求</text>
+<text x="1220" y="283" font-size="14" fill="#475569" font-weight="400" text-anchor="start">独立于匿名 Guest Run 路径</text>
+</g>
+<g id="i-api" data-graph-role="node" data-node-id="i-api" data-graph-bounds="1200,425,1520,535"><title>Cloud identity — apps/cloud · index.ts / OAuth / Cookie / tenant 初始化</title>
+<rect x="1200" y="425" width="320" height="110" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1227,441 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#16a34a"/>
+</g>
+<text x="1250" y="459" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Cloud identity</text>
+<text x="1220" y="489" font-size="14" fill="#475569" font-weight="400" text-anchor="start">apps/cloud · index.ts</text>
+<text x="1220" y="513" font-size="14" fill="#475569" font-weight="400" text-anchor="start">OAuth / Cookie / tenant 初始化</text>
+</g>
+<g id="i-db" data-graph-role="node" data-node-id="i-db" data-graph-bounds="1200,655,1520,765"><title>PostgreSQL — 用户 / 租户 / membership / session / RLS；表存在不等于业务 API 完整</title>
+<rect x="1200" y="655" width="320" height="110" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1216,675 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="1227" cy="675" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="1250" y="689" font-size="19" fill="#111827" font-weight="600" text-anchor="start">PostgreSQL</text>
+<text x="1220" y="719" font-size="14" fill="#475569" font-weight="400" text-anchor="start">用户 / 租户 / membership / session</text>
+<text x="1220" y="743" font-size="14" fill="#475569" font-weight="400" text-anchor="start">RLS；表存在不等于业务 API 完整</text>
+</g>
+<text x="60" y="58" font-size="28" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">01  项目运行架构</text>
+<text x="60" y="92" font-size="15" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">四条宿主路径；同名 core / UI 表示复用代码，不表示共享进程或相同权限。</text>
+<text x="62" y="162" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">Desktop / 本地桌面</text>
+<text x="442" y="162" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">Guest Web / 浏览器游客</text>
+<text x="822" y="162" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">Viewer / 分享阅读</text>
+<text x="1202" y="162" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">Identity / 身份服务</text>
+<text x="234.0" y="365.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-1">typed RPC</text>
+<text x="234.0" y="595.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-2">AgentStreamRequest</text>
+<text x="614.0" y="365.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-3">HTTP / SSE</text>
+<text x="614.0" y="595.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-4">受限请求</text>
+<text x="994.0" y="365.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-5">分享 locator</text>
+<text x="994.0" y="595.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-6">读取请求</text>
+<text x="1374.0" y="365.0" font-size="14" fill="#16a34a" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-7">OAuth code / cookie</text>
+<text x="1374.0" y="595.0" font-size="14" fill="#16a34a" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-8">会话与租户数据</text>
+<text x="60" y="842" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">packages/ui：共享交互与状态；HostServices 负责宿主能力，ModelClient 负责模型目录与连接选择。</text>
+<text x="60" y="879" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">packages/core：Thread / Prompt / 转换 / reducer；core/server：Agent 流与服务端存储。packages/runtime：可信宿主的集成与路由。</text>
+<text x="60" y="916" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">Remote Runtime：Desktop Bun 可切换到 apps/server，再复用 runtime / core；远端连接与请求路径见图 09。</text>
+<text x="60" y="1012" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">证据边界：当前源码的组件与连接；没有据此宣称已部署或线上可用。</text>
+<text x="102" y="1058" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">请求 / 主流程</text>
+<text x="392" y="1058" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">事件 / 结果 / 循环</text>
+<text x="732" y="1058" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">持久化 / 读取</text>
+<text x="1052" y="1058" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">检查 / 中止 / 边界</text>
+<text x="1540" y="58" font-size="13" fill="#6b7280" font-weight="400" text-anchor="end" data-graph-role="label">2026-09-03</text>
+</svg>

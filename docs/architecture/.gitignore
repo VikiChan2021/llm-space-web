@@ -1,0 +1,3 @@
+# Reproducible raster exports; SVG and the authored generator remain trackable.
+/png/
+/__pycache__/

@@ -1,0 +1,135 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1140" width="1600" height="1140" data-generator="fireworks-tech-graph" data-quality-profile="showcase" role="img" aria-labelledby="diagram-title diagram-desc">
+<title id="diagram-title">03  Guest Web 的数据流</title>
+<desc id="diagram-desc">顺着蓝色请求向右，再沿紫色结果向左；浏览器状态与服务端额度分别持久化。</desc>
+<style>text { font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif; }</style>
+<defs>
+<marker id="arrow-blue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#2563eb"/></marker>
+<marker id="arrow-green" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#16a34a"/></marker>
+<marker id="arrow-purple" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#9333ea"/></marker>
+<marker id="arrow-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#dc2626"/></marker>
+</defs>
+<rect width="1600" height="1140" fill="#ffffff" data-graph-role="background"/>
+<rect x="40" y="135" width="440" height="775" rx="12" fill="#eff6ff" fill-opacity="0.38" stroke="#d1d5db" stroke-dasharray="6 5" data-graph-role="container"/>
+<rect x="580" y="135" width="440" height="775" rx="12" fill="#fef2f2" fill-opacity="0.38" stroke="#d1d5db" stroke-dasharray="6 5" data-graph-role="container"/>
+<rect x="1120" y="135" width="440" height="775" rx="12" fill="#faf5ff" fill-opacity="0.38" stroke="#d1d5db" stroke-dasharray="6 5" data-graph-role="container"/>
+<g data-graph-role="legend"><line x1="60" y1="1093" x2="92" y2="1093" stroke="#2563eb" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="350" y1="1093" x2="382" y2="1093" stroke="#9333ea" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="690" y1="1093" x2="722" y2="1093" stroke="#16a34a" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="1010" y1="1093" x2="1042" y2="1093" stroke="#dc2626" stroke-width="2.5"/></g>
+<path id="edge-1" data-edge-id="edge-1" data-graph-role="edge" data-source="browser" data-target="gate" d="M 450,270.0 L 610,270.0" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+<path id="edge-2" data-edge-id="edge-2" data-graph-role="edge" data-source="gate" data-target="model" d="M 990,270.0 L 1150,270.0" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+<path id="edge-3" data-edge-id="edge-3" data-graph-role="edge" data-source="model" data-target="model-events" d="M 1340.0,330 L 1340.0,565" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#arrow-purple)"/>
+<path id="edge-4" data-edge-id="edge-4" data-graph-role="edge" data-source="model-events" data-target="sse" d="M 1150,625 L 990,625" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#arrow-purple)"/>
+<path id="edge-5" data-edge-id="edge-5" data-graph-role="edge" data-source="sse" data-target="ui-results" d="M 610,625 L 450,625" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#arrow-purple)"/>
+<path id="edge-6" data-edge-id="edge-6" data-graph-role="edge" data-source="gate" data-target="quota" d="M 740,330 L 740,405" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+<path id="edge-7" data-edge-id="edge-7" data-graph-role="edge" data-source="quota" data-target="gate" d="M 850,405 L 850,330" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+<path id="edge-8" data-edge-id="edge-8" data-graph-role="edge" data-source="ui-results" data-target="local" d="M 260.0,685 L 260.0,760" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+<g id="browser" data-graph-role="node" data-node-id="browser" data-graph-bounds="70,210,450,330"><title>Guest Thread — 模板、消息、模型、工具定义 / createGuestTransport(request)</title>
+<rect x="70" y="210" width="380" height="120" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<rect x="86" y="226" width="23" height="19" rx="3" fill="none" stroke="#2563eb"/>
+<path d="M 86,232 h 23" stroke="#2563eb"/>
+</g>
+<text x="120" y="244" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Guest Thread</text>
+<text x="90" y="274" font-size="14" fill="#475569" font-weight="400" text-anchor="start">模板、消息、模型、工具定义</text>
+<text x="90" y="298" font-size="14" fill="#475569" font-weight="400" text-anchor="start">createGuestTransport(request)</text>
+</g>
+<g id="gate" data-graph-role="node" data-node-id="gate" data-graph-bounds="610,210,990,330"><title>Guest 请求检查 — Origin / 大小 / 模型与工具白名单 / 按 guest 限并发；guest / IP 额度</title>
+<rect x="610" y="210" width="380" height="120" rx="8" fill="#fef2f2" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 637,226 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#dc2626"/>
+</g>
+<text x="660" y="244" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Guest 请求检查</text>
+<text x="630" y="274" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Origin / 大小 / 模型与工具白名单</text>
+<text x="630" y="298" font-size="14" fill="#475569" font-weight="400" text-anchor="start">按 guest 限并发；guest / IP 额度</text>
+</g>
+<g id="model" data-graph-role="node" data-node-id="model" data-graph-bounds="1150,210,1530,330"><title>GuestModelExecutor — 服务端 streamAgent → BigModel / 受限配置；API key 不返回浏览器</title>
+<rect x="1150" y="210" width="380" height="120" rx="8" fill="#faf5ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1177,226 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#9333ea"/>
+</g>
+<text x="1200" y="244" font-size="19" fill="#111827" font-weight="600" text-anchor="start">GuestModelExecutor</text>
+<text x="1170" y="274" font-size="14" fill="#475569" font-weight="400" text-anchor="start">服务端 streamAgent → BigModel</text>
+<text x="1170" y="298" font-size="14" fill="#475569" font-weight="400" text-anchor="start">受限配置；API key 不返回浏览器</text>
+</g>
+<g id="ui-results" data-graph-role="node" data-node-id="ui-results" data-graph-bounds="70,565,450,685"><title>消息与 Run 结果 — parseGuestStreamData → reduceMessages / 文本 / toolCall / usage / 错误</title>
+<rect x="70" y="565" width="380" height="120" rx="8" fill="#faf5ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<rect x="86" y="581" width="23" height="19" rx="3" fill="none" stroke="#9333ea"/>
+<path d="M 86,587 h 23" stroke="#9333ea"/>
+</g>
+<text x="120" y="599" font-size="19" fill="#111827" font-weight="600" text-anchor="start">消息与 Run 结果</text>
+<text x="90" y="629" font-size="14" fill="#475569" font-weight="400" text-anchor="start">parseGuestStreamData → reduceMessages</text>
+<text x="90" y="653" font-size="14" fill="#475569" font-weight="400" text-anchor="start">文本 / toolCall / usage / 错误</text>
+</g>
+<g id="sse" data-graph-role="node" data-node-id="sse" data-graph-bounds="610,565,990,685"><title>SSE response — AgentEvent + [START] / [DONE] / 失败转换为 guest_run_error</title>
+<rect x="610" y="565" width="380" height="120" rx="8" fill="#faf5ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 626,581 h 16 l 6,6 v 16 h -22 Z M 642,581 v 6 h 6" fill="none" stroke="#9333ea"/>
+</g>
+<text x="660" y="599" font-size="19" fill="#111827" font-weight="600" text-anchor="start">SSE response</text>
+<text x="630" y="629" font-size="14" fill="#475569" font-weight="400" text-anchor="start">AgentEvent + [START] / [DONE]</text>
+<text x="630" y="653" font-size="14" fill="#475569" font-weight="400" text-anchor="start">失败转换为 guest_run_error</text>
+</g>
+<g id="model-events" data-graph-role="node" data-node-id="model-events" data-graph-bounds="1150,565,1530,685"><title>模型事件 — 增量消息、工具请求、结束事件 / 本轮结果；不直接执行浏览器工具</title>
+<rect x="1150" y="565" width="380" height="120" rx="8" fill="#faf5ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1166,581 h 16 l 6,6 v 16 h -22 Z M 1182,581 v 6 h 6" fill="none" stroke="#9333ea"/>
+</g>
+<text x="1200" y="599" font-size="19" fill="#111827" font-weight="600" text-anchor="start">模型事件</text>
+<text x="1170" y="629" font-size="14" fill="#475569" font-weight="400" text-anchor="start">增量消息、工具请求、结束事件</text>
+<text x="1170" y="653" font-size="14" fill="#475569" font-weight="400" text-anchor="start">本轮结果；不直接执行浏览器工具</text>
+</g>
+<g id="local" data-graph-role="node" data-node-id="local" data-graph-bounds="70,760,450,880"><title>localStorage — Thread / 偏好 / 虚拟文件 / 评测实验单独存储（图 07）</title>
+<rect x="70" y="760" width="380" height="120" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 86,780 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="97" cy="780" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="120" y="794" font-size="19" fill="#111827" font-weight="600" text-anchor="start">localStorage</text>
+<text x="90" y="824" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Thread / 偏好 / 虚拟文件</text>
+<text x="90" y="848" font-size="14" fill="#475569" font-weight="400" text-anchor="start">评测实验单独存储（图 07）</text>
+</g>
+<g id="quota" data-graph-role="node" data-node-id="quota" data-graph-bounds="610,405,990,515"><title>额度计数存储 — Bun: SQLite；Node 入口: JSON / HMAC(guest / IP) + day + run_count</title>
+<rect x="610" y="405" width="380" height="110" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 626,425 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="637" cy="425" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="660" y="439" font-size="19" fill="#111827" font-weight="600" text-anchor="start">额度计数存储</text>
+<text x="630" y="469" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Bun: SQLite；Node 入口: JSON</text>
+<text x="630" y="493" font-size="14" fill="#475569" font-weight="400" text-anchor="start">HMAC(guest / IP) + day + run_count</text>
+</g>
+<g id="tools" data-graph-role="node" data-node-id="tools" data-graph-bounds="1150,760,1530,880"><title>受限工具通道 — 浏览器虚拟工具；Web / MCP 代理 / 独立端点与网络 / 输出 / 并发限制</title>
+<rect x="1150" y="760" width="380" height="120" rx="8" fill="#fef2f2" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1177,776 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#dc2626"/>
+</g>
+<text x="1200" y="794" font-size="19" fill="#111827" font-weight="600" text-anchor="start">受限工具通道</text>
+<text x="1170" y="824" font-size="14" fill="#475569" font-weight="400" text-anchor="start">浏览器虚拟工具；Web / MCP 代理</text>
+<text x="1170" y="848" font-size="14" fill="#475569" font-weight="400" text-anchor="start">独立端点与网络 / 输出 / 并发限制</text>
+</g>
+<text x="60" y="58" font-size="28" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">03  Guest Web 的数据流</text>
+<text x="60" y="92" font-size="15" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">顺着蓝色请求向右，再沿紫色结果向左；浏览器状态与服务端额度分别持久化。</text>
+<text x="62" y="167" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">浏览器 · apps/web + packages/ui</text>
+<text x="602" y="167" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">服务端 · apps/cloud Guest API</text>
+<text x="1142" y="167" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">模型适配 / 外部供应商</text>
+<text x="530.0" y="258.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-1">POST /runs</text>
+<text x="1070.0" y="258.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-2">受限请求</text>
+<text x="1354.0" y="447.5" font-size="14" fill="#9333ea" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-3">AgentEvent</text>
+<text x="1070" y="613" font-size="14" fill="#9333ea" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-4">SSE data</text>
+<text x="530" y="613" font-size="14" fill="#9333ea" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-5">AgentEvent</text>
+<text x="726" y="372" font-size="14" fill="#16a34a" font-weight="400" text-anchor="end" data-graph-role="label" data-owner="edge-6">guestId / IP</text>
+<text x="864" y="372" font-size="14" fill="#16a34a" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-7">额度决策</text>
+<text x="274.0" y="722.5" font-size="14" fill="#16a34a" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-8">Thread JSON</text>
+<text x="610" y="785" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">额度在开始模型流之前消耗。</text>
+<text x="610" y="822" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">计数存储不保存对话正文。</text>
+<text x="70" y="950" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">工具分支（图 04）：toolCall → Host 策略 → 浏览器虚拟工作区，或 /api/guest/tools/*、/api/guest/mcp/* → toolResult。</text>
+<text x="70" y="984" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">普通 Guest ReAct：最多 6 个模型回合、8 次自动工具调用；每个模型回合重新经过 /api/guest/runs 检查并消耗额度。</text>
+<text x="60" y="1052" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">浏览器预检帮助用户理解限制；服务端独立执行输入、模型、并发和额度检查。</text>
+<text x="102" y="1098" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">请求 / 主流程</text>
+<text x="392" y="1098" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">事件 / 结果 / 循环</text>
+<text x="732" y="1098" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">持久化 / 读取</text>
+<text x="1052" y="1098" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">检查 / 中止 / 边界</text>
+<text x="1540" y="58" font-size="13" fill="#6b7280" font-weight="400" text-anchor="end" data-graph-role="label">2026-09-03</text>
+</svg>

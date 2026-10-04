@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" width="1600" height="1000" data-generator="fireworks-tech-graph" data-quality-profile="showcase" role="img" aria-labelledby="diagram-title diagram-desc">
+<title id="diagram-title">06  宿主能力矩阵</title>
+<desc id="diagram-desc">同一套 ThreadPlayground，根据 HostServices、transport 与服务端策略得到不同能力。</desc>
+<style>text { font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif; }</style>
+<defs>
+<marker id="arrow-blue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#2563eb"/></marker>
+<marker id="arrow-green" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#16a34a"/></marker>
+<marker id="arrow-purple" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#9333ea"/></marker>
+<marker id="arrow-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#dc2626"/></marker>
+</defs>
+<rect width="1600" height="1000" fill="#ffffff" data-graph-role="background"/>
+<rect x="60" y="150" width="250" height="68" fill="#eff6ff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="310" y="150" width="305" height="68" fill="#eff6ff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="615" y="150" width="305" height="68" fill="#eff6ff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="920" y="150" width="305" height="68" fill="#eff6ff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="1225" y="150" width="305" height="68" fill="#eff6ff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="60" y="218" width="250" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="310" y="218" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="615" y="218" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="920" y="218" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="1225" y="218" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="60" y="286" width="250" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="310" y="286" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="615" y="286" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="920" y="286" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="1225" y="286" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="60" y="354" width="250" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="310" y="354" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="615" y="354" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="920" y="354" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="1225" y="354" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="60" y="422" width="250" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="310" y="422" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="615" y="422" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="920" y="422" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="1225" y="422" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="60" y="490" width="250" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="310" y="490" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="615" y="490" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="920" y="490" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="1225" y="490" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="60" y="558" width="250" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="310" y="558" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="615" y="558" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="920" y="558" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="1225" y="558" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="60" y="626" width="250" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="310" y="626" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="615" y="626" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="920" y="626" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="1225" y="626" width="305" height="68" fill="#f8fafc" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="60" y="694" width="250" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="310" y="694" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="615" y="694" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="920" y="694" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<rect x="1225" y="694" width="305" height="68" fill="#ffffff" stroke="#e2e8f0" data-graph-role="decoration"/>
+<g data-graph-role="legend"><line x1="60" y1="953" x2="92" y2="953" stroke="#2563eb" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="350" y1="953" x2="382" y2="953" stroke="#9333ea" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="690" y1="953" x2="722" y2="953" stroke="#16a34a" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="1010" y1="953" x2="1042" y2="953" stroke="#dc2626" stroke-width="2.5"/></g>
+<text x="60" y="58" font-size="28" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">06  宿主能力矩阵</text>
+<text x="60" y="92" font-size="15" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">同一套 ThreadPlayground，根据 HostServices、transport 与服务端策略得到不同能力。</text>
+<text x="78" y="191" font-size="16" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">能力 / 数据归属</text>
+<text x="328" y="191" font-size="16" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">Desktop Local</text>
+<text x="633" y="191" font-size="16" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">Desktop → Remote</text>
+<text x="938" y="191" font-size="16" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">Guest Web</text>
+<text x="1243" y="191" font-size="16" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">Shared Viewer</text>
+<text x="78" y="259" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">运行模型</text>
+<text x="328" y="259" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">本机 Provider 连接</text>
+<text x="633" y="259" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">远端 Provider 连接</text>
+<text x="938" y="259" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">Guest API 白名单</text>
+<text x="1243" y="259" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">无运行 transport</text>
+<text x="78" y="327" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">模型凭据</text>
+<text x="328" y="327" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">Desktop Bun 管理</text>
+<text x="633" y="327" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">远端 runtime 管理</text>
+<text x="938" y="327" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">Guest 服务端持有</text>
+<text x="1243" y="327" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">不需要模型凭据</text>
+<text x="78" y="395" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">工具执行</text>
+<text x="328" y="395" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">Builtin / MCP / Plugin</text>
+<text x="633" y="395" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">远端能力约定 / RPC</text>
+<text x="938" y="395" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">虚拟工具 + 受限代理</text>
+<text x="1243" y="395" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">不可执行</text>
+<text x="78" y="463" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">真实文件 / Bash</text>
+<text x="328" y="463" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">宿主支持；受策略约束</text>
+<text x="633" y="463" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">远端文件与 Shell</text>
+<text x="938" y="463" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">不提供真实文件 / Shell</text>
+<text x="1243" y="463" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">不可访问</text>
+<text x="78" y="531" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">MCP</text>
+<text x="328" y="531" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">本机配置与管理</text>
+<text x="633" y="531" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">按远端 capabilities</text>
+<text x="938" y="531" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">受限 HTTP/MCP；无 stdio</text>
+<text x="1243" y="531" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">不可调用</text>
+<text x="78" y="599" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">Thread 持久化</text>
+<text x="328" y="599" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">本机 workspace / history</text>
+<text x="633" y="599" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">远端 workspace / history</text>
+<text x="938" y="599" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">浏览器 localStorage</text>
+<text x="1243" y="599" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">读取分享 Gist</text>
+<text x="78" y="667" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">运行鉴权 / 限制</text>
+<text x="328" y="667" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">本机连接配置</text>
+<text x="633" y="667" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">Bearer + 兼容性协商</text>
+<text x="938" y="667" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">Guest / IP 额度与并发</text>
+<text x="1243" y="667" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">只读分享内容</text>
+<text x="78" y="735" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">LangGraph 导出</text>
+<text x="328" y="735" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">Desktop generator</text>
+<text x="633" y="735" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">取决于导出宿主实现</text>
+<text x="938" y="735" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">generator = null</text>
+<text x="1243" y="735" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">不可导出项目</text>
+<text x="60" y="824" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">读取方式：先确定当前宿主，再判断 transport、工具策略、数据归属；界面上出现工具名不代表工具可执行。</text>
+<text x="60" y="866" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">Remote 是 Desktop 选择的执行位置；Cloud identity 是独立身份服务，不能据此推定 Guest 已有账号同步或团队协作。</text>
+<text x="60" y="912" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">矩阵列出源码能力边界；外部配置、凭据、网络和部署可用性仍需独立验证。</text>
+<text x="102" y="958" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">请求 / 主流程</text>
+<text x="392" y="958" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">事件 / 结果 / 循环</text>
+<text x="732" y="958" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">持久化 / 读取</text>
+<text x="1052" y="958" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">检查 / 中止 / 边界</text>
+<text x="1540" y="58" font-size="13" fill="#6b7280" font-weight="400" text-anchor="end" data-graph-role="label">2026-09-03</text>
+</svg>

@@ -1,0 +1,365 @@
+{
+  "generator": "fireworks-tech-graph / authored Python list method",
+  "qualityProfile": "showcase",
+  "checks": [
+    {
+      "diagram": "01-system-architecture",
+      "check": "xml",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "01-system-architecture",
+      "check": "markers",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "01-system-architecture",
+      "check": "collisions",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "01-system-architecture",
+      "check": "geometry",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "01-system-architecture",
+      "check": "composition",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "02-desktop-run-sequence",
+      "check": "xml",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "02-desktop-run-sequence",
+      "check": "markers",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "02-desktop-run-sequence",
+      "check": "collisions",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "02-desktop-run-sequence",
+      "check": "geometry",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "02-desktop-run-sequence",
+      "check": "composition",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "03-guest-data-flow",
+      "check": "xml",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "03-guest-data-flow",
+      "check": "markers",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "03-guest-data-flow",
+      "check": "collisions",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "03-guest-data-flow",
+      "check": "geometry",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "03-guest-data-flow",
+      "check": "composition",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "04-tool-loop",
+      "check": "xml",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "04-tool-loop",
+      "check": "markers",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "04-tool-loop",
+      "check": "collisions",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "04-tool-loop",
+      "check": "geometry",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "04-tool-loop",
+      "check": "composition",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "05-persistence",
+      "check": "xml",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "05-persistence",
+      "check": "markers",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "05-persistence",
+      "check": "collisions",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "05-persistence",
+      "check": "geometry",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "05-persistence",
+      "check": "composition",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "06-capability-matrix",
+      "check": "xml",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "06-capability-matrix",
+      "check": "markers",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "06-capability-matrix",
+      "check": "collisions",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "06-capability-matrix",
+      "check": "geometry",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "06-capability-matrix",
+      "check": "composition",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "07-evaluation-loop",
+      "check": "xml",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "07-evaluation-loop",
+      "check": "markers",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "07-evaluation-loop",
+      "check": "collisions",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "07-evaluation-loop",
+      "check": "geometry",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "07-evaluation-loop",
+      "check": "composition",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "08-prompt-and-export",
+      "check": "xml",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "08-prompt-and-export",
+      "check": "markers",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "08-prompt-and-export",
+      "check": "collisions",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "08-prompt-and-export",
+      "check": "geometry",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "08-prompt-and-export",
+      "check": "composition",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "09-remote-runtime",
+      "check": "xml",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "09-remote-runtime",
+      "check": "markers",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "09-remote-runtime",
+      "check": "collisions",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "09-remote-runtime",
+      "check": "geometry",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "diagram": "09-remote-runtime",
+      "check": "composition",
+      "passed": true,
+      "details": ""
+    }
+  ],
+  "visual_review": "passed",
+  "visual_review_scope": "All 9 exported PNGs inspected; final corrected diagrams 02 and 03 reinspected. HTML browser interaction not verified.",
+  "html_static_checks": {
+    "ids": 189,
+    "unique_ids": 189,
+    "links": 79,
+    "missing_local_links": 0,
+    "external_assets": 0,
+    "inline_script_syntax": "passed"
+  },
+  "browser_review": "blocked by local file URL policy; no bypass attempted",
+  "artifacts": [
+    {
+      "path": "index.html",
+      "sha256": "07115209893d450e134f31bc77cf6f6e5c172bc25cb35f51ae9afc3671782b40"
+    },
+    {
+      "path": "png/01-system-architecture.png",
+      "sha256": "f100b3a43097f5063e41c2960be6d76b5f6a52d2e699ba4d5112ce4b4d39e045"
+    },
+    {
+      "path": "png/02-desktop-run-sequence.png",
+      "sha256": "3557e857068dfa4007c003967599de5767a800be811312aec83e07cc71ff7782"
+    },
+    {
+      "path": "png/03-guest-data-flow.png",
+      "sha256": "4de3e98fe6c636167923dd76e2c5697ea4555e61b84625226053734deeca2d33"
+    },
+    {
+      "path": "png/04-tool-loop.png",
+      "sha256": "0501d9d983ffea1baeef0e59b7f8afbaef17880147c85e1671fd1f4ad1fbe1d0"
+    },
+    {
+      "path": "png/05-persistence.png",
+      "sha256": "5fd88bd26232c1aca2d2e8add0efcef63091aa5bb99f156ad9399bcb77b853b8"
+    },
+    {
+      "path": "png/06-capability-matrix.png",
+      "sha256": "195321b9aa4aaddfb9607a5ac9083bb315460b0f34e02d1245285cc54a3c1476"
+    },
+    {
+      "path": "png/07-evaluation-loop.png",
+      "sha256": "d27e6c647e794284d167b0a1317fa3bc571ed73d1953fab9c880a72a7a2e4d07"
+    },
+    {
+      "path": "png/08-prompt-and-export.png",
+      "sha256": "d06fbbffb33063328c439d3d57da0779e1dccc25922436a1e650e3fa59b86a79"
+    },
+    {
+      "path": "png/09-remote-runtime.png",
+      "sha256": "1a93a546704cb54ffa612b4e083a984a300ce83e19c3c28bb87b3cdad5a9facc"
+    },
+    {
+      "path": "svg/01-system-architecture.svg",
+      "sha256": "2901f5850891d1d2ad229cc71e1ea6c2a6b1b8ea055727babe6bb3cddac65a55"
+    },
+    {
+      "path": "svg/02-desktop-run-sequence.svg",
+      "sha256": "75ab0ac15977c9da1f6f4f03e8eb68fb7769aab69810c88207a83f6cfbc80cf7"
+    },
+    {
+      "path": "svg/03-guest-data-flow.svg",
+      "sha256": "62c35e089a9c0eb34845fd0d692ecc42df3f92e292df65e4c19c7424c3cdb7e0"
+    },
+    {
+      "path": "svg/04-tool-loop.svg",
+      "sha256": "d503ed9c1ee9981164e4940598afcbd446fb2ae183335ebc1765fbfcd2bce41e"
+    },
+    {
+      "path": "svg/05-persistence.svg",
+      "sha256": "3981658fbbd14f9f7eef016fb58bc29454757fa5f21dbc0d9fb928cdbbaac73a"
+    },
+    {
+      "path": "svg/06-capability-matrix.svg",
+      "sha256": "91b4e24986c70608790f0e93ddf878c112f8977229c5b474b73c3a1f74261280"
+    },
+    {
+      "path": "svg/07-evaluation-loop.svg",
+      "sha256": "1ed5fa7f55fe1a989b06e4ded6d6cfa71063d73f1e331d6f6a316eac0d618abe"
+    },
+    {
+      "path": "svg/08-prompt-and-export.svg",
+      "sha256": "3598bf1321627bf83e07bdff7b3969f6b3b66ed33adbb9b2be2e460d9140c619"
+    },
+    {
+      "path": "svg/09-remote-runtime.svg",
+      "sha256": "921be5549079c507bce3907e07efb51079731358fbc82b58ccb9620855ca9d4a"
+    }
+  ]
+}

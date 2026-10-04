@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1200" width="1600" height="1200" data-generator="fireworks-tech-graph" data-quality-profile="showcase" role="img" aria-labelledby="diagram-title diagram-desc">
+<title id="diagram-title">09  Remote Runtime 的连接与数据路径</title>
+<desc id="diagram-desc">Desktop 是控制界面；远端 apps/server 是执行宿主。连接管理与模型数据流分开理解。</desc>
+<style>text { font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif; }</style>
+<defs>
+<marker id="arrow-blue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#2563eb"/></marker>
+<marker id="arrow-green" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#16a34a"/></marker>
+<marker id="arrow-purple" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#9333ea"/></marker>
+<marker id="arrow-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#dc2626"/></marker>
+</defs>
+<rect width="1600" height="1200" fill="#ffffff" data-graph-role="background"/>
+<rect x="40" y="135" width="1520" height="345" rx="12" fill="#fef2f2" fill-opacity="0.38" stroke="#d1d5db" stroke-dasharray="6 5" data-graph-role="container"/>
+<rect x="40" y="530" width="1520" height="420" rx="12" fill="#eff6ff" fill-opacity="0.38" stroke="#d1d5db" stroke-dasharray="6 5" data-graph-role="container"/>
+<line x1="800" y1="745" x2="800" y2="905" stroke="#d1d5db" stroke-dasharray="5 6" data-graph-role="decoration"/>
+<line x1="260" y1="745" x2="260" y2="905" stroke="#d1d5db" stroke-dasharray="5 6" data-graph-role="decoration"/>
+<g data-graph-role="legend"><line x1="60" y1="1153" x2="92" y2="1153" stroke="#2563eb" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="350" y1="1153" x2="382" y2="1153" stroke="#9333ea" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="690" y1="1153" x2="722" y2="1153" stroke="#16a34a" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="1010" y1="1153" x2="1042" y2="1153" stroke="#dc2626" stroke-width="2.5"/></g>
+<path id="edge-1" data-edge-id="edge-1" data-graph-role="edge" data-source="connect" data-target="health" d="M 450,275.0 L 610,275.0" fill="none" stroke="#dc2626" stroke-width="2.5" marker-end="url(#arrow-red)"/>
+<path id="edge-2" data-edge-id="edge-2" data-graph-role="edge" data-source="health" data-target="register" d="M 990,275.0 L 1150,275.0" fill="none" stroke="#dc2626" stroke-width="2.5" marker-end="url(#arrow-red)"/>
+<path id="edge-3" data-edge-id="edge-3" data-graph-role="edge" data-source="desktop" data-target="server" d="M 450,680.0 L 610,680.0" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+<path id="edge-4" data-edge-id="edge-4" data-graph-role="edge" data-source="server" data-target="remote-core" d="M 990,680.0 L 1150,680.0" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+<path id="edge-5" data-edge-id="edge-5" data-graph-role="edge" data-source="remote-core" data-target="server" d="M 1150,710 L 1080,710 L 1080,850 L 800,850" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#arrow-purple)"/>
+<path id="edge-6" data-edge-id="edge-6" data-graph-role="edge" data-source="server" data-target="desktop" d="M 800,850 L 260,850" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#arrow-purple)"/>
+<g id="connect" data-graph-role="node" data-node-id="connect" data-graph-bounds="70,210,450,340"><title>RemoteServerManager — SSH 托管连接或手工 HTTP 地址 / SSH 路径需主机身份信任 / 远端 server 启动 / 连接管理</title>
+<rect x="70" y="210" width="380" height="130" rx="8" fill="#fef2f2" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 97,226 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#dc2626"/>
+</g>
+<text x="120" y="244" font-size="19" fill="#111827" font-weight="600" text-anchor="start">RemoteServerManager</text>
+<text x="90" y="274" font-size="14" fill="#475569" font-weight="400" text-anchor="start">SSH 托管连接或手工 HTTP 地址</text>
+<text x="90" y="298" font-size="14" fill="#475569" font-weight="400" text-anchor="start">SSH 路径需主机身份信任</text>
+<text x="90" y="322" font-size="14" fill="#475569" font-weight="400" text-anchor="start">远端 server 启动 / 连接管理</text>
+</g>
+<g id="health" data-graph-role="node" data-node-id="health" data-graph-bounds="610,210,990,340"><title>RemoteRuntimeClient — Bearer GET /health / 核对 protocol / version / capabilities / 失败不注册成可用 runtime</title>
+<rect x="610" y="210" width="380" height="130" rx="8" fill="#fef2f2" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 637,226 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#dc2626"/>
+</g>
+<text x="660" y="244" font-size="19" fill="#111827" font-weight="600" text-anchor="start">RemoteRuntimeClient</text>
+<text x="630" y="274" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Bearer GET /health</text>
+<text x="630" y="298" font-size="14" fill="#475569" font-weight="400" text-anchor="start">核对 protocol / version / capabilities</text>
+<text x="630" y="322" font-size="14" fill="#475569" font-weight="400" text-anchor="start">失败不注册成可用 runtime</text>
+</g>
+<g id="register" data-graph-role="node" data-node-id="register" data-graph-bounds="1150,210,1530,340"><title>RuntimeRouter — 注册 RuntimeClient / 使用 runtimeId 选择本机或远端 / 共享 UI 继续使用相同宿主接口</title>
+<rect x="1150" y="210" width="380" height="130" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1177,226 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="1200" y="244" font-size="19" fill="#111827" font-weight="600" text-anchor="start">RuntimeRouter</text>
+<text x="1170" y="274" font-size="14" fill="#475569" font-weight="400" text-anchor="start">注册 RuntimeClient</text>
+<text x="1170" y="298" font-size="14" fill="#475569" font-weight="400" text-anchor="start">使用 runtimeId 选择本机或远端</text>
+<text x="1170" y="322" font-size="14" fill="#475569" font-weight="400" text-anchor="start">共享 UI 继续使用相同宿主接口</text>
+</g>
+<g id="desktop" data-graph-role="node" data-node-id="desktop" data-graph-bounds="70,615,450,745"><title>Desktop Bun client — Renderer RPC → RemoteRuntimeClient / POST /rpc：文件 / 模型 / 工具等 / POST /stream：request + connection</title>
+<rect x="70" y="615" width="380" height="130" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 97,631 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="120" y="649" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Desktop Bun client</text>
+<text x="90" y="679" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Renderer RPC → RemoteRuntimeClient</text>
+<text x="90" y="703" font-size="14" fill="#475569" font-weight="400" text-anchor="start">POST /rpc：文件 / 模型 / 工具等</text>
+<text x="90" y="727" font-size="14" fill="#475569" font-weight="400" text-anchor="start">POST /stream：request + connection</text>
+</g>
+<g id="server" data-graph-role="node" data-node-id="server" data-graph-bounds="610,615,990,745"><title>apps/server — assertAuthorized → HTTP 路由 / LocalRuntimeClient / Controller / 自己的文件、模型连接与工具配置</title>
+<rect x="610" y="615" width="380" height="130" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 637,631 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="660" y="649" font-size="19" fill="#111827" font-weight="600" text-anchor="start">apps/server</text>
+<text x="630" y="679" font-size="14" fill="#475569" font-weight="400" text-anchor="start">assertAuthorized → HTTP 路由</text>
+<text x="630" y="703" font-size="14" fill="#475569" font-weight="400" text-anchor="start">LocalRuntimeClient / Controller</text>
+<text x="630" y="727" font-size="14" fill="#475569" font-weight="400" text-anchor="start">自己的文件、模型连接与工具配置</text>
+</g>
+<g id="remote-core" data-graph-role="node" data-node-id="remote-core" data-graph-bounds="1150,615,1530,745"><title>远端 core/server — streamAgent → Provider / 执行位置与凭据属于远端宿主 / 共享语义与本机路径相同</title>
+<rect x="1150" y="615" width="380" height="130" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1177,631 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="1200" y="649" font-size="19" fill="#111827" font-weight="600" text-anchor="start">远端 core/server</text>
+<text x="1170" y="679" font-size="14" fill="#475569" font-weight="400" text-anchor="start">streamAgent → Provider</text>
+<text x="1170" y="703" font-size="14" fill="#475569" font-weight="400" text-anchor="start">执行位置与凭据属于远端宿主</text>
+<text x="1170" y="727" font-size="14" fill="#475569" font-weight="400" text-anchor="start">共享语义与本机路径相同</text>
+</g>
+<text x="60" y="58" font-size="28" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">09  Remote Runtime 的连接与数据路径</text>
+<text x="60" y="92" font-size="15" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">Desktop 是控制界面；远端 apps/server 是执行宿主。连接管理与模型数据流分开理解。</text>
+<text x="62" y="167" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">连接建立 / 控制面</text>
+<text x="530.0" y="263.0" font-size="14" fill="#dc2626" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-1">连接信息</text>
+<text x="1070.0" y="263.0" font-size="14" fill="#dc2626" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-2">协商结果</text>
+<text x="70" y="421" font-size="16" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">SSH 解决连接与远端生命周期；HTTP API 仍校验 Bearer。协议兼容性与业务操作能力分别检查。</text>
+<text x="62" y="562" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">运行数据 / 数据面</text>
+<text x="530.0" y="668.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-3">Bearer HTTP</text>
+<text x="1070.0" y="668.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-4">Agent request</text>
+<text x="965" y="835" font-size="14" fill="#9333ea" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-5">AgentEvent</text>
+<text x="530" y="835" font-size="14" fill="#9333ea" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-6">SSE data → RPC events → UI reducer</text>
+<text x="60" y="1008" font-size="16" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">中止：Desktop abortStream → 取消远端 fetch；服务端响应 cancel → runtime.abortStream(streamId)。</text>
+<text x="60" y="1050" font-size="16" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">/health、/rpc、/stream、/shutdown 都在鉴权之后；不要把 apps/server 当作匿名 Guest API。</text>
+<text x="60" y="1112" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">远端文件和本机文件是两个归属域；runtimeId 必须沿查询、工具执行、保存和历史读取路径保留。</text>
+<text x="102" y="1158" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">请求 / 主流程</text>
+<text x="392" y="1158" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">事件 / 结果 / 循环</text>
+<text x="732" y="1158" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">持久化 / 读取</text>
+<text x="1052" y="1158" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">检查 / 中止 / 边界</text>
+<text x="1540" y="58" font-size="13" fill="#6b7280" font-weight="400" text-anchor="end" data-graph-role="label">2026-09-03</text>
+</svg>

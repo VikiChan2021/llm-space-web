@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1180" width="1600" height="1180" data-generator="fireworks-tech-graph" data-quality-profile="showcase" role="img" aria-labelledby="diagram-title diagram-desc">
+<title id="diagram-title">07  Evaluation Lab V2 的改进循环</title>
+<desc id="diagram-desc">从冻结的源 Thread 出发，在隔离实验中比较 Baseline / Candidate，审阅差异后有条件地应用。</desc>
+<style>text { font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif; }</style>
+<defs>
+<marker id="arrow-blue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#2563eb"/></marker>
+<marker id="arrow-green" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#16a34a"/></marker>
+<marker id="arrow-purple" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#9333ea"/></marker>
+<marker id="arrow-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#dc2626"/></marker>
+</defs>
+<rect width="1600" height="1180" fill="#ffffff" data-graph-role="background"/>
+<g data-graph-role="legend"><line x1="60" y1="1133" x2="92" y2="1133" stroke="#2563eb" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="350" y1="1133" x2="382" y2="1133" stroke="#9333ea" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="690" y1="1133" x2="722" y2="1133" stroke="#16a34a" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="1010" y1="1133" x2="1042" y2="1133" stroke="#dc2626" stroke-width="2.5"/></g>
+<path id="edge-1" data-edge-id="edge-1" data-graph-role="edge" data-source="source" data-target="batch" d="M 440,255.0 L 610,255.0" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+<path id="edge-2" data-edge-id="edge-2" data-graph-role="edge" data-source="batch" data-target="evidence" d="M 990,255.0 L 1160,255.0" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+<path id="edge-3" data-edge-id="edge-3" data-graph-role="edge" data-source="evidence" data-target="review-eval" d="M 1350.0,330 L 1350.0,495" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#arrow-purple)"/>
+<path id="edge-4" data-edge-id="edge-4" data-graph-role="edge" data-source="review-eval" data-target="apply" d="M 1160,570 L 990,570" fill="none" stroke="#dc2626" stroke-width="2.5" marker-end="url(#arrow-red)"/>
+<path id="edge-5" data-edge-id="edge-5" data-graph-role="edge" data-source="apply" data-target="next" d="M 610,570 L 440,570" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+<path id="edge-6" data-edge-id="edge-6" data-graph-role="edge" data-source="next" data-target="source" d="M 250,495 L 250,330" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#arrow-purple)"/>
+<g id="source" data-graph-role="node" data-node-id="source" data-graph-bounds="60,180,440,330"><title>冻结实验输入 — sourceThread → Baseline / Candidate 可编辑模型与 Prompt / Cases / expectations / rubrics</title>
+<rect x="60" y="180" width="380" height="150" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 87,196 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="110" y="214" font-size="19" fill="#111827" font-weight="600" text-anchor="start">冻结实验输入</text>
+<text x="80" y="244" font-size="14" fill="#475569" font-weight="400" text-anchor="start">sourceThread → Baseline</text>
+<text x="80" y="268" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Candidate 可编辑模型与 Prompt</text>
+<text x="80" y="292" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Cases / expectations / rubrics</text>
+</g>
+<g id="batch" data-graph-role="node" data-node-id="batch" data-graph-bounds="610,180,990,330"><title>批次预检与顺序运行 — selected cases × 两个 variant / 额度预估；逐项 await / 每项独立 Thread store</title>
+<rect x="610" y="180" width="380" height="150" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 637,196 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="660" y="214" font-size="19" fill="#111827" font-weight="600" text-anchor="start">批次预检与顺序运行</text>
+<text x="630" y="244" font-size="14" fill="#475569" font-weight="400" text-anchor="start">selected cases × 两个 variant</text>
+<text x="630" y="268" font-size="14" fill="#475569" font-weight="400" text-anchor="start">额度预估；逐项 await</text>
+<text x="630" y="292" font-size="14" fill="#475569" font-weight="400" text-anchor="start">每项独立 Thread store</text>
+</g>
+<g id="evidence" data-graph-role="node" data-node-id="evidence" data-graph-bounds="1160,180,1540,330"><title>收集运行证据 — 最多 3 模型回合 / 8 自动工具 / checks / token / duration / tool / completed / failed / needs_review</title>
+<rect x="1160" y="180" width="380" height="150" rx="8" fill="#faf5ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1187,196 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#9333ea"/>
+</g>
+<text x="1210" y="214" font-size="19" fill="#111827" font-weight="600" text-anchor="start">收集运行证据</text>
+<text x="1180" y="244" font-size="14" fill="#475569" font-weight="400" text-anchor="start">最多 3 模型回合 / 8 自动工具</text>
+<text x="1180" y="268" font-size="14" fill="#475569" font-weight="400" text-anchor="start">checks / token / duration / tool</text>
+<text x="1180" y="292" font-size="14" fill="#475569" font-weight="400" text-anchor="start">completed / failed / needs_review</text>
+</g>
+<g id="review-eval" data-graph-role="node" data-node-id="review-eval" data-graph-bounds="1160,495,1540,645"><title>回归比较与人工评价 — improved / regressed / unchanged / unknown；复核队列与重跑 / 导出 JSON / HTML 报告</title>
+<rect x="1160" y="495" width="380" height="150" rx="8" fill="#faf5ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1187,511 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#9333ea"/>
+</g>
+<text x="1210" y="529" font-size="19" fill="#111827" font-weight="600" text-anchor="start">回归比较与人工评价</text>
+<text x="1180" y="559" font-size="14" fill="#475569" font-weight="400" text-anchor="start">improved / regressed / unchanged</text>
+<text x="1180" y="583" font-size="14" fill="#475569" font-weight="400" text-anchor="start">unknown；复核队列与重跑</text>
+<text x="1180" y="607" font-size="14" fill="#475569" font-weight="400" text-anchor="start">导出 JSON / HTML 报告</text>
+</g>
+<g id="apply" data-graph-role="node" data-node-id="apply" data-graph-bounds="610,495,990,645"><title>预览并应用 Candidate — 对照 source / current / candidate / 有冲突 → 拒绝应用 / 先持久化成功，再恢复 UI</title>
+<rect x="610" y="495" width="380" height="150" rx="8" fill="#fef2f2" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 637,511 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#dc2626"/>
+</g>
+<text x="660" y="529" font-size="19" fill="#111827" font-weight="600" text-anchor="start">预览并应用 Candidate</text>
+<text x="630" y="559" font-size="14" fill="#475569" font-weight="400" text-anchor="start">对照 source / current / candidate</text>
+<text x="630" y="583" font-size="14" fill="#475569" font-weight="400" text-anchor="start">有冲突 → 拒绝应用</text>
+<text x="630" y="607" font-size="14" fill="#475569" font-weight="400" text-anchor="start">先持久化成功，再恢复 UI</text>
+</g>
+<g id="next" data-graph-role="node" data-node-id="next" data-graph-bounds="60,495,440,645"><title>下一轮实验 — 新 sourceThread + lineage / 继承 Cases；清空 runs / 评价 / 保留旧实验的历史证据</title>
+<rect x="60" y="495" width="380" height="150" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 87,511 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#16a34a"/>
+</g>
+<text x="110" y="529" font-size="19" fill="#111827" font-weight="600" text-anchor="start">下一轮实验</text>
+<text x="80" y="559" font-size="14" fill="#475569" font-weight="400" text-anchor="start">新 sourceThread + lineage</text>
+<text x="80" y="583" font-size="14" fill="#475569" font-weight="400" text-anchor="start">继承 Cases；清空 runs / 评价</text>
+<text x="80" y="607" font-size="14" fill="#475569" font-weight="400" text-anchor="start">保留旧实验的历史证据</text>
+</g>
+<g id="eval-storage" data-graph-role="node" data-node-id="eval-storage" data-graph-bounds="60,825,740,945"><title>localStorage · evaluation-lab.v2 — 实验与普通 Thread / Run history 分离；v1 可迁移 / 最多 10 个实验、每实验最多 50 Cases；默认批次 3 Cases</title>
+<rect x="60" y="825" width="680" height="120" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 76,845 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="87" cy="845" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="110" y="859" font-size="19" fill="#111827" font-weight="600" text-anchor="start">localStorage · evaluation-lab.v2</text>
+<text x="80" y="889" font-size="14" fill="#475569" font-weight="400" text-anchor="start">实验与普通 Thread / Run history 分离；v1 可迁移</text>
+<text x="80" y="913" font-size="14" fill="#475569" font-weight="400" text-anchor="start">最多 10 个实验、每实验最多 50 Cases；默认批次 3 Cases</text>
+</g>
+<g id="current-thread" data-graph-role="node" data-node-id="current-thread" data-graph-bounds="860,825,1540,945"><title>应用范围：当前 Thread 的选定字段 — model.provider / id / temperature / maxTokens + systemPrompt / 保留当前消息、工具、历史；不把整份实验结果覆盖回 Thread</title>
+<rect x="860" y="825" width="680" height="120" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 876,845 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="887" cy="845" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="910" y="859" font-size="19" fill="#111827" font-weight="600" text-anchor="start">应用范围：当前 Thread 的选定字段</text>
+<text x="880" y="889" font-size="14" fill="#475569" font-weight="400" text-anchor="start">model.provider / id / temperature / maxTokens + systemPrompt</text>
+<text x="880" y="913" font-size="14" fill="#475569" font-weight="400" text-anchor="start">保留当前消息、工具、历史；不把整份实验结果覆盖回 Thread</text>
+</g>
+<text x="60" y="58" font-size="28" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">07  Evaluation Lab V2 的改进循环</text>
+<text x="60" y="92" font-size="15" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">从冻结的源 Thread 出发，在隔离实验中比较 Baseline / Candidate，审阅差异后有条件地应用。</text>
+<text x="525.0" y="243.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-1">实验快照</text>
+<text x="1075.0" y="243.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-2">隔离运行</text>
+<text x="1364.0" y="412.5" font-size="14" fill="#9333ea" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-3">结果与检查</text>
+<text x="1075" y="558" font-size="14" fill="#dc2626" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-4">人工确认</text>
+<text x="525" y="558" font-size="14" fill="#16a34a" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-5">应用成功</text>
+<text x="268" y="418" font-size="14" fill="#9333ea" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-6">继续比较</text>
+<text x="60" y="732" font-size="16" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">额度估算：所选 Run 项数 × 3 个模型回合；正常首次批次通常为所选 Case 数 × 2 个 variant × 3。</text>
+<text x="60" y="774" font-size="15" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">普通运行仍经过 Guest API；实验没有绕过白名单、单用户并发或服务端额度，也没有自动 LLM Judge。</text>
+<text x="60" y="1092" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">当前源码已含 V2 lineage / 回归 / 应用逻辑；此图不代表本轮已执行模型评测或验证线上版本。</text>
+<text x="102" y="1138" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">请求 / 主流程</text>
+<text x="392" y="1138" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">事件 / 结果 / 循环</text>
+<text x="732" y="1138" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">持久化 / 读取</text>
+<text x="1052" y="1138" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">检查 / 中止 / 边界</text>
+<text x="1540" y="58" font-size="13" fill="#6b7280" font-weight="400" text-anchor="end" data-graph-role="label">2026-09-03</text>
+</svg>

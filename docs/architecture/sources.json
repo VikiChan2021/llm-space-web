@@ -1,0 +1,457 @@
+{
+  "date": "2026-09-03",
+  "sourceCommit": "c5fd749c4ec3d0d1e0d073a635ee361928d1646c",
+  "basis": "current working tree; not deployment evidence",
+  "sources": {
+    "desktop-root": {
+      "path": "apps/desktop/src/bun/app/start-desktop-app.ts",
+      "line": 59,
+      "anchor": "const workspacePath",
+      "sha256": "280b06b79f2a92124ccfdd8a6b93f1e812c2c427b8ec2b19910d0786fdfc06fb"
+    },
+    "host-types": {
+      "path": "packages/ui/src/host/types.ts",
+      "line": 70,
+      "anchor": "export interface ToolExecutionPolicy",
+      "sha256": "b5f351b4f5ba76ace2febb5551572a4015a18bc7afa1faf52f2754f20abe394a"
+    },
+    "web-host": {
+      "path": "apps/web/src/host/web-host.ts",
+      "line": 56,
+      "anchor": "export const webHost",
+      "sha256": "cd16525afacb3967b9123ed89adf6f0046386476dc963b801da4882a50265c4a"
+    },
+    "viewer": {
+      "path": "apps/web/src/thread-viewer.tsx",
+      "line": 8,
+      "anchor": "ThreadPlayground",
+      "sha256": "9299a9efe848d3cde041b2284b3b91c8782c92db5f5bd58831ad70eed69132c6"
+    },
+    "guest-entry": {
+      "path": "apps/cloud/src/guest-index.ts",
+      "line": 7,
+      "anchor": "const quotaStore",
+      "sha256": "cbd7f3e160feeb38447a30ec65aaeea658f1135515d42ed8359131fea86cbee7"
+    },
+    "identity-entry": {
+      "path": "apps/cloud/src/index.ts",
+      "line": 14,
+      "anchor": "assertRuntimeDatabaseIsolation(config.databaseUrl)",
+      "sha256": "4637397cf817ec695874497cf28b176f88971041dced7b1651f687ef3e0e0a27"
+    },
+    "cloud-http": {
+      "path": "apps/cloud/src/http-server.ts",
+      "line": 131,
+      "anchor": "url.pathname === \"/api/session\"",
+      "sha256": "7ee3b294e1f70156280f7191c9ed5500e5509e217eb6db38e1ea68d23c4b68c4"
+    },
+    "cloud-schema": {
+      "path": "apps/cloud/migrations/0001_identity_and_tenants.sql",
+      "line": 4,
+      "anchor": "CREATE TABLE",
+      "sha256": "a67fed6bd37bb28a1430293ec6eb1c5df47135230012cadf453c366a27a41ad4"
+    },
+    "core-exports": {
+      "path": "packages/core/package.json",
+      "line": 9,
+      "anchor": "\"./server\"",
+      "sha256": "e4adb49e94612d48a572ded0a7c049667689778b3aa8a1722a81e0bf52dc67d0"
+    },
+    "thread-run": {
+      "path": "packages/ui/src/components/thread-playground/stores/thread-store.ts",
+      "line": 1137,
+      "anchor": "async run(fromMessageId",
+      "sha256": "263a58798142f70067cc7326126cc3db99b186fe3508626c75c1ad4628a0d3dd"
+    },
+    "tool-loop": {
+      "path": "packages/ui/src/components/thread-playground/stores/thread-store.ts",
+      "line": 594,
+      "anchor": "const executePendingToolCalls",
+      "sha256": "263a58798142f70067cc7326126cc3db99b186fe3508626c75c1ad4628a0d3dd"
+    },
+    "rpc-transport": {
+      "path": "apps/desktop/src/client/rpc-transport.ts",
+      "line": 18,
+      "anchor": "export function createRpcTransport",
+      "sha256": "627432a2c35b2f02526f1e0b2f19cf0d362bec3995dbadffe3ab07ca55c104e6"
+    },
+    "forward-stream": {
+      "path": "apps/desktop/src/bun/rpc/stream-thread-request.ts",
+      "line": 8,
+      "anchor": "export async function forwardStreamThread",
+      "sha256": "da8b6fded05b1b30e8d2fa9658061d2183bf5250a32564191baddf483c2a97d6"
+    },
+    "rpc-dispatch": {
+      "path": "apps/desktop/src/bun/rpc/index.ts",
+      "line": 532,
+      "anchor": "forwardStreamThread(",
+      "sha256": "335eb52729017f028e11d7ca74c0b932bc8f6d2dfbbf4e4da4538b51f02f1617"
+    },
+    "runtime-local": {
+      "path": "packages/runtime/src/runtime/local-runtime-client.ts",
+      "line": 428,
+      "anchor": "streamThread(",
+      "sha256": "e279d6118614fc1602c2dfc717a34c0022873d09a4c470f48b07f2d20fb0c2d5"
+    },
+    "stream-controller": {
+      "path": "packages/runtime/src/streaming/stream-thread.ts",
+      "line": 12,
+      "anchor": "export class StreamThreadController",
+      "sha256": "f086d92cb12bface479d6229ef56953166a1d2823a9498caabbdf3db26ebab16"
+    },
+    "stream-agent": {
+      "path": "packages/core/src/server/agent/stream.ts",
+      "line": 22,
+      "anchor": "export async function* streamAgent",
+      "sha256": "bf1b1ea0c0255a28b1bf49048ada9ab60f4dc18dfbe553e3d901848429aad6e2"
+    },
+    "reducer": {
+      "path": "packages/core/src/client/reducer.ts",
+      "line": 35,
+      "anchor": "export function reduceMessages",
+      "sha256": "29dc333f9085df8993ab8e664fe73049d468cc5d95d62d8074d2ead8c14942b6"
+    },
+    "guest-api": {
+      "path": "apps/web/src/guest/guest-api.ts",
+      "line": 161,
+      "anchor": "export function createGuestTransport",
+      "sha256": "dc0dd06d23df039513713ae82c3f2527ca330fc8445908a12590b7b4abdd1f6f"
+    },
+    "guest-gate": {
+      "path": "apps/cloud/src/guest-http-server.ts",
+      "line": 290,
+      "anchor": "url.pathname === \"/api/guest/runs\"",
+      "sha256": "71561bf3e1b03701acd1ce5d2763b6c9db263f9d73fda463e3dd9b1012f2921f"
+    },
+    "guest-validation": {
+      "path": "apps/cloud/src/guest-http-server.ts",
+      "line": 448,
+      "anchor": "request.model?.provider",
+      "sha256": "71561bf3e1b03701acd1ce5d2763b6c9db263f9d73fda463e3dd9b1012f2921f"
+    },
+    "guest-model": {
+      "path": "apps/cloud/src/guest-model.ts",
+      "line": 17,
+      "anchor": "export function createGuestModelExecutor",
+      "sha256": "d494e72dc4ad459be2d6469ee7315da200c3bdacdec9087413ca5539b5ae1234"
+    },
+    "guest-quota": {
+      "path": "apps/cloud/src/guest-quota.ts",
+      "line": 22,
+      "anchor": "export class GuestQuotaStore",
+      "sha256": "9bfe7381df1c60df59c008b6f90bf69a7c8768ff393273c328ff670f5b9804be"
+    },
+    "guest-node": {
+      "path": "apps/cloud/src/guest-node-index.ts",
+      "line": 9,
+      "anchor": "const quotaStore",
+      "sha256": "a3e7a4628520cbc36ae365d48dd7a175e4423c1736dde28292850bd137a746c8"
+    },
+    "guest-workspace": {
+      "path": "apps/web/src/guest/guest-workspace.ts",
+      "line": 339,
+      "anchor": "persistGuestThreadUpdate",
+      "sha256": "1058eed8091bf551b77c81d70333fcfee4c00bea6fb2f42a5fc186e9a23fbf27"
+    },
+    "guest-tools": {
+      "path": "apps/web/src/guest/guest-tools.ts",
+      "line": 251,
+      "anchor": "canGuestAutoExecute",
+      "sha256": "f0197cc22325726c281ff5c85d57aa869163f1850ad7f38c06d3657b2c0ece06"
+    },
+    "guest-tool-service": {
+      "path": "apps/cloud/src/guest-tool-service.ts",
+      "line": 17,
+      "anchor": "export",
+      "sha256": "00e71170cd0cf8432feca8d15f38617ed141ce7412550ef5392d6f87c8ff91c4"
+    },
+    "thread-tab": {
+      "path": "apps/desktop/src/components/thread-tabs/thread-tab-pane.tsx",
+      "line": 139,
+      "anchor": "new SerializedPersistence",
+      "sha256": "e03225a79aabb9d4e5e331fa967f8ce77339c12a0ab6280f34aeded0ae32f29b"
+    },
+    "local-fs": {
+      "path": "packages/core/src/server/storage/local/file-system.ts",
+      "line": 156,
+      "anchor": "async write(p: string",
+      "sha256": "6a22ffab07b6d7ed7d3edd0336c9cda55a0db62c1b9725bbf30229938e357fb7"
+    },
+    "history-store": {
+      "path": "packages/core/src/server/storage/local/run-history-store.ts",
+      "line": 47,
+      "anchor": "export class RunHistoryStore",
+      "sha256": "3cb8c0f2216a36cb74cd89d980a6934c5b9e3465f5406b5f1a474c9c97f8a5bd"
+    },
+    "guest-evaluation-store": {
+      "path": "apps/web/src/guest/guest-evaluation-lab.ts",
+      "line": 19,
+      "anchor": "export const GUEST_EVALUATION_LAB_STORAGE_KEY",
+      "sha256": "dad1e38d5d918f717811bfde2189c60d1779f82e6060e80fa01308db57cdafa3"
+    },
+    "runtime-contract": {
+      "path": "packages/runtime/src/runtime/types.ts",
+      "line": 90,
+      "anchor": "export interface RuntimeClient",
+      "sha256": "557f2d65e298c30d600be7de6ee3fa1c261c26c7c90631079331863a6e9d46dd"
+    },
+    "remote-client": {
+      "path": "apps/desktop/src/bun/remote/remote-runtime-client.ts",
+      "line": 191,
+      "anchor": "async streamThread(",
+      "sha256": "6b4460e629653cd97230814e16c6b5e8e064cbf9de029d77487d7a469215adf8"
+    },
+    "server-http": {
+      "path": "apps/server/src/http-server.ts",
+      "line": 33,
+      "anchor": "assertAuthorized(request",
+      "sha256": "1bfd05deb9bf5d9a60af7e14a576e135d0520b50e09ba3b754bf520a2bc047b6"
+    },
+    "desktop-generator": {
+      "path": "apps/desktop/src/bun/fs/generator-project.ts",
+      "line": 32,
+      "anchor": "export",
+      "sha256": "2ca9e878a735b6f2b2d16dbfba6b66eaf370050ca361321b623ce0f21c2652ac"
+    },
+    "evaluation-core": {
+      "path": "packages/core/src/thread/evaluation-experiment.ts",
+      "line": 22,
+      "anchor": "export const EVALUATION_LAB_VERSION",
+      "sha256": "a5876a323625e5272c7d231f09cad997860e5829ccb76e3aee44b73220af20ba"
+    },
+    "evaluation-promotion": {
+      "path": "packages/core/src/thread/evaluation-experiment.ts",
+      "line": 279,
+      "anchor": "export function planEvaluationPromotion",
+      "sha256": "a5876a323625e5272c7d231f09cad997860e5829ccb76e3aee44b73220af20ba"
+    },
+    "evaluation-next": {
+      "path": "packages/core/src/thread/evaluation-experiment.ts",
+      "line": 338,
+      "anchor": "export function createNextEvaluationExperiment",
+      "sha256": "a5876a323625e5272c7d231f09cad997860e5829ccb76e3aee44b73220af20ba"
+    },
+    "evaluation-runner": {
+      "path": "apps/web/src/guest/guest-evaluation-runner.ts",
+      "line": 27,
+      "anchor": "export async function runGuestEvaluationItem",
+      "sha256": "878bdd1bfc81a6320aeee2ed375648f4e193f01e771aa1f9edb43b86155ff5f7"
+    },
+    "evaluation-batch": {
+      "path": "apps/web/src/guest/guest-evaluation-lab-dialog.tsx",
+      "line": 294,
+      "anchor": "const runItems",
+      "sha256": "32657026c9befc940008b415b16622bb79a04b6693423413543f984e1093b6ba"
+    },
+    "evaluation-apply": {
+      "path": "apps/web/src/guest/guest-workbench.tsx",
+      "line": 541,
+      "anchor": "const applyEvaluationCandidate",
+      "sha256": "c8f2d6d3bed1d9070fd28c2e16afc0e637ff79fbade0ceef43b1be010f75bf15"
+    },
+    "prompt-vars": {
+      "path": "packages/core/src/thread/prompt-variables.ts",
+      "line": 431,
+      "anchor": "export async function renderThreadPromptVariables",
+      "sha256": "976d6132e23bb20daacfc59bb4c8f671c12f27c6fe3fa8e620a30c9355d6a25c"
+    },
+    "template-render": {
+      "path": "packages/core/src/thread/template-render.ts",
+      "line": 235,
+      "anchor": "renderTemplateText",
+      "sha256": "e95d4be4fc54972a88120d8567f959fa29c494d86c69fd492e4775df2d7b7dea"
+    },
+    "client-api": {
+      "path": "packages/core/src/client/api.ts",
+      "line": 14,
+      "anchor": "export async function* streamThread",
+      "sha256": "b691b57321806f3c8eb9e9f6de5a01e700e71ba157ca242d77a3881230977c42"
+    },
+    "client-converters": {
+      "path": "packages/core/src/client/converters.ts",
+      "line": 12,
+      "anchor": "convertToPiContext",
+      "sha256": "62edca8ff3d7027b5b0bc8fbfc2896293fe5b1411ee448f3f26518f03a11b098"
+    },
+    "langgraph": {
+      "path": "packages/core/src/generator/langgraph/index.ts",
+      "line": 106,
+      "anchor": "export const langgraphGenerator",
+      "sha256": "5c804fe9be06ca45ec274c15fae96ed5b022054d78a622c7bd0bcb81ed8bd694"
+    },
+    "python-variables": {
+      "path": "packages/core/src/generator/langgraph/variables.py",
+      "line": 30,
+      "anchor": "def ",
+      "sha256": "3ebfdba5a2ff74c3ace2772f1e8fa2b53d30a6f2f52c0759e45e63de2468a204"
+    },
+    "generator-tests": {
+      "path": "packages/core/tests/generator/langgraph/index.test.ts",
+      "line": 9,
+      "anchor": "test(",
+      "sha256": "e56699e049111694c4ab2305d69417cb71eca9d23c705cb5271adfbf66df63bc"
+    },
+    "remote-server-manager": {
+      "path": "apps/desktop/src/bun/remote/remote-server-manager.ts",
+      "line": 162,
+      "anchor": "connectServer(",
+      "sha256": "4a352d23a300f88fec4964ca685502e52e341e8dc7677fd2554634692797426a"
+    },
+    "remote-runtime-manager": {
+      "path": "apps/desktop/src/bun/remote/remote-runtime-manager.ts",
+      "line": 13,
+      "anchor": "registerConfiguredRemoteRuntime",
+      "sha256": "815f07deb61d912f5bb92344dcb50e3139e6648856e0d9fdc36b432725cf6a2f"
+    },
+    "runtime-router": {
+      "path": "packages/runtime/src/runtime/runtime-router.ts",
+      "line": 3,
+      "anchor": "export class RuntimeRouter",
+      "sha256": "e312ef7e0b3a54c406105d5191b9c27342b7c0cd6865f7c369b12df9cee6108b"
+    },
+    "server-stream": {
+      "path": "apps/server/src/stream.ts",
+      "line": 10,
+      "anchor": "export function createStreamResponse",
+      "sha256": "4a4a8770e7295275986a76d0a2e9b224157c56afb53cbc775dd7db660e8a6344"
+    },
+    "server-factory": {
+      "path": "apps/server/src/runtime-factory.ts",
+      "line": 19,
+      "anchor": "export",
+      "sha256": "47f769d05f93ae54320362eac6764e245c21643515d63178ae24c74dd05b8c8b"
+    }
+  },
+  "diagrams": [
+    {
+      "id": "01-system-architecture",
+      "title": "01  项目运行架构",
+      "sources": [
+        "desktop-root",
+        "host-types",
+        "web-host",
+        "viewer",
+        "guest-entry",
+        "identity-entry",
+        "cloud-http",
+        "cloud-schema",
+        "core-exports"
+      ]
+    },
+    {
+      "id": "02-desktop-run-sequence",
+      "title": "02  一次 Desktop Run 的时序",
+      "sources": [
+        "thread-run",
+        "rpc-transport",
+        "forward-stream",
+        "rpc-dispatch",
+        "runtime-local",
+        "stream-controller",
+        "stream-agent",
+        "reducer"
+      ]
+    },
+    {
+      "id": "03-guest-data-flow",
+      "title": "03  Guest Web 的数据流",
+      "sources": [
+        "guest-api",
+        "guest-gate",
+        "guest-validation",
+        "guest-model",
+        "guest-quota",
+        "guest-node",
+        "guest-workspace",
+        "guest-tools",
+        "guest-tool-service",
+        "web-host"
+      ]
+    },
+    {
+      "id": "04-tool-loop",
+      "title": "04  工具调用与 ReAct 循环",
+      "sources": [
+        "tool-loop",
+        "thread-run",
+        "stream-agent",
+        "host-types",
+        "guest-tools",
+        "web-host"
+      ]
+    },
+    {
+      "id": "05-persistence",
+      "title": "05  Thread、快照与存储边界",
+      "sources": [
+        "thread-tab",
+        "thread-run",
+        "local-fs",
+        "history-store",
+        "desktop-root",
+        "guest-workspace",
+        "guest-evaluation-store",
+        "guest-quota",
+        "guest-node",
+        "cloud-http",
+        "cloud-schema"
+      ]
+    },
+    {
+      "id": "06-capability-matrix",
+      "title": "06  宿主能力矩阵",
+      "sources": [
+        "host-types",
+        "web-host",
+        "viewer",
+        "guest-tools",
+        "guest-tool-service",
+        "runtime-contract",
+        "remote-client",
+        "server-http",
+        "desktop-generator"
+      ]
+    },
+    {
+      "id": "07-evaluation-loop",
+      "title": "07  Evaluation Lab V2 的改进循环",
+      "sources": [
+        "evaluation-core",
+        "evaluation-promotion",
+        "evaluation-next",
+        "evaluation-runner",
+        "evaluation-batch",
+        "evaluation-apply",
+        "guest-evaluation-store"
+      ]
+    },
+    {
+      "id": "08-prompt-and-export",
+      "title": "08  Prompt 渲染与 Python 导出",
+      "sources": [
+        "prompt-vars",
+        "template-render",
+        "client-api",
+        "client-converters",
+        "langgraph",
+        "python-variables",
+        "desktop-generator",
+        "generator-tests"
+      ]
+    },
+    {
+      "id": "09-remote-runtime",
+      "title": "09  Remote Runtime 的连接与数据路径",
+      "sources": [
+        "remote-server-manager",
+        "remote-runtime-manager",
+        "remote-client",
+        "runtime-router",
+        "runtime-contract",
+        "server-http",
+        "server-stream",
+        "server-factory"
+      ]
+    }
+  ]
+}

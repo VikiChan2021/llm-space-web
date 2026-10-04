@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1740 1060" width="1740" height="1060" data-generator="fireworks-tech-graph" data-quality-profile="showcase" role="img" aria-labelledby="diagram-title diagram-desc">
+<title id="diagram-title">04  工具调用与 ReAct 循环</title>
+<desc id="diagram-desc">模型提出工具请求；共享 Thread store 驱动策略检查、工具执行和下一次模型调用。</desc>
+<style>text { font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif; }</style>
+<defs>
+<marker id="arrow-blue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#2563eb"/></marker>
+<marker id="arrow-green" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#16a34a"/></marker>
+<marker id="arrow-purple" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#9333ea"/></marker>
+<marker id="arrow-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#dc2626"/></marker>
+</defs>
+<rect width="1740" height="1060" fill="#ffffff" data-graph-role="background"/>
+<g data-graph-role="legend"><line x1="60" y1="1013" x2="92" y2="1013" stroke="#2563eb" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="350" y1="1013" x2="382" y2="1013" stroke="#9333ea" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="690" y1="1013" x2="722" y2="1013" stroke="#16a34a" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="1010" y1="1013" x2="1042" y2="1013" stroke="#dc2626" stroke-width="2.5"/></g>
+<path id="edge-1" data-edge-id="edge-1" data-graph-role="edge" data-source="turn" data-target="calls" d="M 400,250.0 L 540,250.0" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#arrow-purple)"/>
+<path id="edge-2" data-edge-id="edge-2" data-graph-role="edge" data-source="calls" data-target="allow" d="M 880,250.0 L 1020,250.0" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#arrow-purple)"/>
+<path id="edge-3" data-edge-id="edge-3" data-graph-role="edge" data-source="allow" data-target="review" d="M 1360,250.0 L 1480,250.0" fill="none" stroke="#dc2626" stroke-width="2.5" marker-end="url(#arrow-red)"/>
+<path id="edge-4" data-edge-id="edge-4" data-graph-role="edge" data-source="allow" data-target="execute" d="M 1190.0,320 L 1190.0,480" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+<path id="edge-5" data-edge-id="edge-5" data-graph-role="edge" data-source="execute" data-target="results" d="M 1020,550 L 880,550" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#arrow-purple)"/>
+<path id="edge-6" data-edge-id="edge-6" data-graph-role="edge" data-source="results" data-target="repeat" d="M 540,550 L 400,550" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#arrow-purple)"/>
+<path id="edge-7" data-edge-id="edge-7" data-graph-role="edge" data-source="repeat" data-target="turn" d="M 230,480 L 230,320" fill="none" stroke="#9333ea" stroke-width="2.5" marker-end="url(#arrow-purple)"/>
+<path id="edge-8" data-edge-id="edge-8" data-graph-role="edge" data-source="repeat" data-target="settle" d="M 230.0,620 L 230.0,790" fill="none" stroke="#dc2626" stroke-width="2.5" marker-end="url(#arrow-red)"/>
+<g id="turn" data-graph-role="node" data-node-id="turn" data-graph-bounds="60,180,400,320"><title>streamTurn — 准备上下文 → transport → 模型 / core 的工具执行器返回 terminate / 真实工具交给宿主执行</title>
+<rect x="60" y="180" width="340" height="140" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 87,196 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="110" y="214" font-size="19" fill="#111827" font-weight="600" text-anchor="start">streamTurn</text>
+<text x="80" y="244" font-size="14" fill="#475569" font-weight="400" text-anchor="start">准备上下文 → transport → 模型</text>
+<text x="80" y="268" font-size="14" fill="#475569" font-weight="400" text-anchor="start">core 的工具执行器返回 terminate</text>
+<text x="80" y="292" font-size="14" fill="#475569" font-weight="400" text-anchor="start">真实工具交给宿主执行</text>
+</g>
+<g id="calls" data-graph-role="node" data-node-id="calls" data-graph-bounds="540,180,880,320"><title>reduceMessages — assistant.toolCalls / 工具名 + arguments + call id</title>
+<rect x="540" y="180" width="340" height="140" rx="8" fill="#faf5ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 556,196 h 16 l 6,6 v 16 h -22 Z M 572,196 v 6 h 6" fill="none" stroke="#9333ea"/>
+</g>
+<text x="590" y="214" font-size="19" fill="#111827" font-weight="600" text-anchor="start">reduceMessages</text>
+<text x="560" y="244" font-size="14" fill="#475569" font-weight="400" text-anchor="start">assistant.toolCalls</text>
+<text x="560" y="268" font-size="14" fill="#475569" font-weight="400" text-anchor="start">工具名 + arguments + call id</text>
+</g>
+<g id="allow" data-graph-role="node" data-node-id="allow" data-graph-bounds="1020,180,1360,320"><title>允许自动执行？ — 全部工具可执行 / 策略 / 风险 / 调用数</title>
+<path d="M 1190.0,180 L 1360,250.0 L 1190.0,320 L 1020,250.0 Z" fill="#fef2f2" stroke="#dc2626" stroke-width="1.5"/>
+<text x="1190.0" y="242.0" font-size="19" fill="#111827" font-weight="600" text-anchor="middle">允许自动执行？</text>
+<text x="1190.0" y="267.0" font-size="13" fill="#111827" font-weight="400" text-anchor="middle">全部工具可执行</text>
+<text x="1190.0" y="289.0" font-size="13" fill="#111827" font-weight="400" text-anchor="middle">策略 / 风险 / 调用数</text>
+</g>
+<g id="review" data-graph-role="node" data-node-id="review" data-graph-bounds="1480,180,1680,320"><title>暂停待审 — 手动处理 / 补结果 / 不自动越过限制</title>
+<rect x="1480" y="180" width="200" height="140" rx="8" fill="#fef2f2" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1496,196 h 16 l 6,6 v 16 h -22 Z M 1512,196 v 6 h 6" fill="none" stroke="#dc2626"/>
+</g>
+<text x="1530" y="214" font-size="19" fill="#111827" font-weight="600" text-anchor="start">暂停待审</text>
+<text x="1500" y="244" font-size="14" fill="#475569" font-weight="400" text-anchor="start">手动处理 / 补结果</text>
+<text x="1500" y="268" font-size="14" fill="#475569" font-weight="400" text-anchor="start">不自动越过限制</text>
+</g>
+<g id="execute" data-graph-role="node" data-node-id="execute" data-graph-bounds="1020,480,1360,620"><title>Host executeTool — Builtin / MCP / Plugin / 同一批工具 Promise.all / 实际权限由宿主与服务端决定</title>
+<rect x="1020" y="480" width="340" height="140" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1047,496 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="1070" y="514" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Host executeTool</text>
+<text x="1040" y="544" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Builtin / MCP / Plugin</text>
+<text x="1040" y="568" font-size="14" fill="#475569" font-weight="400" text-anchor="start">同一批工具 Promise.all</text>
+<text x="1040" y="592" font-size="14" fill="#475569" font-weight="400" text-anchor="start">实际权限由宿主与服务端决定</text>
+</g>
+<g id="results" data-graph-role="node" data-node-id="results" data-graph-bounds="540,480,880,620"><title>工具结果入消息 — content + isError + call id / 绑定原 toolCall.output</title>
+<rect x="540" y="480" width="340" height="140" rx="8" fill="#faf5ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 556,496 h 16 l 6,6 v 16 h -22 Z M 572,496 v 6 h 6" fill="none" stroke="#9333ea"/>
+</g>
+<text x="590" y="514" font-size="19" fill="#111827" font-weight="600" text-anchor="start">工具结果入消息</text>
+<text x="560" y="544" font-size="14" fill="#475569" font-weight="400" text-anchor="start">content + isError + call id</text>
+<text x="560" y="568" font-size="14" fill="#475569" font-weight="400" text-anchor="start">绑定原 toolCall.output</text>
+</g>
+<g id="repeat" data-graph-role="node" data-node-id="repeat" data-graph-bounds="60,480,400,620"><title>继续回合？ — reactLoop 开启 / 仍在回合上限内</title>
+<path d="M 230.0,480 L 400,550.0 L 230.0,620 L 60,550.0 Z" fill="#fef2f2" stroke="#dc2626" stroke-width="1.5"/>
+<text x="230.0" y="542.0" font-size="19" fill="#111827" font-weight="600" text-anchor="middle">继续回合？</text>
+<text x="230.0" y="567.0" font-size="13" fill="#111827" font-weight="400" text-anchor="middle">reactLoop 开启</text>
+<text x="230.0" y="589.0" font-size="13" fill="#111827" font-weight="400" text-anchor="middle">仍在回合上限内</text>
+</g>
+<g id="settle" data-graph-role="node" data-node-id="settle" data-graph-bounds="60,790,400,900"><title>结算运行 — 停止循环 → finalizeActiveRun / 清理状态 / 按结果保存历史</title>
+<rect x="60" y="790" width="340" height="110" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 76,806 h 16 l 6,6 v 16 h -22 Z M 92,806 v 6 h 6" fill="none" stroke="#16a34a"/>
+</g>
+<text x="110" y="824" font-size="19" fill="#111827" font-weight="600" text-anchor="start">结算运行</text>
+<text x="80" y="854" font-size="14" fill="#475569" font-weight="400" text-anchor="start">停止循环 → finalizeActiveRun</text>
+<text x="80" y="878" font-size="14" fill="#475569" font-weight="400" text-anchor="start">清理状态 / 按结果保存历史</text>
+</g>
+<text x="60" y="58" font-size="28" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">04  工具调用与 ReAct 循环</text>
+<text x="60" y="92" font-size="15" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">模型提出工具请求；共享 Thread store 驱动策略检查、工具执行和下一次模型调用。</text>
+<text x="470.0" y="238.0" font-size="14" fill="#9333ea" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-1">AgentEvent</text>
+<text x="950.0" y="238.0" font-size="14" fill="#9333ea" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-2">toolCalls</text>
+<text x="1420.0" y="238.0" font-size="14" fill="#dc2626" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-3">否</text>
+<text x="1204.0" y="400.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-4">是：受控调用</text>
+<text x="950" y="538" font-size="14" fill="#9333ea" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-5">toolResult</text>
+<text x="470" y="538" font-size="14" fill="#9333ea" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-6">含结果的上下文</text>
+<text x="246" y="407" font-size="14" fill="#9333ea" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-7">是：下一回合</text>
+<text x="244.0" y="705.0" font-size="14" fill="#dc2626" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-8">否</text>
+<text x="540" y="760" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">autoRunTools = false：首轮完成后停止，保留待执行工具调用。</text>
+<text x="540" y="805" font-size="16" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">autoRunTools = true、reactLoop = false：自动执行本轮工具，然后停止。</text>
+<text x="540" y="850" font-size="16" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">reactLoop = true：工具结果回填后再次请求模型；无工具、失败、中止或限额都会结束。</text>
+<text x="540" y="895" font-size="16" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">function stub 需要手填结果；破坏性 Bash 与不满足宿主策略的工具不会自动执行。</text>
+<text x="60" y="972" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">图示展开“有待执行工具”的路径；provider-hosted native tools 由供应商执行，不经过 Host executeTool。</text>
+<text x="102" y="1018" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">请求 / 主流程</text>
+<text x="392" y="1018" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">事件 / 结果 / 循环</text>
+<text x="732" y="1018" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">持久化 / 读取</text>
+<text x="1052" y="1018" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">检查 / 中止 / 边界</text>
+<text x="1680" y="58" font-size="13" fill="#6b7280" font-weight="400" text-anchor="end" data-graph-role="label">2026-09-03</text>
+</svg>

@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1180" width="1600" height="1180" data-generator="fireworks-tech-graph" data-quality-profile="showcase" role="img" aria-labelledby="diagram-title diagram-desc">
+<title id="diagram-title">05  Thread、快照与存储边界</title>
+<desc id="diagram-desc">区分可编辑内容、派生运行快照、瞬时 UI 状态，以及游客与身份服务各自的数据。</desc>
+<style>text { font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif; }</style>
+<defs>
+<marker id="arrow-blue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#2563eb"/></marker>
+<marker id="arrow-green" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#16a34a"/></marker>
+<marker id="arrow-purple" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#9333ea"/></marker>
+<marker id="arrow-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#dc2626"/></marker>
+</defs>
+<rect width="1600" height="1180" fill="#ffffff" data-graph-role="background"/>
+<rect x="40" y="135" width="920" height="680" rx="12" fill="#f0fdf4" fill-opacity="0.38" stroke="#d1d5db" stroke-dasharray="6 5" data-graph-role="container"/>
+<rect x="1020" y="135" width="540" height="680" rx="12" fill="#eff6ff" fill-opacity="0.38" stroke="#d1d5db" stroke-dasharray="6 5" data-graph-role="container"/>
+<g data-graph-role="legend"><line x1="60" y1="1133" x2="92" y2="1133" stroke="#2563eb" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="350" y1="1133" x2="382" y2="1133" stroke="#9333ea" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="690" y1="1133" x2="722" y2="1133" stroke="#16a34a" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="1010" y1="1133" x2="1042" y2="1133" stroke="#dc2626" stroke-width="2.5"/></g>
+<path id="edge-1" data-edge-id="edge-1" data-graph-role="edge" data-source="thread-store" data-target="save" d="M 440,270.0 L 560,270.0" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+<path id="edge-2" data-edge-id="edge-2" data-graph-role="edge" data-source="save" data-target="workspace" d="M 745.0,335 L 745.0,465" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+<path id="edge-3" data-edge-id="edge-3" data-graph-role="edge" data-source="workspace" data-target="history" d="M 560,530 L 440,530" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+<g id="thread-store" data-graph-role="node" data-node-id="thread-store" data-graph-bounds="70,205,440,335"><title>Thread store（内存） — thread / streamingMessage / status / changeHistory（Undo / Redo） / runHistory 与评估引用</title>
+<rect x="70" y="205" width="370" height="130" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<rect x="86" y="221" width="23" height="19" rx="3" fill="none" stroke="#2563eb"/>
+<path d="M 86,227 h 23" stroke="#2563eb"/>
+</g>
+<text x="120" y="239" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Thread store（内存）</text>
+<text x="90" y="269" font-size="14" fill="#475569" font-weight="400" text-anchor="start">thread / streamingMessage / status</text>
+<text x="90" y="293" font-size="14" fill="#475569" font-weight="400" text-anchor="start">changeHistory（Undo / Redo）</text>
+<text x="90" y="317" font-size="14" fill="#475569" font-weight="400" text-anchor="start">runHistory 与评估引用</text>
+</g>
+<g id="save" data-graph-role="node" data-node-id="save" data-graph-bounds="560,205,930,335"><title>SerializedPersistence — ThreadTabPane 防抖、串行写入 / runtimeId 绑定正确存储宿主 / LocalFileSystem.write / archiveRun</title>
+<rect x="560" y="205" width="370" height="130" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 576,221 h 16 l 6,6 v 16 h -22 Z M 592,221 v 6 h 6" fill="none" stroke="#16a34a"/>
+</g>
+<text x="610" y="239" font-size="19" fill="#111827" font-weight="600" text-anchor="start">SerializedPersistence</text>
+<text x="580" y="269" font-size="14" fill="#475569" font-weight="400" text-anchor="start">ThreadTabPane 防抖、串行写入</text>
+<text x="580" y="293" font-size="14" fill="#475569" font-weight="400" text-anchor="start">runtimeId 绑定正确存储宿主</text>
+<text x="580" y="317" font-size="14" fill="#475569" font-weight="400" text-anchor="start">LocalFileSystem.write / archiveRun</text>
+</g>
+<g id="workspace" data-graph-role="node" data-node-id="workspace" data-graph-bounds="560,465,930,595"><title>workspace/ — 用户 Thread JSON / runHistoryIndex 保存轻量引用 / 规范化 → schema → 原子文件写入</title>
+<rect x="560" y="465" width="370" height="130" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 576,485 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="587" cy="485" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="610" y="499" font-size="19" fill="#111827" font-weight="600" text-anchor="start">workspace/</text>
+<text x="580" y="529" font-size="14" fill="#475569" font-weight="400" text-anchor="start">用户 Thread JSON</text>
+<text x="580" y="553" font-size="14" fill="#475569" font-weight="400" text-anchor="start">runHistoryIndex 保存轻量引用</text>
+<text x="580" y="577" font-size="14" fill="#475569" font-weight="400" text-anchor="start">规范化 → schema → 原子文件写入</text>
+</g>
+<g id="history" data-graph-role="node" data-node-id="history" data-graph-bounds="70,465,440,595"><title>history/ — sha256(resourceKey) / index.json / entryRef → 完整运行快照 / 不把派生文件放进 workspace</title>
+<rect x="70" y="465" width="370" height="130" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 86,485 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="97" cy="485" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="120" y="499" font-size="19" fill="#111827" font-weight="600" text-anchor="start">history/</text>
+<text x="90" y="529" font-size="14" fill="#475569" font-weight="400" text-anchor="start">sha256(resourceKey) / index.json</text>
+<text x="90" y="553" font-size="14" fill="#475569" font-weight="400" text-anchor="start">entryRef → 完整运行快照</text>
+<text x="90" y="577" font-size="14" fill="#475569" font-weight="400" text-anchor="start">不把派生文件放进 workspace</text>
+</g>
+<g id="settings" data-graph-role="node" data-node-id="settings" data-graph-bounds="70,680,440,780"><title>settings/ — 模型连接 / MCP / 网络等配置</title>
+<rect x="70" y="680" width="370" height="100" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 86,700 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="97" cy="700" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="120" y="714" font-size="19" fill="#111827" font-weight="600" text-anchor="start">settings/</text>
+<text x="90" y="744" font-size="14" fill="#475569" font-weight="400" text-anchor="start">模型连接 / MCP / 网络等配置</text>
+</g>
+<g id="traces" data-graph-role="node" data-node-id="traces" data-graph-bounds="560,680,930,780"><title>traces/ + plugins — 独立管理；不等同于 Thread 本文</title>
+<rect x="560" y="680" width="370" height="100" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 576,700 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="587" cy="700" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="610" y="714" font-size="19" fill="#111827" font-weight="600" text-anchor="start">traces/ + plugins</text>
+<text x="580" y="744" font-size="14" fill="#475569" font-weight="400" text-anchor="start">独立管理；不等同于 Thread 本文</text>
+</g>
+<g id="guest-store" data-graph-role="node" data-node-id="guest-store" data-graph-bounds="1050,205,1530,335"><title>Guest localStorage — 工作区与虚拟文件在浏览器 / 评测实验独立 key，含失败证据 / 没有在此建立 PostgreSQL 同步边</title>
+<rect x="1050" y="205" width="480" height="130" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1066,225 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="1077" cy="225" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="1100" y="239" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Guest localStorage</text>
+<text x="1070" y="269" font-size="14" fill="#475569" font-weight="400" text-anchor="start">工作区与虚拟文件在浏览器</text>
+<text x="1070" y="293" font-size="14" fill="#475569" font-weight="400" text-anchor="start">评测实验独立 key，含失败证据</text>
+<text x="1070" y="317" font-size="14" fill="#475569" font-weight="400" text-anchor="start">没有在此建立 PostgreSQL 同步边</text>
+</g>
+<g id="quota-store" data-graph-role="node" data-node-id="quota-store" data-graph-bounds="1050,425,1530,555"><title>Guest 额度 — SQLite（Bun）/ JSON（Node 入口） / 按 HMAC 身份与 UTC day 计数</title>
+<rect x="1050" y="425" width="480" height="130" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1066,445 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="1077" cy="445" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="1100" y="459" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Guest 额度</text>
+<text x="1070" y="489" font-size="14" fill="#475569" font-weight="400" text-anchor="start">SQLite（Bun）/ JSON（Node 入口）</text>
+<text x="1070" y="513" font-size="14" fill="#475569" font-weight="400" text-anchor="start">按 HMAC 身份与 UTC day 计数</text>
+</g>
+<g id="identity-store" data-graph-role="node" data-node-id="identity-store" data-graph-bounds="1050,645,1530,775"><title>Cloud PostgreSQL — 用户、租户、会话与 RLS schema / 当前 HTTP 入口主要是 OAuth / session</title>
+<rect x="1050" y="645" width="480" height="130" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1066,665 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="1077" cy="665" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="1100" y="679" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Cloud PostgreSQL</text>
+<text x="1070" y="709" font-size="14" fill="#475569" font-weight="400" text-anchor="start">用户、租户、会话与 RLS schema</text>
+<text x="1070" y="733" font-size="14" fill="#475569" font-weight="400" text-anchor="start">当前 HTTP 入口主要是 OAuth / session</text>
+</g>
+<text x="60" y="58" font-size="28" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">05  Thread、快照与存储边界</text>
+<text x="60" y="92" font-size="15" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">区分可编辑内容、派生运行快照、瞬时 UI 状态，以及游客与身份服务各自的数据。</text>
+<text x="62" y="167" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">Desktop / Remote：各自的 LLM_SPACE_HOME</text>
+<text x="500.0" y="258.0" font-size="14" fill="#16a34a" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-1">Thread</text>
+<text x="759.0" y="400.0" font-size="14" fill="#16a34a" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-2">规范化 Thread JSON</text>
+<text x="500" y="518" font-size="14" fill="#16a34a" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-3">snapshotRef</text>
+<text x="1042" y="167" font-size="17" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">其他持久化域</text>
+<text x="60" y="865" font-size="16" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">文件复制 cp：复制并重新关联历史；移动 mv：历史随 resourceKey 重键；写入时 prune 清除不再引用的快照。</text>
+<text x="60" y="910" font-size="16" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">删除 Thread：历史不会立即删除。maintain 首次发现资源缺失时记录 orphanedAt，超过 30 天保留期后回收。</text>
+<text x="60" y="955" font-size="16" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">Run history：保存成功完成的运行。changeHistory：为编辑与 Undo / Redo 服务。Trace：用于查看运行与工具证据。</text>
+<text x="60" y="1000" font-size="16" fill="#111827" font-weight="400" text-anchor="start" data-graph-role="label">保存快照与保存 Thread 属于不同阶段；请以各层错误处理为准，不把多文件操作描述成跨文件数据库事务。</text>
+<text x="60" y="1092" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">一份 Thread 内容可以复用；数据归属始终跟随 runtime、浏览器来源或租户边界。</text>
+<text x="102" y="1138" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">请求 / 主流程</text>
+<text x="392" y="1138" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">事件 / 结果 / 循环</text>
+<text x="732" y="1138" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">持久化 / 读取</text>
+<text x="1052" y="1138" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">检查 / 中止 / 边界</text>
+<text x="1540" y="58" font-size="13" fill="#6b7280" font-weight="400" text-anchor="end" data-graph-role="label">2026-09-03</text>
+</svg>

@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1100" width="1600" height="1100" data-generator="fireworks-tech-graph" data-quality-profile="showcase" role="img" aria-labelledby="diagram-title diagram-desc">
+<title id="diagram-title">08  Prompt 渲染与 Python 导出</title>
+<desc id="diagram-desc">编辑态模板、运行态请求、冻结快照与独立导出项目是不同的数据形态。</desc>
+<style>text { font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif; }</style>
+<defs>
+<marker id="arrow-blue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#2563eb"/></marker>
+<marker id="arrow-green" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#16a34a"/></marker>
+<marker id="arrow-purple" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#9333ea"/></marker>
+<marker id="arrow-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0,10 3.5,0 7" fill="#dc2626"/></marker>
+</defs>
+<rect width="1600" height="1100" fill="#ffffff" data-graph-role="background"/>
+<g data-graph-role="legend"><line x1="60" y1="1053" x2="92" y2="1053" stroke="#2563eb" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="350" y1="1053" x2="382" y2="1053" stroke="#9333ea" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="690" y1="1053" x2="722" y2="1053" stroke="#16a34a" stroke-width="2.5"/></g>
+<g data-graph-role="legend"><line x1="1010" y1="1053" x2="1042" y2="1053" stroke="#dc2626" stroke-width="2.5"/></g>
+<path id="edge-1" data-edge-id="edge-1" data-graph-role="edge" data-source="editable" data-target="render" d="M 460,245.0 L 610,245.0" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+<path id="edge-2" data-edge-id="edge-2" data-graph-role="edge" data-source="render" data-target="request" d="M 1010,245.0 L 1160,245.0" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+<path id="edge-3" data-edge-id="edge-3" data-graph-role="edge" data-source="render" data-target="snapshot" d="M 810.0,310 L 810.0,465" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+<path id="edge-4" data-edge-id="edge-4" data-graph-role="edge" data-source="editable" data-target="generator" d="M 260,310 L 260,765" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+<path id="edge-5" data-edge-id="edge-5" data-graph-role="edge" data-source="generator" data-target="python" d="M 460,835.0 L 610,835.0" fill="none" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+<path id="edge-6" data-edge-id="edge-6" data-graph-role="edge" data-source="python" data-target="followup" d="M 1010,835.0 L 1160,835.0" fill="none" stroke="#dc2626" stroke-width="2.5" marker-end="url(#arrow-red)"/>
+<g id="editable" data-graph-role="node" data-node-id="editable" data-graph-bounds="60,180,460,310"><title>编辑态 ThreadContext — systemPrompt / messages / tools / 变量定义与模板仍可编辑 / 不把模板直接当作最终模型输入</title>
+<rect x="60" y="180" width="400" height="130" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 76,196 h 16 l 6,6 v 16 h -22 Z M 92,196 v 6 h 6" fill="none" stroke="#2563eb"/>
+</g>
+<text x="110" y="214" font-size="19" fill="#111827" font-weight="600" text-anchor="start">编辑态 ThreadContext</text>
+<text x="80" y="244" font-size="14" fill="#475569" font-weight="400" text-anchor="start">systemPrompt / messages / tools</text>
+<text x="80" y="268" font-size="14" fill="#475569" font-weight="400" text-anchor="start">变量定义与模板仍可编辑</text>
+<text x="80" y="292" font-size="14" fill="#475569" font-weight="400" text-anchor="start">不把模板直接当作最终模型输入</text>
+</g>
+<g id="render" data-graph-role="node" data-node-id="render" data-graph-bounds="610,180,1010,310"><title>renderThreadPromptVariables — 加载变量、Skills、文件 / renderTemplateText / Nunjucks / 得到 rendered context + snapshot</title>
+<rect x="610" y="180" width="400" height="130" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 637,196 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="660" y="214" font-size="19" fill="#111827" font-weight="600" text-anchor="start">renderThreadPromptVariables</text>
+<text x="630" y="244" font-size="14" fill="#475569" font-weight="400" text-anchor="start">加载变量、Skills、文件</text>
+<text x="630" y="268" font-size="14" fill="#475569" font-weight="400" text-anchor="start">renderTemplateText / Nunjucks</text>
+<text x="630" y="292" font-size="14" fill="#475569" font-weight="400" text-anchor="start">得到 rendered context + snapshot</text>
+</g>
+<g id="request" data-graph-role="node" data-node-id="request" data-graph-bounds="1160,180,1540,310"><title>运行请求 — streamThread → convertToPiContext / AgentStreamRequest / transport → core/server</title>
+<rect x="1160" y="180" width="380" height="130" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1187,196 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="1210" y="214" font-size="19" fill="#111827" font-weight="600" text-anchor="start">运行请求</text>
+<text x="1180" y="244" font-size="14" fill="#475569" font-weight="400" text-anchor="start">streamThread → convertToPiContext</text>
+<text x="1180" y="268" font-size="14" fill="#475569" font-weight="400" text-anchor="start">AgentStreamRequest</text>
+<text x="1180" y="292" font-size="14" fill="#475569" font-weight="400" text-anchor="start">transport → core/server</text>
+</g>
+<g id="snapshot" data-graph-role="node" data-node-id="snapshot" data-graph-bounds="610,465,1010,595"><title>Prompt snapshot — 冻结变量与渲染输出 / 随运行快照记录，供检查 / 重放 / 编辑变量或模板时按语义失效</title>
+<rect x="610" y="465" width="400" height="130" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 626,485 v 14 c 0,7 22,7 22,0 v -14" fill="none" stroke="#16a34a"/>
+<ellipse cx="637" cy="485" rx="11" ry="4" fill="none" stroke="#16a34a"/>
+</g>
+<text x="660" y="499" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Prompt snapshot</text>
+<text x="630" y="529" font-size="14" fill="#475569" font-weight="400" text-anchor="start">冻结变量与渲染输出</text>
+<text x="630" y="553" font-size="14" fill="#475569" font-weight="400" text-anchor="start">随运行快照记录，供检查 / 重放</text>
+<text x="630" y="577" font-size="14" fill="#475569" font-weight="400" text-anchor="start">编辑变量或模板时按语义失效</text>
+</g>
+<g id="generator" data-graph-role="node" data-node-id="generator" data-graph-bounds="60,765,460,905"><title>langgraphGenerator — Desktop 宿主选择目标目录 / 按 Thread / 模型 / 工具确定性生成 / 生成过程不调用 LLM</title>
+<rect x="60" y="765" width="400" height="140" rx="8" fill="#eff6ff" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 87,781 l 11,6 v 12 l -11,6 -11,-6 v -12 Z" fill="none" stroke="#2563eb"/>
+</g>
+<text x="110" y="799" font-size="19" fill="#111827" font-weight="600" text-anchor="start">langgraphGenerator</text>
+<text x="80" y="829" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Desktop 宿主选择目标目录</text>
+<text x="80" y="853" font-size="14" fill="#475569" font-weight="400" text-anchor="start">按 Thread / 模型 / 工具确定性生成</text>
+<text x="80" y="877" font-size="14" fill="#475569" font-weight="400" text-anchor="start">生成过程不调用 LLM</text>
+</g>
+<g id="python" data-graph-role="node" data-node-id="python" data-graph-bounds="610,765,1010,905"><title>Python / uv 项目 — agent / model / variables.py / 受支持 built-in 工具的真实实现 / MCP 配置；自定义 function stub</title>
+<rect x="610" y="765" width="400" height="140" rx="8" fill="#f0fdf4" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 626,781 h 16 l 6,6 v 16 h -22 Z M 642,781 v 6 h 6" fill="none" stroke="#16a34a"/>
+</g>
+<text x="660" y="799" font-size="19" fill="#111827" font-weight="600" text-anchor="start">Python / uv 项目</text>
+<text x="630" y="829" font-size="14" fill="#475569" font-weight="400" text-anchor="start">agent / model / variables.py</text>
+<text x="630" y="853" font-size="14" fill="#475569" font-weight="400" text-anchor="start">受支持 built-in 工具的真实实现</text>
+<text x="630" y="877" font-size="14" fill="#475569" font-weight="400" text-anchor="start">MCP 配置；自定义 function stub</text>
+</g>
+<g id="followup" data-graph-role="node" data-node-id="followup" data-graph-bounds="1160,765,1540,905"><title>导出边界 — references/ + PLAN.md 说明待办 / Plugin / provider-hosted tools 拒绝 / 未知 built-in 不自动补成真实实现</title>
+<rect x="1160" y="765" width="380" height="140" rx="8" fill="#fef2f2" stroke="#d1d5db" stroke-width="1.5"/>
+<g data-graph-role="decoration">
+<path d="M 1176,781 h 16 l 6,6 v 16 h -22 Z M 1192,781 v 6 h 6" fill="none" stroke="#dc2626"/>
+</g>
+<text x="1210" y="799" font-size="19" fill="#111827" font-weight="600" text-anchor="start">导出边界</text>
+<text x="1180" y="829" font-size="14" fill="#475569" font-weight="400" text-anchor="start">references/ + PLAN.md 说明待办</text>
+<text x="1180" y="853" font-size="14" fill="#475569" font-weight="400" text-anchor="start">Plugin / provider-hosted tools 拒绝</text>
+<text x="1180" y="877" font-size="14" fill="#475569" font-weight="400" text-anchor="start">未知 built-in 不自动补成真实实现</text>
+</g>
+<text x="60" y="58" font-size="28" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">08  Prompt 渲染与 Python 导出</text>
+<text x="60" y="92" font-size="15" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">编辑态模板、运行态请求、冻结快照与独立导出项目是不同的数据形态。</text>
+<text x="535.0" y="233.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-1">模板 / 变量</text>
+<text x="1085.0" y="233.0" font-size="14" fill="#2563eb" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-2">渲染结果</text>
+<text x="824.0" y="387.5" font-size="14" fill="#16a34a" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-3">snapshot</text>
+<text x="276" y="565" font-size="14" fill="#2563eb" font-weight="400" text-anchor="start" data-graph-role="label" data-owner="edge-4">导出输入（另一路径）</text>
+<text x="535.0" y="823.0" font-size="14" fill="#16a34a" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-5">源码文件</text>
+<text x="1085.0" y="823.0" font-size="14" fill="#dc2626" font-weight="400" text-anchor="middle" data-graph-role="label" data-owner="edge-6">检查待办</text>
+<text x="60" y="980" font-size="16" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">修改内置变量 / 函数 / filter / macro：同时维护 TypeScript 与生成的 Python，并执行生成 Python 的回归验证。</text>
+<text x="60" y="1012" font-size="15" fill="#111827" font-weight="600" text-anchor="start" data-graph-role="label">可导出不等于所有工具都已实现；阅读 PLAN.md 与 references，再验证生成项目的实际运行能力。</text>
+<text x="102" y="1058" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">请求 / 主流程</text>
+<text x="392" y="1058" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">事件 / 结果 / 循环</text>
+<text x="732" y="1058" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">持久化 / 读取</text>
+<text x="1052" y="1058" font-size="13" fill="#6b7280" font-weight="400" text-anchor="start" data-graph-role="label">检查 / 中止 / 边界</text>
+<text x="1540" y="58" font-size="13" fill="#6b7280" font-weight="400" text-anchor="end" data-graph-role="label">2026-09-03</text>
+</svg>
