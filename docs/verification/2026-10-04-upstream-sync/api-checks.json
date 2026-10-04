@@ -1,0 +1,61 @@
+{
+  "checkedAt": "2026-10-04T06:18:53.632Z",
+  "models": 3,
+  "checks": [
+    {
+      "path": "/api/guest/runs",
+      "status": 403,
+      "code": "origin_mismatch"
+    },
+    {
+      "path": "/api/guest/runs",
+      "status": 400,
+      "code": "invalid_json"
+    },
+    {
+      "path": "/api/guest/runs",
+      "status": 400,
+      "code": "guest_model_unavailable"
+    },
+    {
+      "path": "/api/guest/runs",
+      "status": 400,
+      "code": "invalid_context"
+    },
+    {
+      "path": "/api/guest/runs",
+      "status": 400,
+      "code": "invalid_conversation"
+    },
+    {
+      "path": "/api/guest/mcp/tools",
+      "status": 403,
+      "code": "remote_mcp_disabled"
+    },
+    {
+      "path": "/api/guest/mcp/tools",
+      "status": 200,
+      "code": "ok"
+    },
+    {
+      "path": "/api/guest/mcp/call",
+      "status": 400,
+      "code": "invalid_tool_arguments"
+    },
+    {
+      "path": "/api/guest/mcp/call",
+      "status": 200,
+      "code": "ok"
+    },
+    {
+      "path": "/api/guest/tools/call",
+      "status": 200,
+      "code": "ok"
+    },
+    {
+      "path": "/api/guest/tools/call",
+      "status": 200,
+      "code": "ok"
+    }
+  ]
+}
