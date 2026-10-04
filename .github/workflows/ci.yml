@@ -31,7 +31,9 @@ jobs:
       # The built-in grep tool shells out to ripgrep. macOS release builds run
       # on macOS runners, but this Ubuntu test runner does not include `rg`.
       - name: Install test dependencies
-        run: sudo apt-get update && sudo apt-get install --yes ripgrep
+        run: |
+          sudo apt-get update && sudo apt-get install --yes ripgrep
+          python3 -m pip install 'jinja2==3.1.6'
 
       - run: mise run test
 

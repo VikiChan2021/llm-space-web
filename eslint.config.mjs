@@ -17,6 +17,8 @@ export default defineConfig([
       "**/.next/**",
       "**/.turbo/**",
       ".agents/**",
+      ".playwright-cli/**",
+      "output/**",
       ".llm-space/**",
       // Generated files (huge embedded string literals) — not authored by hand,
       // and large enough to OOM eslint's typed-lint pass.

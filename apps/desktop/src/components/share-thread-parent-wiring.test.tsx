@@ -205,6 +205,8 @@ await mock.module("@llm-space/ui/ui/dialog", () => ({
   DialogTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>,
 }));
 await mock.module("@llm-space/ui/ui/select", () => ({
+  SelectGroup: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  SelectLabel: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   Select: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   SelectContent: ({ children }: { children?: ReactNode }) => (
     <div>{children}</div>

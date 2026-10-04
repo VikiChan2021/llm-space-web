@@ -476,6 +476,8 @@ export function applyTemplatePy(
 
   // Skip Jinja2 entirely for a prompt with no variables, so stray braces in
   // prose can't trip the renderer.
+  // Resolve live variables once per render and share that map with recursive
+  // includes, matching the TypeScript renderer's single-clock snapshot.
   const renderBody =
     entries.length > 0
       ? `    template = path.read_text(encoding="utf-8")\n    return apply_template(build_variables(), template)`
