@@ -1,0 +1,2560 @@
+{
+  "schemaVersion": 1,
+  "title": "LLM Space interactive code map",
+  "generatedAt": "2026-08-24T06:25:15.831Z",
+  "repository": {
+    "name": "llm-space-web",
+    "root": "D:\\1_myCode\\1-novel\\llm-space-web",
+    "branch": "main",
+    "commit": "7c41be58581ab5ad69e298ccd4f247f124f77638",
+    "remote": "https://github.com/VikiChan2021/llm-space-web.git",
+    "evidenceBasis": "Current source checkout; deployment and production availability are not inferred."
+  },
+  "summary": {
+    "primaryNodeCount": 19,
+    "edgeCount": 34,
+    "flowCount": 5,
+    "sourcePackages": 7,
+    "implementationLanguages": [
+      "TypeScript",
+      "TSX",
+      "Python templates",
+      "SQL migrations"
+    ]
+  },
+  "lanes": [
+    {
+      "id": "experience",
+      "label": "Experience surfaces",
+      "y": 32,
+      "height": 170
+    },
+    {
+      "id": "bridge",
+      "label": "Boundaries & services",
+      "y": 212,
+      "height": 150
+    },
+    {
+      "id": "runtime",
+      "label": "Runtime & domain",
+      "y": 372,
+      "height": 220
+    },
+    {
+      "id": "data",
+      "label": "State & external systems",
+      "y": 602,
+      "height": 132
+    }
+  ],
+  "kinds": [
+    {
+      "id": "surface",
+      "label": "UI surface"
+    },
+    {
+      "id": "bridge",
+      "label": "Boundary"
+    },
+    {
+      "id": "service",
+      "label": "Service"
+    },
+    {
+      "id": "runtime",
+      "label": "Runtime/domain"
+    },
+    {
+      "id": "database",
+      "label": "State/database"
+    },
+    {
+      "id": "external",
+      "label": "External dependency"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "web-shell",
+      "label": "Web shell & shared viewer",
+      "shortLabel": "Web viewer",
+      "kind": "surface",
+      "lane": "experience",
+      "x": 20,
+      "y": 82,
+      "width": 156,
+      "height": 72,
+      "status": "implemented; GitHub Pages build is separate from guest build",
+      "role": "Routes the static web bundle between the landing page, documentation, optional guest workbench, and a display-only shared-thread viewer. Shared threads are read through a connector and rendered with the shared ThreadPlayground in read-only mode.",
+      "boundaries": [
+        "HashRouter keeps GitHub Pages deep links at HTTP 200.",
+        "The normal Pages build does not enable the guest workbench flag.",
+        "The viewer does not receive a transport or tool executor."
+      ],
+      "dependencies": [
+        "React Router",
+        "@llm-space/ui",
+        "@llm-space/core/storage",
+        "GitHub Gist API"
+      ],
+      "children": [
+        "apps/web/src/app.tsx",
+        "apps/web/src/thread-viewer.tsx",
+        "apps/web/src/host/web-host.ts",
+        "apps/web/src/landing/",
+        "apps/web/src/docs/"
+      ],
+      "sourceEvidence": [
+        {
+          "path": "apps/web/src/app.tsx",
+          "lines": "31-55, 58-105",
+          "symbol": "CONNECTORS / ThemedApp",
+          "note": "Defines Gist-backed shared routes and build-flag-controlled guest routes."
+        },
+        {
+          "path": "apps/web/src/thread-viewer.tsx",
+          "lines": "69-83, 90-143, 203-214",
+          "symbol": "loadShared / ThreadViewer",
+          "note": "Loads connector data and mounts a readonly ThreadPlayground."
+        },
+        {
+          "path": "apps/web/src/host/web-host.ts",
+          "lines": "35-80",
+          "symbol": "GUEST_WORKBENCH_ENABLED / webHost",
+          "note": "Separates display-only viewer behavior from the guest host."
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "apps/web/src/host/web-action-bridge.test.ts",
+          "lines": "8-49",
+          "note": "Covers active-workbench action routing."
+        },
+        {
+          "path": "packages/core/tests/storage/gist/gist-thread-reader.test.ts",
+          "lines": "163-212",
+          "note": "Covers shared Gist metadata and thread reads."
+        }
+      ]
+    },
+    {
+      "id": "guest-workbench",
+      "label": "Guest web workbench",
+      "shortLabel": "Guest workbench",
+      "kind": "surface",
+      "lane": "experience",
+      "x": 190,
+      "y": 82,
+      "width": 156,
+      "height": 72,
+      "status": "implemented behind VITE_GUEST_WORKBENCH=1",
+      "role": "Turns the shared ThreadPlayground into a browser-only Agent workbench by injecting an HTTP/SSE transport, constrained tool policy, examples, evaluation UI, learning coach, and browser-persisted Thread library.",
+      "boundaries": [
+        "Enabled only when VITE_GUEST_WORKBENCH=1.",
+        "No provider secret is stored in the browser.",
+        "Automatic tool execution is capped and limited to guest-safe tools."
+      ],
+      "dependencies": [
+        "@llm-space/ui",
+        "Guest HTTP API",
+        "Browser localStorage",
+        "same-origin cookies"
+      ],
+      "children": [
+        "apps/web/src/guest/guest-workbench.tsx",
+        "apps/web/src/guest/guest-api.ts",
+        "apps/web/src/guest/guest-workspace.ts",
+        "apps/web/src/guest/guest-tools.ts",
+        "apps/web/src/guest/coach/"
+      ],
+      "sourceEvidence": [
+        {
+          "path": "apps/web/src/guest/guest-workbench.tsx",
+          "lines": "133-300, 671-859",
+          "symbol": "GuestWorkbench",
+          "note": "Loads browser state, creates the guest transport, injects HostServices, and mounts ThreadPlayground."
+        },
+        {
+          "path": "apps/web/src/host/web-host.ts",
+          "lines": "52-140",
+          "symbol": "webHost",
+          "note": "Defines the sandboxed host and auto-tool policy."
+        },
+        {
+          "path": "apps/web/src/guest/guest-workspace.ts",
+          "lines": "11-17, 52-155",
+          "symbol": "loadGuestWorkspace / createStarterThread",
+          "note": "Owns the versioned browser Thread workspace and starter."
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "apps/web/src/guest/guest-workspace.test.ts",
+          "lines": "68-244",
+          "note": "Covers creation, migration, selection, duplication, deletion, reset, and persistence."
+        },
+        {
+          "path": "apps/web/src/guest/guest-api.test.ts",
+          "lines": "13-118",
+          "note": "Covers SSE parsing and structured guest errors."
+        },
+        {
+          "path": "apps/web/src/guest/guest-tools.test.ts",
+          "lines": "44-103",
+          "note": "Covers the virtual workspace and guest tool safety policy."
+        }
+      ]
+    },
+    {
+      "id": "shared-ui",
+      "label": "Shared UI & ThreadPlayground",
+      "shortLabel": "Shared UI",
+      "kind": "surface",
+      "lane": "experience",
+      "x": 398,
+      "y": 82,
+      "width": 172,
+      "height": 72,
+      "status": "implemented shared package",
+      "role": "Electrobun-free React design system and the main Agent authoring surface. A per-tab Zustand store prepares prompts, streams model events, reduces them into messages, executes approved tools, maintains undo/run history, and calls host seams for environment-specific capabilities.",
+      "boundaries": [
+        "No Electrobun or desktop client imports are allowed in packages/ui.",
+        "Every open Thread owns an independent Zustand store.",
+        "Run loops cap automatic tool turns and delegate actual execution to HostServices."
+      ],
+      "dependencies": [
+        "React 19",
+        "Zustand",
+        "CodeMirror",
+        "@llm-space/core/client",
+        "HostServices seam"
+      ],
+      "children": [
+        "packages/ui/src/components/thread-playground/",
+        "packages/ui/src/host/",
+        "packages/ui/src/components/model-provider.tsx",
+        "packages/ui/src/ui/",
+        "packages/ui/src/styles/"
+      ],
+      "sourceEvidence": [
+        {
+          "path": "packages/ui/src/components/thread-playground/stores/thread-store.ts",
+          "lines": "1137-1210, 1279-1425",
+          "symbol": "createThreadStore().run",
+          "note": "Claims the run lifecycle, resolves the model, finalizes history, and reports settlement."
+        },
+        {
+          "path": "packages/ui/src/components/thread-playground/stores/thread-store.ts",
+          "lines": "1490-1638",
+          "symbol": "streamTurn / tool loop",
+          "note": "Calls streamThread, reduces events, commits messages, and drives capped tool turns."
+        },
+        {
+          "path": "packages/ui/src/host/types.ts",
+          "lines": "1-220",
+          "symbol": "HostServices / ModelClient",
+          "note": "Defines the host-specific capability seam used by desktop and web."
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "packages/ui/tests/components/thread-playground/stores/thread-store.test.ts",
+          "lines": "37-180",
+          "note": "Covers run validation and provider-hosted tool behavior."
+        },
+        {
+          "path": "packages/ui/src/components/thread-playground/stores/thread-store-tool-policy.test.ts",
+          "lines": "24-220",
+          "note": "Covers host tool execution limits and policy decisions."
+        },
+        {
+          "path": "packages/ui/tests/components/thread-playground/stores/thread-store-runtime.test.ts",
+          "lines": "22-90",
+          "note": "Covers runtime ownership and snapshot loading."
+        }
+      ]
+    },
+    {
+      "id": "desktop-renderer",
+      "label": "Desktop renderer",
+      "shortLabel": "Desktop renderer",
+      "kind": "surface",
+      "lane": "experience",
+      "x": 603,
+      "y": 82,
+      "width": 156,
+      "height": 72,
+      "status": "implemented Electrobun renderer",
+      "role": "React renderer for workspace navigation, Thread tabs, settings, commands, and dialogs. It injects desktop HostServices and a runtime-scoped RPC transport into the shared UI while serializing Thread edits back to the selected runtime.",
+      "boundaries": [
+        "Renderer never imports Node/Bun-only @llm-space/core/server code.",
+        "Filesystem and model operations cross the typed Electrobun RPC boundary.",
+        "Writes are debounced and serialized per open pane."
+      ],
+      "dependencies": [
+        "Electrobun WebView/CEF",
+        "React",
+        "TanStack Query",
+        "@llm-space/ui",
+        "Desktop RPC client"
+      ],
+      "children": [
+        "apps/desktop/src/app/",
+        "apps/desktop/src/components/thread-tabs/",
+        "apps/desktop/src/components/settings/",
+        "apps/desktop/src/host/",
+        "apps/desktop/src/client/"
+      ],
+      "sourceEvidence": [
+        {
+          "path": "apps/desktop/src/components/thread-tabs/thread-tab-pane.tsx",
+          "lines": "65-92, 127-230, 397-416",
+          "symbol": "ThreadTabPane",
+          "note": "Reads a Thread, debounces writes, scopes the transport, and mounts ThreadPlayground."
+        },
+        {
+          "path": "apps/desktop/src/host/host-services.tsx",
+          "lines": "53-200",
+          "symbol": "createElectrobunModelClient / DesktopHostProvider",
+          "note": "Adapts renderer calls to Electrobun RPC clients."
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "apps/desktop/src/host/host-services.test.tsx",
+          "lines": "142-235",
+          "note": "Covers runtime-scoped host operations."
+        },
+        {
+          "path": "apps/desktop/src/components/thread-tabs/serialized-persistence.test.ts",
+          "lines": "15-76",
+          "note": "Covers ordered, retrying persistence."
+        },
+        {
+          "path": "apps/desktop/src/components/thread-tabs/tab-runtime-scope.test.ts",
+          "lines": "1-125",
+          "note": "Covers runtime ownership of tabs."
+        }
+      ]
+    },
+    {
+      "id": "cloud-identity",
+      "label": "Cloud identity service",
+      "shortLabel": "Cloud identity",
+      "kind": "service",
+      "lane": "bridge",
+      "x": 20,
+      "y": 252,
+      "width": 156,
+      "height": 72,
+      "status": "implemented service code; deployment not asserted",
+      "role": "Bun HTTP service for GitHub OAuth with PKCE/state sealing, secure session cookies, personal tenant/workspace provisioning, session lookup, and logout. Startup verifies PostgreSQL row-level-isolation prerequisites.",
+      "boundaries": [
+        "Runtime database credentials must be non-superuser and cannot BYPASSRLS.",
+        "Mutation endpoints enforce same-origin requests.",
+        "Only token hashes and hashed optional metadata are persisted."
+      ],
+      "dependencies": [
+        "Bun HTTP",
+        "GitHub OAuth API",
+        "PostgreSQL",
+        "signed/encrypted cookies"
+      ],
+      "children": [
+        "apps/cloud/src/index.ts",
+        "apps/cloud/src/http-server.ts",
+        "apps/cloud/src/github-oauth.ts",
+        "apps/cloud/src/crypto.ts",
+        "apps/cloud/src/config.ts"
+      ],
+      "sourceEvidence": [
+        {
+          "path": "apps/cloud/src/index.ts",
+          "lines": "10-21",
+          "symbol": "cloud composition",
+          "note": "Runs migrations optionally, verifies database isolation, and starts the service."
+        },
+        {
+          "path": "apps/cloud/src/http-server.ts",
+          "lines": "33-180",
+          "symbol": "createCloudFetchHandler",
+          "note": "Implements OAuth, callback provisioning, session read, and logout routes."
+        },
+        {
+          "path": "apps/cloud/src/config.ts",
+          "lines": "21-62",
+          "symbol": "loadCloudConfig",
+          "note": "Validates public URL, database, GitHub credentials, cookie mode, and TTL."
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "apps/cloud/src/http-server.test.ts",
+          "lines": "86-268",
+          "note": "Covers the Cloud identity HTTP flow."
+        },
+        {
+          "path": "apps/cloud/src/github-oauth.test.ts",
+          "lines": "1-71",
+          "note": "Covers OAuth URL, token exchange, and identity handling."
+        },
+        {
+          "path": "apps/cloud/src/crypto.test.ts",
+          "lines": "1-36",
+          "note": "Covers sealed OAuth state and token hashing."
+        }
+      ]
+    },
+    {
+      "id": "guest-api",
+      "label": "Guest API service",
+      "shortLabel": "Guest API",
+      "kind": "service",
+      "lane": "bridge",
+      "x": 190,
+      "y": 252,
+      "width": 156,
+      "height": 72,
+      "status": "implemented service code; deployment not asserted",
+      "role": "Same-origin Bun API for the public guest experience. It validates bounded Agent requests, enforces guest/IP quotas and concurrency, streams model events, and exposes a constrained server-side tool/MCP proxy and learning coach.",
+      "boundaries": [
+        "Only an allowlisted BigModel provider/model catalog is executable.",
+        "Guest requests, images, tools, output, redirects, and concurrency are bounded.",
+        "Public web fetches and remote MCP calls are SSRF-constrained by the tool service."
+      ],
+      "dependencies": [
+        "@llm-space/core/server",
+        "Zhipu BigModel",
+        "Bun SQLite",
+        "MCP SDK",
+        "public web endpoints"
+      ],
+      "children": [
+        "apps/cloud/src/guest-http-server.ts",
+        "apps/cloud/src/guest-model.ts",
+        "apps/cloud/src/guest-quota.ts",
+        "apps/cloud/src/guest-tool-service.ts",
+        "apps/cloud/src/guest-coach.ts"
+      ],
+      "sourceEvidence": [
+        {
+          "path": "apps/cloud/src/guest-http-server.ts",
+          "lines": "71-388",
+          "symbol": "createGuestFetchHandler",
+          "note": "Defines quota/models/tools/MCP/coach/run routes and their guards."
+        },
+        {
+          "path": "apps/cloud/src/guest-model.ts",
+          "lines": "17-70",
+          "symbol": "createGuestModelExecutor",
+          "note": "Builds an allowlisted model registry and delegates streaming to core streamAgent."
+        },
+        {
+          "path": "apps/cloud/src/guest-tool-service.ts",
+          "lines": "9-16, 36-87",
+          "symbol": "guest tool limits/catalog",
+          "note": "Defines bounded guest tools and MCP/web safety ceilings."
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "apps/cloud/src/guest-http-server.test.ts",
+          "lines": "35-855",
+          "note": "Covers routing, quotas, validation, streaming, tool calls, and errors."
+        },
+        {
+          "path": "apps/cloud/src/guest-tool-service.test.ts",
+          "lines": "1-142",
+          "note": "Covers guest web/MCP tool security boundaries."
+        },
+        {
+          "path": "apps/cloud/src/guest-quota.test.ts",
+          "lines": "5-63",
+          "note": "Covers durable daily guest and IP quota decisions."
+        }
+      ]
+    },
+    {
+      "id": "desktop-rpc",
+      "label": "Desktop RPC & commands",
+      "shortLabel": "RPC boundary",
+      "kind": "bridge",
+      "lane": "bridge",
+      "x": 603,
+      "y": 252,
+      "width": 156,
+      "height": 72,
+      "status": "implemented typed boundary",
+      "role": "Single typed bridge between the renderer and Bun process. Request/response handlers cover runtimes, models, files, tools, settings and integrations; fire-and-forget messages simulate agent streaming and route cross-boundary commands.",
+      "boundaries": [
+        "Every request is runtime-scoped before dispatch through RuntimeRouter.",
+        "Streaming is correlated by UUID streamId and cleaned up on abort or early iterator exit.",
+        "Command metadata determines whether the Bun process or renderer executes an action."
+      ],
+      "dependencies": [
+        "Electrobun BrowserView RPC",
+        "DesktopRPCType",
+        "RuntimeRouter",
+        "Command discriminated union"
+      ],
+      "children": [
+        "apps/desktop/src/shared/rpc.ts",
+        "apps/desktop/src/shared/commands.ts",
+        "apps/desktop/src/bun/rpc/",
+        "apps/desktop/src/client/rpc-transport.ts",
+        "apps/desktop/src/commands/"
+      ],
+      "sourceEvidence": [
+        {
+          "path": "apps/desktop/src/bun/rpc/index.ts",
+          "lines": "68-130, 190-221, 528-539",
+          "symbol": "createMainWindowRPC",
+          "note": "Routes runtime-scoped requests and stream messages."
+        },
+        {
+          "path": "apps/desktop/src/client/rpc-transport.ts",
+          "lines": "13-113",
+          "symbol": "createRpcTransport",
+          "note": "Bridges correlated RPC messages into an abortable async event iterator."
+        },
+        {
+          "path": "apps/desktop/src/bun/rpc/stream-thread-request.ts",
+          "lines": "8-29",
+          "symbol": "forwardStreamThread",
+          "note": "Forwards a stream to the selected RuntimeClient and normalizes failures."
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "apps/desktop/src/client/rpc-transport.test.ts",
+          "lines": "99-211",
+          "note": "Covers correlation, buffering, done/error, abort, and early break."
+        },
+        {
+          "path": "apps/desktop/src/bun/rpc/stream-thread-request.test.ts",
+          "lines": "21-120",
+          "note": "Covers event forwarding and error handling."
+        },
+        {
+          "path": "apps/desktop/src/bun/commands.test.ts",
+          "lines": "1-77",
+          "note": "Covers cross-boundary command routing."
+        }
+      ]
+    },
+    {
+      "id": "remote-client",
+      "label": "Remote runtime & SSH client",
+      "shortLabel": "Remote client",
+      "kind": "bridge",
+      "lane": "bridge",
+      "x": 792,
+      "y": 252,
+      "width": 170,
+      "height": 72,
+      "status": "implemented optional runtime",
+      "role": "Desktop-side RuntimeClient that can connect to a manually configured HTTP server or bootstrap a packaged server over SSH. It verifies protocol/version/capabilities, registers the client in RuntimeRouter, maps RPC calls to HTTP, and parses SSE Agent events.",
+      "boundaries": [
+        "Protocol, desktop version, and required capabilities must match before registration.",
+        "HTTP uses a bearer token; SSH first-use or changed host keys require explicit trust.",
+        "Only one default runtime is selected at a time."
+      ],
+      "dependencies": [
+        "fetch/Web Streams",
+        "OpenSSH",
+        "packaged apps/server",
+        "RuntimeRouter"
+      ],
+      "children": [
+        "apps/desktop/src/bun/remote/remote-runtime-client.ts",
+        "apps/desktop/src/bun/remote/remote-server-manager.ts",
+        "apps/desktop/src/bun/remote/ssh-remote-runtime.ts",
+        "apps/desktop/src/bun/remote/remote-server-installer.ts"
+      ],
+      "sourceEvidence": [
+        {
+          "path": "apps/desktop/src/bun/remote/remote-runtime-client.ts",
+          "lines": "61-90, 191-235, 493-530",
+          "symbol": "RemoteRuntimeClient",
+          "note": "Verifies compatibility and maps stream/RPC calls to HTTP."
+        },
+        {
+          "path": "apps/desktop/src/bun/remote/remote-server-manager.ts",
+          "lines": "97-128, 162-217",
+          "symbol": "RemoteServerManager",
+          "note": "Persists server definitions, checks host identity, connects, and registers runtimes."
+        },
+        {
+          "path": "apps/desktop/src/bun/remote/remote-runtime-manager.ts",
+          "lines": "13-49",
+          "symbol": "registerConfiguredRemoteRuntime",
+          "note": "Registers environment-configured SSH or HTTP runtimes."
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "apps/desktop/src/bun/remote/remote-runtime-client.test.ts",
+          "lines": "32-500",
+          "note": "Covers health negotiation, RPC, SSE, auth, and errors."
+        },
+        {
+          "path": "apps/desktop/src/bun/remote/remote-server-manager.test.ts",
+          "lines": "65-600",
+          "note": "Covers persistence, trust, connection switching, and registration."
+        },
+        {
+          "path": "apps/desktop/src/bun/remote/ssh-remote-runtime.test.ts",
+          "lines": "1-760",
+          "note": "Covers SSH bootstrap and tunneled runtime lifecycle."
+        }
+      ]
+    },
+    {
+      "id": "desktop-host",
+      "label": "Desktop Bun composition host",
+      "shortLabel": "Desktop host",
+      "kind": "runtime",
+      "lane": "runtime",
+      "x": 603,
+      "y": 406,
+      "width": 156,
+      "height": 72,
+      "status": "implemented production composition root",
+      "role": "Trusted Bun-process lifecycle boundary. It builds process-scoped managers, local and remote runtimes, plugin host, Gist connector, update/auth services, typed RPC, native window, and reverse-order shutdown in one composition root.",
+      "boundaries": [
+        "Managers are constructed and injected here rather than imported as mutable singletons.",
+        "Network settings hydrate process environment before outbound clients or subprocesses start.",
+        "Shutdown is asynchronous, ordered, and best-effort before Electrobun quits."
+      ],
+      "dependencies": [
+        "Bun",
+        "Electrobun",
+        "@llm-space/runtime",
+        "@llm-space/core/server"
+      ],
+      "children": [
+        "apps/desktop/src/bun/app/start-desktop-app.ts",
+        "apps/desktop/src/bun/host/desktop-host.ts",
+        "apps/desktop/src/bun/app/window.ts",
+        "apps/desktop/src/bun/app/shutdown-coordinator.ts"
+      ],
+      "sourceEvidence": [
+        {
+          "path": "apps/desktop/src/bun/app/start-desktop-app.ts",
+          "lines": "57-103, 121-237",
+          "symbol": "startDesktopApp",
+          "note": "Builds managers, storage, plugins, host modules, LocalRuntimeClient and RuntimeRouter."
+        },
+        {
+          "path": "apps/desktop/src/bun/app/start-desktop-app.ts",
+          "lines": "239-328",
+          "symbol": "startDesktopApp lifecycle",
+          "note": "Creates RPC/window, wires deep links and updates, and coordinates shutdown."
+        },
+        {
+          "path": "apps/desktop/src/bun/host/desktop-host.ts",
+          "lines": "1-94",
+          "symbol": "DesktopHost",
+          "note": "Registers trusted runtime modules and freezes contributions."
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "apps/desktop/src/bun/host/desktop-host.test.ts",
+          "lines": "1-175",
+          "note": "Covers module registration, freeze, startup errors, and cleanup order."
+        },
+        {
+          "path": "apps/desktop/src/bun/app/shutdown-coordinator.test.ts",
+          "lines": "8-63",
+          "note": "Covers the two-phase quit handshake."
+        }
+      ]
+    },
+    {
+      "id": "agent-core",
+      "label": "Core Agent & Thread domain",
+      "shortLabel": "Agent core",
+      "kind": "runtime",
+      "lane": "runtime",
+      "x": 398,
+      "y": 406,
+      "width": 172,
+      "height": 72,
+      "status": "implemented shared domain package",
+      "role": "Framework-neutral Thread types, prompt/template semantics, Agent request conversion, streaming message reducer, evaluation/history utilities, storage connectors, workflow runtime, and the server-side pi-agent execution adapter.",
+      "boundaries": [
+        "Browser-safe client/thread/types exports are separated from Node/Bun-only server exports.",
+        "streamThread is transport-agnostic; HTTP/SSE is only the default transport.",
+        "TypeScript prompt semantics must stay in parity with generated LangGraph Python."
+      ],
+      "dependencies": [
+        "@earendil-works/pi-agent-core",
+        "@earendil-works/pi-ai",
+        "Nunjucks",
+        "TypeBox/Zod"
+      ],
+      "children": [
+        "packages/core/src/client/",
+        "packages/core/src/thread/",
+        "packages/core/src/server/agent/",
+        "packages/core/src/types/",
+        "packages/core/src/workflow/",
+        "packages/core/src/generator/"
+      ],
+      "sourceEvidence": [
+        {
+          "path": "packages/core/src/client/api.ts",
+          "lines": "14-43",
+          "symbol": "streamThread",
+          "note": "Validates and converts a Thread context, then delegates to an injected transport."
+        },
+        {
+          "path": "packages/core/src/server/agent/stream.ts",
+          "lines": "22-161",
+          "symbol": "streamAgent",
+          "note": "Resolves a model and drives pi-agent-core while preserving per-run provider overrides."
+        },
+        {
+          "path": "packages/core/src/client/reducer.ts",
+          "lines": "1-300",
+          "symbol": "reduceMessages",
+          "note": "Folds AgentEvent lifecycle and deltas into UI messages."
+        },
+        {
+          "path": "packages/core/src/thread/template-render.ts",
+          "lines": "1-260",
+          "symbol": "renderTemplate",
+          "note": "Implements prompt templates, functions, filters, and includes."
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "packages/core/tests/server/agent/stream.test.ts",
+          "lines": "106-284",
+          "note": "Covers model streaming, native tools, headers, and response formats."
+        },
+        {
+          "path": "packages/core/tests/client/reducer.test.ts",
+          "lines": "7-65",
+          "note": "Covers event-to-message reduction."
+        },
+        {
+          "path": "packages/core/tests/thread/template-render.test.ts",
+          "lines": "1-255",
+          "note": "Covers template semantics and include limits."
+        },
+        {
+          "path": "packages/core/tests/generator/langgraph/templates.test.ts",
+          "lines": "1-271",
+          "note": "Executes generated Python for prompt-runtime parity."
+        }
+      ]
+    },
+    {
+      "id": "runtime-router",
+      "label": "Runtime API & router",
+      "shortLabel": "Runtime router",
+      "kind": "runtime",
+      "lane": "runtime",
+      "x": 603,
+      "y": 500,
+      "width": 156,
+      "height": 72,
+      "status": "implemented local/remote abstraction",
+      "role": "The uniform RuntimeClient capability surface used by RPC. LocalRuntimeClient delegates files, models, MCP, built-ins, skills, search, network, traces, and streaming to injected managers; RuntimeRouter registers local/remote implementations and selects the default.",
+      "boundaries": [
+        "The local runtime cannot be unregistered.",
+        "A default runtime cannot be removed while selected.",
+        "Thread tabs and all renderer requests carry runtime ownership explicitly."
+      ],
+      "dependencies": [
+        "RuntimeClient interface",
+        "Local managers",
+        "LocalFileSystem",
+        "StreamThreadController"
+      ],
+      "children": [
+        "packages/runtime/src/runtime/local-runtime-client.ts",
+        "packages/runtime/src/runtime/runtime-router.ts",
+        "packages/runtime/src/runtime/types.ts",
+        "packages/runtime/src/remote-protocol.ts"
+      ],
+      "sourceEvidence": [
+        {
+          "path": "packages/runtime/src/runtime/local-runtime-client.ts",
+          "lines": "25-63, 183-288, 428-441",
+          "symbol": "LocalRuntimeClient",
+          "note": "Advertises capabilities and delegates every operation to injected services."
+        },
+        {
+          "path": "packages/runtime/src/runtime/runtime-router.ts",
+          "lines": "3-50",
+          "symbol": "RuntimeRouter",
+          "note": "Registers, resolves, lists, and selects runtime clients."
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "packages/runtime/tests/runtime/local-runtime-client.test.ts",
+          "lines": "14-26",
+          "note": "Covers delegated prompt-file and runtime operations."
+        },
+        {
+          "path": "packages/runtime/tests/runtime/runtime-router.test.ts",
+          "lines": "18-52",
+          "note": "Covers local invariants and default runtime selection."
+        },
+        {
+          "path": "apps/desktop/src/app/workspace-model-scope.test.tsx",
+          "lines": "1-174",
+          "note": "Covers runtime-scoped model selection in the renderer."
+        }
+      ]
+    },
+    {
+      "id": "runtime-integrations",
+      "label": "Models, tools & observability",
+      "shortLabel": "Runtime integrations",
+      "kind": "runtime",
+      "lane": "runtime",
+      "x": 792,
+      "y": 406,
+      "width": 170,
+      "height": 72,
+      "status": "implemented managers",
+      "role": "Process-side integration managers for model/provider profiles, built-in tools, MCP clients, Skills discovery, search and network settings, image generation, and local/Langfuse trace workbenches.",
+      "boundaries": [
+        "Provider secrets and MCP subprocesses stay outside the renderer.",
+        "ToolRegistry freezes after trusted module registration.",
+        "Proxy configuration is reflected into process environment before outbound fetches."
+      ],
+      "dependencies": [
+        "pi-ai provider registry",
+        "MCP SDK",
+        "skills-handler",
+        "Langfuse HTTP API",
+        "Bun subprocess/fetch"
+      ],
+      "children": [
+        "packages/runtime/src/models/",
+        "packages/runtime/src/tools/",
+        "packages/runtime/src/mcp/",
+        "packages/runtime/src/skills/",
+        "packages/runtime/src/search/",
+        "packages/runtime/src/network/",
+        "packages/runtime/src/traces/"
+      ],
+      "sourceEvidence": [
+        {
+          "path": "packages/runtime/src/models/model-manager.ts",
+          "lines": "130-160, 479-545",
+          "symbol": "ModelManager",
+          "note": "Owns model settings and resolves ephemeral provider connections."
+        },
+        {
+          "path": "packages/runtime/src/mcp/mcp-manager.ts",
+          "lines": "183-204, 344-456",
+          "symbol": "McpManager",
+          "note": "Owns MCP settings, connections, discovery, tool calls, and shutdown."
+        },
+        {
+          "path": "packages/runtime/src/tools/tool-registry.ts",
+          "lines": "49-124",
+          "symbol": "ToolRegistry",
+          "note": "Registers, freezes, lists, and calls trusted built-in contributions."
+        },
+        {
+          "path": "packages/runtime/src/traces/trace-manager.ts",
+          "lines": "152-249, 355-520",
+          "symbol": "TraceManager",
+          "note": "Persists/imports traces and manages optional Langfuse-backed projects."
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "packages/runtime/tests/models/model-manager.test.ts",
+          "lines": "32-370",
+          "note": "Covers model catalogs, profiles, connections, and secret resolution."
+        },
+        {
+          "path": "packages/runtime/tests/mcp/mcp-manager.test.ts",
+          "lines": "29-110",
+          "note": "Covers plugin MCP readiness without secret leakage."
+        },
+        {
+          "path": "packages/runtime/tests/tools/tool-registry.test.ts",
+          "lines": "5-180",
+          "note": "Covers contribution freeze, listing, calls, and responses."
+        },
+        {
+          "path": "packages/runtime/tests/tools/built-in/web.test.ts",
+          "lines": "1-186",
+          "note": "Covers built-in search/fetch safety and output."
+        }
+      ]
+    },
+    {
+      "id": "plugin-system",
+      "label": "Plugin system",
+      "shortLabel": "Plugins",
+      "kind": "runtime",
+      "lane": "runtime",
+      "x": 792,
+      "y": 500,
+      "width": 170,
+      "height": 72,
+      "status": "implemented local plugin runtime",
+      "role": "Discovers, validates, enables, configures, installs, and activates local plugins. Plugin contributions can add tools, commands, Skills, MCP servers, models, and Thread storage; executable plugin code runs behind a JSON-RPC-like Bun subprocess host.",
+      "boundaries": [
+        "Plugin settings are persisted separately from code and schema defaults are validated.",
+        "Runner processes receive an explicit host-operation allowlist.",
+        "Third-party failures are isolated into per-plugin records rather than crashing discovery."
+      ],
+      "dependencies": [
+        "Bun.spawn",
+        "Plugin manifest/schema",
+        "SkillsManager",
+        "McpManager",
+        "ModelManager"
+      ],
+      "children": [
+        "packages/runtime/src/plugins/plugin-manager.ts",
+        "packages/runtime/src/plugins/plugin-subprocess-host.ts",
+        "packages/runtime/src/plugins/plugin-discovery.ts",
+        "packages/runtime/src/plugins/plugin-installer.ts",
+        "packages/runtime/src/plugins/thread-storage-registry.ts"
+      ],
+      "sourceEvidence": [
+        {
+          "path": "packages/runtime/src/plugins/plugin-manager.ts",
+          "lines": "94-181, 239-285, 338-489",
+          "symbol": "PluginManager",
+          "note": "Owns discovery, settings, activation, contributions, runner startup, and shutdown."
+        },
+        {
+          "path": "packages/runtime/src/plugins/plugin-subprocess-host.ts",
+          "lines": "19-176",
+          "symbol": "PluginSubprocessHost",
+          "note": "Spawns the Bun runner and correlates host/plugin calls."
+        },
+        {
+          "path": "apps/desktop/src/bun/app/start-desktop-app.ts",
+          "lines": "104-195",
+          "symbol": "plugin composition",
+          "note": "Injects allowed host operations and registers the built-in Gist Thread storage."
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "packages/runtime/tests/plugins/plugin-manager.test.ts",
+          "lines": "30-365",
+          "note": "Covers discovery, enablement, settings, contributions, and lifecycle."
+        },
+        {
+          "path": "packages/runtime/tests/plugins/plugin-subprocess-host.test.ts",
+          "lines": "1-380",
+          "note": "Covers process calls, errors, host requests, and shutdown."
+        },
+        {
+          "path": "packages/runtime/tests/plugins/plugin-installer.test.ts",
+          "lines": "1-112",
+          "note": "Covers safe package installation."
+        }
+      ]
+    },
+    {
+      "id": "runtime-server",
+      "label": "Headless runtime server",
+      "shortLabel": "Runtime server",
+      "kind": "service",
+      "lane": "runtime",
+      "x": 398,
+      "y": 500,
+      "width": 172,
+      "height": 72,
+      "status": "implemented, packageable Bun service",
+      "role": "Headless composition of the same local runtime managers behind a bearer-authenticated HTTP API: /health for negotiation, /rpc for capability calls, /stream for SSE Agent events, and /shutdown for managed remote lifecycle.",
+      "boundaries": [
+        "Every endpoint, including health, requires the configured bearer token.",
+        "The server has its own LLM_SPACE_HOME and workspace root.",
+        "SSE cancellation propagates to StreamThreadController abort."
+      ],
+      "dependencies": [
+        "Bun.serve",
+        "@llm-space/runtime",
+        "@llm-space/core/server",
+        "bearer token"
+      ],
+      "children": [
+        "apps/server/src/index.ts",
+        "apps/server/src/runtime-factory.ts",
+        "apps/server/src/http-server.ts",
+        "apps/server/src/rpc.ts",
+        "apps/server/src/stream.ts",
+        "apps/server/src/auth.ts"
+      ],
+      "sourceEvidence": [
+        {
+          "path": "apps/server/src/runtime-factory.ts",
+          "lines": "26-75",
+          "symbol": "createServerRuntime",
+          "note": "Composes local runtime managers and frozen built-in tools."
+        },
+        {
+          "path": "apps/server/src/http-server.ts",
+          "lines": "19-81",
+          "symbol": "createHttpFetchHandler",
+          "note": "Authenticates and routes health, shutdown, RPC, and stream endpoints."
+        },
+        {
+          "path": "apps/server/src/stream.ts",
+          "lines": "10-68",
+          "symbol": "createStreamResponse",
+          "note": "Converts RuntimeClient stream messages into cancellable SSE."
+        },
+        {
+          "path": "apps/server/src/rpc.ts",
+          "lines": "7-80",
+          "symbol": "handleRuntimeRpc",
+          "note": "Validates and dispatches versioned runtime RPC methods."
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "apps/server/src/http-server.test.ts",
+          "lines": "23-50",
+          "note": "Covers auth and endpoint routing."
+        },
+        {
+          "path": "apps/server/src/rpc.test.ts",
+          "lines": "184-299",
+          "note": "Covers runtime method dispatch and typed errors."
+        },
+        {
+          "path": "apps/server/src/stream.test.ts",
+          "lines": "11-35",
+          "note": "Covers connection forwarding, SSE events, and cancellation."
+        },
+        {
+          "path": "apps/server/scripts/pack-server.test.ts",
+          "lines": "1-27",
+          "note": "Covers packaged server artifact layout."
+        }
+      ]
+    },
+    {
+      "id": "postgres",
+      "label": "PostgreSQL tenant store",
+      "shortLabel": "PostgreSQL",
+      "kind": "database",
+      "lane": "data",
+      "x": 20,
+      "y": 644,
+      "width": 156,
+      "height": 72,
+      "status": "schema/repository implemented; live database not asserted",
+      "role": "Cloud control-plane persistence for users, identities, tenants, memberships, workspaces, provider connections, Thread files, usage/audit records, deletion jobs, and hashed sessions, protected by forced row-level security.",
+      "boundaries": [
+        "Migrations run through a migration credential; runtime credentials are separately checked.",
+        "Tenant tables must have both RLS and FORCE RLS enabled.",
+        "The runtime repository operates with a non-superuser, NOBYPASSRLS role."
+      ],
+      "dependencies": [
+        "PostgreSQL",
+        "Bun SQL client",
+        "migration functions and policies"
+      ],
+      "children": [
+        "apps/cloud/src/migrations.ts",
+        "apps/cloud/src/postgres-repository.ts",
+        "apps/cloud/src/migrate.ts"
+      ],
+      "sourceEvidence": [
+        {
+          "path": "apps/cloud/src/postgres-repository.ts",
+          "lines": "50-104",
+          "symbol": "assertRuntimeDatabaseIsolation",
+          "note": "Rejects unsafe roles and tenant tables without forced RLS."
+        },
+        {
+          "path": "apps/cloud/src/postgres-repository.ts",
+          "lines": "106-237",
+          "symbol": "PostgresCloudRepository",
+          "note": "Provisions identities and manages hashed sessions."
+        },
+        {
+          "path": "apps/cloud/src/migrations.ts",
+          "lines": "1-87",
+          "symbol": "runMigrations",
+          "note": "Creates the Cloud schema, grants, functions, and isolation policies."
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "apps/cloud/src/postgres-integration.test.ts",
+          "lines": "1-109",
+          "note": "Optional live PostgreSQL test proves cross-tenant RLS isolation."
+        },
+        {
+          "path": "apps/cloud/src/http-server.test.ts",
+          "lines": "86-268",
+          "note": "Exercises the repository contract through OAuth/session routes."
+        }
+      ]
+    },
+    {
+      "id": "guest-state",
+      "label": "Guest browser + quota state",
+      "shortLabel": "Guest state",
+      "kind": "database",
+      "lane": "data",
+      "x": 190,
+      "y": 644,
+      "width": 156,
+      "height": 72,
+      "status": "implemented local persistence",
+      "role": "Two deliberately separate stores: versioned browser localStorage keeps guest Threads, preferences, evaluation/coach state and virtual files; Bun SQLite stores only HMAC-hashed guest/IP daily quota counters for the guest API.",
+      "boundaries": [
+        "Browser data is origin/device local and never promoted to Cloud tenant storage.",
+        "Guest and IP identifiers are HMAC-hashed before quota persistence.",
+        "The browser workspace has explicit import size and version limits."
+      ],
+      "dependencies": [
+        "Browser localStorage",
+        "Bun SQLite",
+        "HMAC-SHA256"
+      ],
+      "children": [
+        "apps/web/src/guest/guest-workspace.ts",
+        "packages/ui/src/lib/local-storage.ts",
+        "apps/cloud/src/guest-quota.ts",
+        "apps/cloud/src/guest-json-quota.ts"
+      ],
+      "sourceEvidence": [
+        {
+          "path": "apps/web/src/guest/guest-workspace.ts",
+          "lines": "11-50, 89-155, 327-366",
+          "symbol": "guest workspace persistence",
+          "note": "Defines versioned keys, migration, save, and safe fallback behavior."
+        },
+        {
+          "path": "apps/cloud/src/guest-quota.ts",
+          "lines": "22-123",
+          "symbol": "GuestQuotaStore",
+          "note": "Creates SQLite usage tables and consumes HMAC-keyed daily counters."
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "apps/web/src/guest/guest-workspace.test.ts",
+          "lines": "68-244",
+          "note": "Covers the browser workspace lifecycle and failure fallback."
+        },
+        {
+          "path": "apps/cloud/src/guest-quota.test.ts",
+          "lines": "5-63",
+          "note": "Covers SQLite quota limits, rollover, and hashing."
+        },
+        {
+          "path": "apps/cloud/src/guest-json-quota.test.ts",
+          "lines": "1-40",
+          "note": "Covers the single-process JSON fallback store."
+        }
+      ]
+    },
+    {
+      "id": "external-services",
+      "label": "AI, MCP, web & trace services",
+      "shortLabel": "External services",
+      "kind": "external",
+      "lane": "data",
+      "x": 398,
+      "y": 644,
+      "width": 172,
+      "height": 72,
+      "status": "external; availability/configuration varies",
+      "role": "Outbound systems reached through runtime integrations: configured LLM/image providers, MCP servers, search/public web endpoints, and optional Langfuse trace APIs. The guest path narrows this to an allowlisted BigModel catalog and constrained web/MCP proxy.",
+      "boundaries": [
+        "Credentials resolve in Bun/server processes, not shared UI code.",
+        "Network proxy settings apply before fetches and subprocesses start.",
+        "External availability is not proven by this static code map."
+      ],
+      "dependencies": [
+        "Provider-specific HTTP APIs",
+        "MCP Streamable HTTP/SSE/stdio",
+        "Langfuse API",
+        "public web/search APIs"
+      ],
+      "children": [
+        "packages/runtime/src/models/providers/",
+        "packages/runtime/src/mcp/",
+        "packages/runtime/src/tools/built-in/web.ts",
+        "packages/runtime/src/traces/langfuse-client.ts",
+        "apps/cloud/src/guest-model-catalog.ts"
+      ],
+      "sourceEvidence": [
+        {
+          "path": "packages/runtime/src/streaming/stream-thread.ts",
+          "lines": "23-75",
+          "symbol": "StreamThreadController.run",
+          "note": "Resolves provider connections and streams core Agent events."
+        },
+        {
+          "path": "packages/runtime/src/network/network-settings-manager.ts",
+          "lines": "37-56, 147-200",
+          "symbol": "NetworkSettingsManager",
+          "note": "Applies explicit/system proxy configuration to outbound runtime processes."
+        },
+        {
+          "path": "apps/cloud/src/guest-model.ts",
+          "lines": "17-70",
+          "symbol": "createGuestModelExecutor",
+          "note": "Restricts guest runs to the configured BigModel provider and allowlist."
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "packages/runtime/tests/models/providers/deepseek.test.ts",
+          "lines": "1-34",
+          "note": "Covers a provider adapter."
+        },
+        {
+          "path": "packages/runtime/tests/tools/built-in/web.test.ts",
+          "lines": "1-186",
+          "note": "Covers bounded web access behavior."
+        },
+        {
+          "path": "apps/cloud/src/guest-http-server.test.ts",
+          "lines": "35-855",
+          "note": "Covers guest provider errors, quota, and stream normalization."
+        }
+      ]
+    },
+    {
+      "id": "local-storage",
+      "label": "Local workspace & history",
+      "shortLabel": "Local storage",
+      "kind": "database",
+      "lane": "data",
+      "x": 603,
+      "y": 644,
+      "width": 156,
+      "height": 72,
+      "status": "implemented filesystem persistence",
+      "role": "Durable local data rooted at LLM_SPACE_HOME: user-owned Thread JSON under workspace/, externalized run snapshots under history/, managers under settings/, trace projects under traces/, and plugin assets/configuration outside the visible workspace.",
+      "boundaries": [
+        "Workspace contains user content only; derived run snapshots live under history/.",
+        "Writes are atomic and Thread images are packed/unpacked at the storage edge.",
+        "Deleted Thread history is retained for 30 days so trash restoration preserves runs."
+      ],
+      "dependencies": [
+        "Node/Bun filesystem",
+        "SHA-256 resource keys",
+        "atomic JSON writes",
+        "OS trash integration"
+      ],
+      "children": [
+        "packages/core/src/server/storage/local/file-system.ts",
+        "packages/core/src/server/storage/local/run-history-store.ts",
+        "packages/core/src/server/paths.ts",
+        "packages/runtime/src/storage/"
+      ],
+      "sourceEvidence": [
+        {
+          "path": "packages/core/src/server/storage/local/file-system.ts",
+          "lines": "46-73, 108-208, 230-335",
+          "symbol": "LocalFileSystem",
+          "note": "Roots paths, reads/writes Threads, rekeys history, archives runs, and maintains orphans."
+        },
+        {
+          "path": "packages/core/src/server/storage/local/run-history-store.ts",
+          "lines": "47-170",
+          "symbol": "RunHistoryStore",
+          "note": "Stores versioned per-resource snapshots and reclaims aged orphans."
+        },
+        {
+          "path": "apps/desktop/src/bun/app/start-desktop-app.ts",
+          "lines": "58-95, 212-231",
+          "symbol": "desktop local storage composition",
+          "note": "Creates workspace/history storage and preserves history when moving files to trash."
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "packages/core/tests/server/storage/local/file-system.test.ts",
+          "lines": "100-597",
+          "note": "Covers moves, atomic writes, recovery, history migration and maintenance."
+        },
+        {
+          "path": "packages/core/tests/server/storage/local/run-history-store.test.ts",
+          "lines": "56-250",
+          "note": "Covers entries, pruning, re-keying, and orphan retention."
+        },
+        {
+          "path": "apps/desktop/src/components/thread-tabs/serialized-persistence.test.ts",
+          "lines": "15-76",
+          "note": "Covers ordered renderer-to-storage saves."
+        }
+      ]
+    },
+    {
+      "id": "github",
+      "label": "GitHub OAuth, Gists & Releases",
+      "shortLabel": "GitHub",
+      "kind": "external",
+      "lane": "data",
+      "x": 792,
+      "y": 644,
+      "width": 170,
+      "height": 72,
+      "status": "external dependency",
+      "role": "GitHub serves three separate integrations: desktop device auth and secret Gist sharing, web viewer reads of shared Gists, Cloud OAuth identity, plus Actions/Pages/Releases for delivery and auto-update artifacts.",
+      "boundaries": [
+        "Desktop Gist calls reuse the signed-in token and configured proxy.",
+        "Shared viewer reads public/secret-by-URL Gist data but is display-only.",
+        "Cloud OAuth sessions are application cookies, not raw GitHub tokens."
+      ],
+      "dependencies": [
+        "GitHub OAuth/device flow",
+        "Gist REST API",
+        "GitHub Actions",
+        "GitHub Pages/Releases"
+      ],
+      "children": [
+        "packages/core/src/storage/gist/",
+        "apps/desktop/src/bun/auth/",
+        "apps/cloud/src/github-oauth.ts",
+        ".github/workflows/"
+      ],
+      "sourceEvidence": [
+        {
+          "path": "packages/core/src/storage/gist/gist-thread-writer.ts",
+          "lines": "44-130",
+          "symbol": "GistThreadWriter.write",
+          "note": "Creates or updates shareable Thread Gists."
+        },
+        {
+          "path": "packages/core/src/storage/gist/gist-thread-reader.ts",
+          "lines": "50-170",
+          "symbol": "GistThreadReader.readShared",
+          "note": "Resolves and reads Gist Thread content plus metadata."
+        },
+        {
+          "path": "apps/cloud/src/http-server.ts",
+          "lines": "46-129",
+          "symbol": "GitHub OAuth routes",
+          "note": "Seals OAuth attempts, exchanges codes, provisions identity and creates a session."
+        },
+        {
+          "path": ".github/workflows/pages.yml",
+          "lines": "1-47",
+          "symbol": "GitHub Pages workflow",
+          "note": "Builds and deploys the static web bundle on main."
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "packages/core/tests/storage/gist/gist-thread-writer.test.ts",
+          "lines": "48-186",
+          "note": "Covers Gist create/update/auth behavior."
+        },
+        {
+          "path": "packages/core/tests/storage/gist/gist-thread-reader.test.ts",
+          "lines": "39-212",
+          "note": "Covers resolution, content, truncation, and shared metadata."
+        },
+        {
+          "path": "apps/cloud/src/github-oauth.test.ts",
+          "lines": "1-71",
+          "note": "Covers Cloud GitHub OAuth calls."
+        },
+        {
+          "path": "apps/desktop/src/bun/auth/github-device-flow.test.ts",
+          "lines": "1-140",
+          "note": "Covers desktop device authorization."
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "e01",
+      "from": "web-shell",
+      "to": "shared-ui",
+      "label": "readonly ThreadPlayground",
+      "data": "Thread + share metadata",
+      "kind": "render",
+      "flows": [
+        "gist-share-view"
+      ],
+      "evidence": [
+        {
+          "path": "apps/web/src/thread-viewer.tsx",
+          "lines": "69-83, 203-214",
+          "symbol": "ThreadViewer",
+          "note": "Loads and renders a shared Thread read-only."
+        }
+      ]
+    },
+    {
+      "id": "e02",
+      "from": "web-shell",
+      "to": "github",
+      "label": "read shared Gist",
+      "data": "Gist JSON / raw Thread file",
+      "kind": "http",
+      "flows": [
+        "gist-share-view"
+      ],
+      "evidence": [
+        {
+          "path": "packages/core/src/storage/gist/gist-thread-reader.ts",
+          "lines": "107-170",
+          "symbol": "readShared",
+          "note": "Reads Gist metadata and content."
+        }
+      ]
+    },
+    {
+      "id": "e03",
+      "from": "guest-workbench",
+      "to": "shared-ui",
+      "label": "interactive host + transport",
+      "data": "Thread edits, run state, tool policy",
+      "kind": "render",
+      "flows": [
+        "guest-agent-run"
+      ],
+      "evidence": [
+        {
+          "path": "apps/web/src/guest/guest-workbench.tsx",
+          "lines": "671-859",
+          "symbol": "GuestWorkbench render",
+          "note": "Injects host/transport into ThreadPlayground."
+        }
+      ]
+    },
+    {
+      "id": "e04",
+      "from": "guest-workbench",
+      "to": "guest-api",
+      "label": "HTTP + SSE",
+      "data": "AgentStreamRequest / AgentEvent",
+      "kind": "http",
+      "flows": [
+        "guest-agent-run"
+      ],
+      "evidence": [
+        {
+          "path": "apps/web/src/guest/guest-api.ts",
+          "lines": "161-193",
+          "symbol": "createGuestTransport",
+          "note": "POSTs runs and yields SSE events."
+        }
+      ]
+    },
+    {
+      "id": "e05",
+      "from": "guest-workbench",
+      "to": "guest-state",
+      "label": "persist browser workspace",
+      "data": "versioned Thread library/preferences",
+      "kind": "write",
+      "flows": [
+        "guest-agent-run"
+      ],
+      "evidence": [
+        {
+          "path": "apps/web/src/guest/guest-workbench.tsx",
+          "lines": "279-288",
+          "symbol": "commitWorkspace",
+          "note": "Saves each workspace transition."
+        }
+      ]
+    },
+    {
+      "id": "e06",
+      "from": "guest-api",
+      "to": "guest-state",
+      "label": "consume quota",
+      "data": "HMAC guest/IP daily counters",
+      "kind": "write",
+      "flows": [
+        "guest-agent-run"
+      ],
+      "evidence": [
+        {
+          "path": "apps/cloud/src/guest-http-server.ts",
+          "lines": "290-338",
+          "symbol": "guest run route",
+          "note": "Checks concurrency and consumes durable quota."
+        }
+      ]
+    },
+    {
+      "id": "e07",
+      "from": "guest-api",
+      "to": "agent-core",
+      "label": "streamAgent",
+      "data": "bounded AgentStreamRequest",
+      "kind": "call",
+      "flows": [
+        "guest-agent-run"
+      ],
+      "evidence": [
+        {
+          "path": "apps/cloud/src/guest-model.ts",
+          "lines": "39-69",
+          "symbol": "guest executor",
+          "note": "Delegates allowlisted requests to core streamAgent."
+        }
+      ]
+    },
+    {
+      "id": "e08",
+      "from": "guest-api",
+      "to": "external-services",
+      "label": "BigModel / safe tools",
+      "data": "provider stream + bounded web/MCP calls",
+      "kind": "http",
+      "flows": [
+        "guest-agent-run"
+      ],
+      "evidence": [
+        {
+          "path": "apps/cloud/src/guest-model.ts",
+          "lines": "25-68",
+          "symbol": "guest model",
+          "note": "Builds a single allowed external provider."
+        }
+      ]
+    },
+    {
+      "id": "e09",
+      "from": "cloud-identity",
+      "to": "postgres",
+      "label": "tenant/session repository",
+      "data": "identities, tenants, hashed sessions",
+      "kind": "write",
+      "flows": [],
+      "evidence": [
+        {
+          "path": "apps/cloud/src/postgres-repository.ts",
+          "lines": "106-237",
+          "symbol": "PostgresCloudRepository",
+          "note": "Implements the Cloud repository contract."
+        }
+      ]
+    },
+    {
+      "id": "e10",
+      "from": "cloud-identity",
+      "to": "github",
+      "label": "OAuth PKCE",
+      "data": "authorization code / identity",
+      "kind": "http",
+      "flows": [],
+      "evidence": [
+        {
+          "path": "apps/cloud/src/http-server.ts",
+          "lines": "46-129",
+          "symbol": "OAuth routes",
+          "note": "Exchanges a verified callback and reads identity."
+        }
+      ]
+    },
+    {
+      "id": "e11",
+      "from": "desktop-renderer",
+      "to": "shared-ui",
+      "label": "mount shared workbench",
+      "data": "Thread + HostServices",
+      "kind": "render",
+      "flows": [
+        "desktop-local-run",
+        "thread-persistence",
+        "remote-runtime-run",
+        "gist-share-view"
+      ],
+      "evidence": [
+        {
+          "path": "apps/desktop/src/components/thread-tabs/thread-tab-pane.tsx",
+          "lines": "397-416",
+          "symbol": "ThreadPlayground mount",
+          "note": "Injects transport, persistence, history, and callbacks."
+        }
+      ]
+    },
+    {
+      "id": "e12",
+      "from": "desktop-renderer",
+      "to": "desktop-rpc",
+      "label": "typed requests/messages",
+      "data": "runtime-scoped RPC payloads",
+      "kind": "rpc",
+      "flows": [
+        "desktop-local-run",
+        "thread-persistence",
+        "remote-runtime-run",
+        "gist-share-view"
+      ],
+      "evidence": [
+        {
+          "path": "apps/desktop/src/host/host-services.tsx",
+          "lines": "53-200",
+          "symbol": "desktop host adapter",
+          "note": "Maps UI host calls to Electrobun RPC clients."
+        }
+      ]
+    },
+    {
+      "id": "e13",
+      "from": "desktop-host",
+      "to": "desktop-renderer",
+      "label": "commands + status events",
+      "data": "executeCommand/update/auth/plugin events",
+      "kind": "rpc",
+      "flows": [],
+      "evidence": [
+        {
+          "path": "apps/desktop/src/bun/app/start-desktop-app.ts",
+          "lines": "239-250, 278-297",
+          "symbol": "Bun-to-renderer wiring",
+          "note": "Sends state and commands through the single RPC channel."
+        }
+      ]
+    },
+    {
+      "id": "e14",
+      "from": "desktop-host",
+      "to": "desktop-rpc",
+      "label": "construct boundary",
+      "data": "injected managers and native services",
+      "kind": "compose",
+      "flows": [],
+      "evidence": [
+        {
+          "path": "apps/desktop/src/bun/app/start-desktop-app.ts",
+          "lines": "278-297",
+          "symbol": "RPC/window composition",
+          "note": "Creates RPC before the native window."
+        }
+      ]
+    },
+    {
+      "id": "e15",
+      "from": "desktop-rpc",
+      "to": "runtime-router",
+      "label": "dispatch runtime",
+      "data": "files/models/tools/stream calls",
+      "kind": "call",
+      "flows": [
+        "desktop-local-run",
+        "thread-persistence",
+        "remote-runtime-run"
+      ],
+      "evidence": [
+        {
+          "path": "apps/desktop/src/bun/rpc/index.ts",
+          "lines": "83-130, 196-221, 529-539",
+          "symbol": "getRuntime dispatch",
+          "note": "Resolves each payload's runtime before delegation."
+        }
+      ]
+    },
+    {
+      "id": "e16",
+      "from": "desktop-rpc",
+      "to": "github",
+      "label": "share Thread",
+      "data": "normalized Thread -> secret Gist",
+      "kind": "http",
+      "flows": [
+        "gist-share-view"
+      ],
+      "evidence": [
+        {
+          "path": "apps/desktop/src/bun/rpc/share-thread.ts",
+          "lines": "24-50",
+          "symbol": "share handler",
+          "note": "Writes a normalized shared Thread through GistThreadWriter."
+        }
+      ]
+    },
+    {
+      "id": "e17",
+      "from": "desktop-host",
+      "to": "runtime-router",
+      "label": "compose local + remote",
+      "data": "RuntimeClient registrations",
+      "kind": "compose",
+      "flows": [],
+      "evidence": [
+        {
+          "path": "apps/desktop/src/bun/app/start-desktop-app.ts",
+          "lines": "212-237",
+          "symbol": "runtime composition",
+          "note": "Creates LocalRuntimeClient, router, and optional remote runtimes."
+        }
+      ]
+    },
+    {
+      "id": "e18",
+      "from": "desktop-host",
+      "to": "runtime-integrations",
+      "label": "construct managers",
+      "data": "models/MCP/skills/search/network/traces",
+      "kind": "compose",
+      "flows": [],
+      "evidence": [
+        {
+          "path": "apps/desktop/src/bun/app/start-desktop-app.ts",
+          "lines": "60-73, 196-221",
+          "symbol": "manager composition",
+          "note": "Creates and injects runtime managers."
+        }
+      ]
+    },
+    {
+      "id": "e19",
+      "from": "desktop-host",
+      "to": "plugin-system",
+      "label": "discover + activate",
+      "data": "plugin manifests/settings/contributions",
+      "kind": "compose",
+      "flows": [],
+      "evidence": [
+        {
+          "path": "apps/desktop/src/bun/app/start-desktop-app.ts",
+          "lines": "104-195",
+          "symbol": "plugin composition",
+          "note": "Creates PluginManager and attaches host services."
+        }
+      ]
+    },
+    {
+      "id": "e20",
+      "from": "desktop-host",
+      "to": "local-storage",
+      "label": "root local data",
+      "data": "workspace/history/settings/traces",
+      "kind": "compose",
+      "flows": [
+        "thread-persistence"
+      ],
+      "evidence": [
+        {
+          "path": "apps/desktop/src/bun/app/start-desktop-app.ts",
+          "lines": "58-95",
+          "symbol": "local data roots",
+          "note": "Creates workspace filesystem and history maintenance."
+        }
+      ]
+    },
+    {
+      "id": "e21",
+      "from": "runtime-router",
+      "to": "agent-core",
+      "label": "run stream",
+      "data": "AgentStreamRequest / AgentEvent",
+      "kind": "call",
+      "flows": [
+        "desktop-local-run"
+      ],
+      "evidence": [
+        {
+          "path": "packages/runtime/src/streaming/stream-thread.ts",
+          "lines": "23-75",
+          "symbol": "StreamThreadController.run",
+          "note": "Resolves a connection and delegates to streamAgent."
+        }
+      ]
+    },
+    {
+      "id": "e22",
+      "from": "runtime-router",
+      "to": "runtime-integrations",
+      "label": "delegate capabilities",
+      "data": "models/tools/MCP/skills/traces",
+      "kind": "call",
+      "flows": [
+        "desktop-local-run"
+      ],
+      "evidence": [
+        {
+          "path": "packages/runtime/src/runtime/local-runtime-client.ts",
+          "lines": "61-180, 238-425",
+          "symbol": "LocalRuntimeClient delegates",
+          "note": "Routes RuntimeClient calls to process managers."
+        }
+      ]
+    },
+    {
+      "id": "e23",
+      "from": "runtime-router",
+      "to": "local-storage",
+      "label": "read/write/archive",
+      "data": "Thread JSON + run snapshots",
+      "kind": "write",
+      "flows": [
+        "thread-persistence"
+      ],
+      "evidence": [
+        {
+          "path": "packages/runtime/src/runtime/local-runtime-client.ts",
+          "lines": "183-227",
+          "symbol": "filesystem delegation",
+          "note": "Routes filesystem and history calls to LocalFileSystem."
+        }
+      ]
+    },
+    {
+      "id": "e24",
+      "from": "agent-core",
+      "to": "external-services",
+      "label": "provider stream",
+      "data": "model context/options -> token events",
+      "kind": "http",
+      "flows": [
+        "desktop-local-run",
+        "remote-runtime-run",
+        "guest-agent-run"
+      ],
+      "evidence": [
+        {
+          "path": "packages/core/src/server/agent/stream.ts",
+          "lines": "98-156",
+          "symbol": "agentLoopContinue",
+          "note": "Drives the provider registry and yields Agent events."
+        }
+      ]
+    },
+    {
+      "id": "e25",
+      "from": "runtime-integrations",
+      "to": "external-services",
+      "label": "outbound integrations",
+      "data": "provider/MCP/search/Langfuse requests",
+      "kind": "http",
+      "flows": [
+        "desktop-local-run",
+        "remote-runtime-run"
+      ],
+      "evidence": [
+        {
+          "path": "packages/runtime/src/mcp/mcp-manager.ts",
+          "lines": "358-456, 624-652",
+          "symbol": "MCP operations",
+          "note": "Connects to and calls external MCP servers."
+        }
+      ]
+    },
+    {
+      "id": "e26",
+      "from": "plugin-system",
+      "to": "runtime-integrations",
+      "label": "contribute capabilities",
+      "data": "models, MCP, Skills, tools",
+      "kind": "register",
+      "flows": [],
+      "evidence": [
+        {
+          "path": "packages/runtime/src/plugins/plugin-manager.ts",
+          "lines": "338-489",
+          "symbol": "plugin activation",
+          "note": "Registers declarative and executable contributions."
+        }
+      ]
+    },
+    {
+      "id": "e27",
+      "from": "plugin-system",
+      "to": "github",
+      "label": "Gist storage contribution",
+      "data": "Thread reader/writer registration",
+      "kind": "register",
+      "flows": [
+        "gist-share-view"
+      ],
+      "evidence": [
+        {
+          "path": "apps/desktop/src/bun/app/start-desktop-app.ts",
+          "lines": "189-195",
+          "symbol": "Gist storage registration",
+          "note": "Registers built-in GitHub Gist Thread storage."
+        }
+      ]
+    },
+    {
+      "id": "e28",
+      "from": "remote-client",
+      "to": "runtime-router",
+      "label": "register RuntimeClient",
+      "data": "remote runtime id/capabilities",
+      "kind": "register",
+      "flows": [
+        "remote-runtime-run"
+      ],
+      "evidence": [
+        {
+          "path": "apps/desktop/src/bun/remote/remote-runtime-manager.ts",
+          "lines": "13-49",
+          "symbol": "remote registration",
+          "note": "Connects and registers optional remote clients."
+        }
+      ]
+    },
+    {
+      "id": "e29",
+      "from": "remote-client",
+      "to": "runtime-server",
+      "label": "bearer HTTP/RPC/SSE",
+      "data": "health, RPC calls, Agent events",
+      "kind": "http",
+      "flows": [
+        "remote-runtime-run"
+      ],
+      "evidence": [
+        {
+          "path": "apps/desktop/src/bun/remote/remote-runtime-client.ts",
+          "lines": "191-235, 493-530",
+          "symbol": "remote HTTP client",
+          "note": "Maps RuntimeClient to server endpoints."
+        }
+      ]
+    },
+    {
+      "id": "e30",
+      "from": "runtime-server",
+      "to": "agent-core",
+      "label": "execute Agent",
+      "data": "Agent request/event stream",
+      "kind": "call",
+      "flows": [
+        "remote-runtime-run"
+      ],
+      "evidence": [
+        {
+          "path": "apps/server/src/runtime-factory.ts",
+          "lines": "33-65",
+          "symbol": "server runtime composition",
+          "note": "Uses StreamThreadController backed by core streamAgent."
+        }
+      ]
+    },
+    {
+      "id": "e31",
+      "from": "runtime-server",
+      "to": "runtime-integrations",
+      "label": "local managers",
+      "data": "remote host models/tools/MCP/skills",
+      "kind": "compose",
+      "flows": [
+        "remote-runtime-run"
+      ],
+      "evidence": [
+        {
+          "path": "apps/server/src/runtime-factory.ts",
+          "lines": "33-65",
+          "symbol": "server managers",
+          "note": "Composes the same runtime managers headlessly."
+        }
+      ]
+    },
+    {
+      "id": "e32",
+      "from": "runtime-server",
+      "to": "local-storage",
+      "label": "remote home",
+      "data": "server workspace/settings/history",
+      "kind": "write",
+      "flows": [
+        "remote-runtime-run"
+      ],
+      "evidence": [
+        {
+          "path": "apps/server/src/runtime-factory.ts",
+          "lines": "26-43",
+          "symbol": "server home",
+          "note": "Creates an isolated home/workspace and LocalFileSystem."
+        }
+      ]
+    },
+    {
+      "id": "e33",
+      "from": "shared-ui",
+      "to": "agent-core",
+      "label": "prepare/reduce domain",
+      "data": "ThreadContext / AgentEvent / Message",
+      "kind": "call",
+      "flows": [
+        "desktop-local-run",
+        "remote-runtime-run",
+        "guest-agent-run"
+      ],
+      "evidence": [
+        {
+          "path": "packages/ui/src/components/thread-playground/stores/thread-store.ts",
+          "lines": "1490-1554",
+          "symbol": "stream/reduce",
+          "note": "Calls core streamThread and reduceMessages."
+        }
+      ]
+    },
+    {
+      "id": "e34",
+      "from": "shared-ui",
+      "to": "runtime-integrations",
+      "label": "execute approved tools",
+      "data": "tool call arguments/results",
+      "kind": "call",
+      "flows": [
+        "desktop-local-run"
+      ],
+      "evidence": [
+        {
+          "path": "packages/ui/src/components/thread-playground/stores/thread-store.ts",
+          "lines": "599-747, 1604-1638",
+          "symbol": "tool execution loop",
+          "note": "Delegates approved pending tool calls through HostServices."
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "desktop-local-run",
+      "label": "1. Desktop local Agent run",
+      "summary": "A Thread tab starts a run; the shared store prepares prompt state, streams over typed Electrobun messages into the local runtime, core drives pi-agent/model APIs, and reduced events plus approved tool results return to the same per-tab store.",
+      "steps": [
+        {
+          "node": "desktop-renderer",
+          "action": "ThreadTabPane injects the runtime-scoped RPC transport and callbacks.",
+          "evidence": [
+            {
+              "path": "apps/desktop/src/components/thread-tabs/thread-tab-pane.tsx",
+              "lines": "397-416",
+              "symbol": "ThreadPlayground mount",
+              "note": "Run begins in the active desktop pane."
+            }
+          ]
+        },
+        {
+          "node": "shared-ui",
+          "action": "The Zustand store validates, snapshots prompt variables, resolves the model, and calls streamThread.",
+          "evidence": [
+            {
+              "path": "packages/ui/src/components/thread-playground/stores/thread-store.ts",
+              "lines": "1137-1210, 1475-1503",
+              "symbol": "run / streamTurn",
+              "note": "Prepares the shared domain request."
+            }
+          ]
+        },
+        {
+          "node": "desktop-rpc",
+          "action": "createRpcTransport assigns streamId and converts response messages into an async iterator.",
+          "evidence": [
+            {
+              "path": "apps/desktop/src/client/rpc-transport.ts",
+              "lines": "18-113",
+              "symbol": "createRpcTransport",
+              "note": "Provides correlation, buffering, abort, and cleanup."
+            }
+          ]
+        },
+        {
+          "node": "runtime-router",
+          "action": "RPC resolves the selected RuntimeClient; LocalRuntimeClient delegates to StreamThreadController.",
+          "evidence": [
+            {
+              "path": "apps/desktop/src/bun/rpc/index.ts",
+              "lines": "529-539",
+              "symbol": "stream RPC handlers",
+              "note": "Selects runtime by payload runtimeId."
+            },
+            {
+              "path": "packages/runtime/src/runtime/local-runtime-client.ts",
+              "lines": "428-436",
+              "symbol": "streamThread / abortStream",
+              "note": "Delegates the lifecycle."
+            }
+          ]
+        },
+        {
+          "node": "agent-core",
+          "action": "StreamThreadController resolves provider connection; streamAgent drives pi-agent-core and emits AgentEvent values.",
+          "evidence": [
+            {
+              "path": "packages/runtime/src/streaming/stream-thread.ts",
+              "lines": "23-75",
+              "symbol": "run",
+              "note": "Wraps the core stream."
+            },
+            {
+              "path": "packages/core/src/server/agent/stream.ts",
+              "lines": "98-161",
+              "symbol": "streamAgent",
+              "note": "Calls the provider and yields events."
+            }
+          ]
+        },
+        {
+          "node": "external-services",
+          "action": "The configured model provider returns the streaming completion; optional MCP/search/tool calls use runtime integrations.",
+          "evidence": [
+            {
+              "path": "packages/core/src/server/agent/stream.ts",
+              "lines": "116-150",
+              "symbol": "provider stream",
+              "note": "Uses the model registry's streamSimple implementation."
+            }
+          ]
+        },
+        {
+          "node": "shared-ui",
+          "action": "reduceMessages commits completed messages, executes policy-approved tools, and archives successful run metadata.",
+          "evidence": [
+            {
+              "path": "packages/ui/src/components/thread-playground/stores/thread-store.ts",
+              "lines": "1513-1638, 1347-1400",
+              "symbol": "reduce/tool/finalize",
+              "note": "Completes the user-visible run."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "thread-persistence",
+      "label": "2. Thread persistence & run history",
+      "summary": "Renderer edits are serialized to workspace Thread JSON; successful runs are externalized as immutable snapshots under history/, referenced from the small Thread file, and re-keyed with file moves while deleted history is retained for trash recovery.",
+      "steps": [
+        {
+          "node": "shared-ui",
+          "action": "A successful run creates usage/history/evaluation metadata and requests snapshot archival.",
+          "evidence": [
+            {
+              "path": "packages/ui/src/components/thread-playground/stores/thread-store.ts",
+              "lines": "1347-1400",
+              "symbol": "finalizeActiveRun",
+              "note": "Builds and archives the newest run snapshot."
+            }
+          ]
+        },
+        {
+          "node": "desktop-renderer",
+          "action": "ThreadTabPane queues changes in SerializedPersistence and flushes after 500 ms or run settlement.",
+          "evidence": [
+            {
+              "path": "apps/desktop/src/components/thread-tabs/thread-tab-pane.tsx",
+              "lines": "127-230",
+              "symbol": "persistence callbacks",
+              "note": "Serializes writes and run archival."
+            }
+          ]
+        },
+        {
+          "node": "desktop-rpc",
+          "action": "fsWrite/fsArchiveRun/fsReadRunSnapshot dispatch to the Thread's runtime.",
+          "evidence": [
+            {
+              "path": "apps/desktop/src/bun/rpc/index.ts",
+              "lines": "196-221",
+              "symbol": "filesystem RPC",
+              "note": "Keeps persistence runtime-scoped."
+            }
+          ]
+        },
+        {
+          "node": "runtime-router",
+          "action": "LocalRuntimeClient delegates filesystem and history operations to LocalFileSystem.",
+          "evidence": [
+            {
+              "path": "packages/runtime/src/runtime/local-runtime-client.ts",
+              "lines": "183-227",
+              "symbol": "filesystem methods",
+              "note": "Provides the shared runtime surface."
+            }
+          ]
+        },
+        {
+          "node": "local-storage",
+          "action": "LocalFileSystem atomically writes Thread JSON; RunHistoryStore stores/rekeys/prunes external snapshots and ages orphans for 30 days.",
+          "evidence": [
+            {
+              "path": "packages/core/src/server/storage/local/file-system.ts",
+              "lines": "108-208",
+              "symbol": "Thread/history operations",
+              "note": "Keeps derived history outside workspace."
+            },
+            {
+              "path": "packages/core/src/server/storage/local/run-history-store.ts",
+              "lines": "47-170",
+              "symbol": "RunHistoryStore",
+              "note": "Owns durable snapshot lifecycle."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "remote-runtime-run",
+      "label": "3. Remote runtime over SSH/HTTP",
+      "summary": "The desktop establishes/trusts an SSH-hosted or manually configured runtime, registers it as RuntimeClient, sends ordinary RPC and Agent streams over bearer-authenticated HTTP/SSE, and presents the returned events through the unchanged shared UI flow.",
+      "steps": [
+        {
+          "node": "remote-client",
+          "action": "RemoteServerManager checks SSH host identity, bootstraps/connects, and RemoteRuntimeClient verifies protocol, version, and capabilities.",
+          "evidence": [
+            {
+              "path": "apps/desktop/src/bun/remote/remote-server-manager.ts",
+              "lines": "162-217",
+              "symbol": "connectServer",
+              "note": "Trust and connect sequence."
+            },
+            {
+              "path": "apps/desktop/src/bun/remote/remote-runtime-client.ts",
+              "lines": "70-90",
+              "symbol": "connect",
+              "note": "Negotiates compatibility."
+            }
+          ]
+        },
+        {
+          "node": "runtime-router",
+          "action": "The connected client is registered and selected as the default runtime.",
+          "evidence": [
+            {
+              "path": "apps/desktop/src/bun/remote/remote-runtime-manager.ts",
+              "lines": "20-49",
+              "symbol": "registerConfiguredRemoteRuntime",
+              "note": "Adds the remote RuntimeClient."
+            }
+          ]
+        },
+        {
+          "node": "desktop-rpc",
+          "action": "Renderer stream and filesystem/model calls continue through the same runtime-scoped RPC contract.",
+          "evidence": [
+            {
+              "path": "apps/desktop/src/bun/rpc/index.ts",
+              "lines": "83-130, 196-221, 529-539",
+              "symbol": "runtime dispatch",
+              "note": "No UI-specific remote branch is required."
+            }
+          ]
+        },
+        {
+          "node": "runtime-server",
+          "action": "The bearer-authenticated server maps /rpc and /stream to its headless LocalRuntimeClient and cancels on disconnect.",
+          "evidence": [
+            {
+              "path": "apps/server/src/http-server.ts",
+              "lines": "30-66",
+              "symbol": "HTTP routes",
+              "note": "Authenticates and dispatches."
+            },
+            {
+              "path": "apps/server/src/stream.ts",
+              "lines": "10-68",
+              "symbol": "SSE bridge",
+              "note": "Streams and propagates cancellation."
+            }
+          ]
+        },
+        {
+          "node": "agent-core",
+          "action": "The remote host runs the same StreamThreadController/core streamAgent path against its own models, tools, files and network.",
+          "evidence": [
+            {
+              "path": "apps/server/src/runtime-factory.ts",
+              "lines": "33-65",
+              "symbol": "server composition",
+              "note": "Reuses shared runtime/core packages."
+            }
+          ]
+        },
+        {
+          "node": "shared-ui",
+          "action": "Remote SSE values become desktop RPC events and reduce into the same per-tab Thread store.",
+          "evidence": [
+            {
+              "path": "apps/desktop/src/bun/remote/remote-runtime-client.ts",
+              "lines": "191-235",
+              "symbol": "SSE parser",
+              "note": "Converts remote values to RuntimeStreamResponsePayload."
+            },
+            {
+              "path": "packages/ui/src/components/thread-playground/stores/thread-store.ts",
+              "lines": "1504-1554",
+              "symbol": "event reducer",
+              "note": "Updates the visible Thread."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "guest-agent-run",
+      "label": "4. Guest browser Agent run",
+      "summary": "The build-flagged guest workbench restores a browser Thread, uses the shared store with a same-origin SSE transport, the guest API validates and charges quota before running an allowlisted BigModel request, then constrained tools and streamed results update browser state.",
+      "steps": [
+        {
+          "node": "guest-workbench",
+          "action": "Load the versioned browser workspace, refresh quota, and inject createGuestTransport plus sandbox HostServices.",
+          "evidence": [
+            {
+              "path": "apps/web/src/guest/guest-workbench.tsx",
+              "lines": "133-180, 228-288",
+              "symbol": "GuestWorkbench state/transport",
+              "note": "Restores state and prepares the guest host."
+            }
+          ]
+        },
+        {
+          "node": "shared-ui",
+          "action": "The same Thread store prepares the run and applies guest auto-tool limits from HostServices.",
+          "evidence": [
+            {
+              "path": "apps/web/src/host/web-host.ts",
+              "lines": "52-80",
+              "symbol": "guest tool policy",
+              "note": "Caps automatic turns and tool calls."
+            },
+            {
+              "path": "packages/ui/src/components/thread-playground/stores/thread-store.ts",
+              "lines": "1137-1210",
+              "symbol": "run",
+              "note": "Shared preflight path."
+            }
+          ]
+        },
+        {
+          "node": "guest-api",
+          "action": "POST /api/guest/runs validates size/model/tool constraints, enforces concurrency, consumes guest/IP quota, and starts SSE.",
+          "evidence": [
+            {
+              "path": "apps/cloud/src/guest-http-server.ts",
+              "lines": "290-342, 439-625",
+              "symbol": "guest run validation",
+              "note": "Applies the server security envelope."
+            }
+          ]
+        },
+        {
+          "node": "guest-state",
+          "action": "SQLite records only HMAC-hashed daily usage; localStorage retains user-visible Thread/library state.",
+          "evidence": [
+            {
+              "path": "apps/cloud/src/guest-quota.ts",
+              "lines": "22-123",
+              "symbol": "GuestQuotaStore",
+              "note": "Durable quota state."
+            },
+            {
+              "path": "apps/web/src/guest/guest-workspace.ts",
+              "lines": "89-155, 327-366",
+              "symbol": "browser persistence",
+              "note": "Durable local Thread state."
+            }
+          ]
+        },
+        {
+          "node": "agent-core",
+          "action": "createGuestModelExecutor narrows the model/config and invokes core streamAgent.",
+          "evidence": [
+            {
+              "path": "apps/cloud/src/guest-model.ts",
+              "lines": "17-70",
+              "symbol": "createGuestModelExecutor",
+              "note": "Uses the common Agent engine."
+            }
+          ]
+        },
+        {
+          "node": "external-services",
+          "action": "BigModel streams the completion; safe server-side web/MCP tools are called only through guarded guest endpoints.",
+          "evidence": [
+            {
+              "path": "apps/cloud/src/guest-tool-service.ts",
+              "lines": "9-16, 36-87",
+              "symbol": "guest tool envelope",
+              "note": "Defines output/network/tool ceilings."
+            }
+          ]
+        },
+        {
+          "node": "guest-workbench",
+          "action": "SSE events reduce into messages; workspace and first-success/evaluation state are written back to browser storage.",
+          "evidence": [
+            {
+              "path": "apps/web/src/guest/guest-api.ts",
+              "lines": "161-241",
+              "symbol": "guest SSE transport",
+              "note": "Parses and yields events."
+            },
+            {
+              "path": "apps/web/src/guest/guest-workbench.tsx",
+              "lines": "279-300",
+              "symbol": "state commits",
+              "note": "Persists guest progress."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gist-share-view",
+      "label": "5. Share a Thread via GitHub Gist",
+      "summary": "Desktop normalizes a Thread and writes a secret Gist through authenticated Bun-side code; the static Web shared route resolves the connector, reads Gist content/metadata, and mounts the same ThreadPlayground with readonly presentational services.",
+      "steps": [
+        {
+          "node": "desktop-renderer",
+          "action": "The shared Thread action is exposed through Desktop HostServices and the share dialog.",
+          "evidence": [
+            {
+              "path": "apps/desktop/src/host/share-thread-action.ts",
+              "lines": "1-40",
+              "symbol": "createDesktopShareThreadAction",
+              "note": "Starts the desktop share workflow."
+            }
+          ]
+        },
+        {
+          "node": "desktop-rpc",
+          "action": "The share handler validates/normalizes the Thread and calls GistThreadWriter in the Bun process.",
+          "evidence": [
+            {
+              "path": "apps/desktop/src/bun/rpc/share-thread.ts",
+              "lines": "24-50",
+              "symbol": "createShareThreadHandler",
+              "note": "Keeps GitHub auth outside the renderer."
+            }
+          ]
+        },
+        {
+          "node": "github",
+          "action": "GistThreadWriter creates or updates the shareable Gist and returns its locator.",
+          "evidence": [
+            {
+              "path": "packages/core/src/storage/gist/gist-thread-writer.ts",
+              "lines": "44-130",
+              "symbol": "write",
+              "note": "Owns Gist persistence and auth errors."
+            }
+          ]
+        },
+        {
+          "node": "web-shell",
+          "action": "#/shared/gist/threads/:id selects the Gist connector and reads the latest shared Thread plus author/description metadata.",
+          "evidence": [
+            {
+              "path": "apps/web/src/app.tsx",
+              "lines": "31-55, 74-79",
+              "symbol": "SharedThreadRoute",
+              "note": "Resolves the connector."
+            },
+            {
+              "path": "apps/web/src/thread-viewer.tsx",
+              "lines": "69-83, 114-133",
+              "symbol": "loadShared",
+              "note": "Loads shared content."
+            }
+          ]
+        },
+        {
+          "node": "shared-ui",
+          "action": "ThreadViewer renders ThreadPlayground readonly; no model transport or tool executor is available.",
+          "evidence": [
+            {
+              "path": "apps/web/src/thread-viewer.tsx",
+              "lines": "203-214",
+              "symbol": "readonly ThreadPlayground",
+              "note": "Final display boundary."
+            },
+            {
+              "path": "apps/web/src/host/web-host.ts",
+              "lines": "47-71",
+              "symbol": "presentational host",
+              "note": "Disables unavailable actions."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "externalDependencies": [
+    {
+      "name": "@earendil-works/pi-agent-core / pi-ai",
+      "ownerNodes": [
+        "agent-core",
+        "runtime-integrations",
+        "guest-api"
+      ],
+      "purpose": "Agent loop, model registry, provider streaming and event protocol",
+      "evidence": "package.json catalog + packages/core/src/server/agent/stream.ts"
+    },
+    {
+      "name": "Electrobun",
+      "ownerNodes": [
+        "desktop-renderer",
+        "desktop-host",
+        "desktop-rpc"
+      ],
+      "purpose": "Native shell, renderer, typed Bun/WebView RPC, packaging and updates",
+      "evidence": "apps/desktop/package.json + apps/desktop/src/bun/app/start-desktop-app.ts"
+    },
+    {
+      "name": "React / Zustand / CodeMirror",
+      "ownerNodes": [
+        "shared-ui",
+        "desktop-renderer",
+        "guest-workbench",
+        "web-shell"
+      ],
+      "purpose": "Shared interactive UI, per-Thread state and editing surfaces",
+      "evidence": "packages/ui/package.json"
+    },
+    {
+      "name": "@modelcontextprotocol/sdk",
+      "ownerNodes": [
+        "runtime-integrations",
+        "guest-api"
+      ],
+      "purpose": "MCP server connections, discovery and tool calls",
+      "evidence": "packages/runtime/src/mcp/mcp-manager.ts + apps/cloud/src/guest-tool-service.ts"
+    },
+    {
+      "name": "PostgreSQL / Bun SQL",
+      "ownerNodes": [
+        "cloud-identity",
+        "postgres"
+      ],
+      "purpose": "Cloud identity, tenant, workspace and session persistence with RLS",
+      "evidence": "apps/cloud/src/postgres-repository.ts"
+    },
+    {
+      "name": "Bun SQLite",
+      "ownerNodes": [
+        "guest-api",
+        "guest-state"
+      ],
+      "purpose": "Durable guest/IP quota counters",
+      "evidence": "apps/cloud/src/guest-quota.ts"
+    },
+    {
+      "name": "GitHub APIs and Actions",
+      "ownerNodes": [
+        "github",
+        "web-shell",
+        "cloud-identity",
+        "desktop-host"
+      ],
+      "purpose": "OAuth/device auth, Gist sharing, Pages, Releases and update feeds",
+      "evidence": "packages/core/src/storage/gist/ + .github/workflows/"
+    }
+  ]
+}

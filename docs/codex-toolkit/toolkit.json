@@ -1,0 +1,707 @@
+{
+  "schemaVersion": 1,
+  "title": "Codex toolkit map",
+  "generatedAt": "2026-08-24T08:20:00.000Z",
+  "backup": {
+    "path": "C:\\Users\\陈伟记\\.codex\\backups\\2026-08-24-155148-toolkit-cleanup",
+    "archivedPath": "C:\\Users\\陈伟记\\.codex\\archives\\2026-08-24-155148-toolkit-cleanup",
+    "sourceFiles": 135,
+    "sourceBytes": 3392002,
+    "hashChecksPassed": 5
+  },
+  "cleanup": {
+    "configTablesRemoved": 36,
+    "emptyProjectsArchived": 30,
+    "stateTempFilesArchived": 35,
+    "stalePluginStagingArchived": 2,
+    "historicalRulesArchived": 73,
+    "kaizenLogsArchived": 22,
+    "oldUntrackedAuditsArchived": 8,
+    "runtimeLogsArchived": 4,
+    "duplicateSkillsArchived": [
+      "pdf",
+      "codex-primary-runtime (empty)"
+    ]
+  },
+  "context": {
+    "agentsBeforeTokens": 8408,
+    "agentsAfterTokens": 1663,
+    "agentsSavedTokens": 6745,
+    "langfuseMcpToolsRemoved": 4,
+    "langfuseMcpDescriptionCharsRemoved": 7177,
+    "estimatedAlwaysLoadedTokensSaved": 8500,
+    "kaizenBeforeTokens": 2778,
+    "kaizenAfterTokens": 916,
+    "kaizenTriggeredTokensSaved": 1862,
+    "estimatedKaizenTaskTokensSaved": 10400,
+    "tokenizer": "o200k_base for file counts; MCP estimate derived conservatively from 7,177 removed schema-description characters",
+    "excluded": "config.toml and default.rules reductions are not counted as ordinary prompt-context savings"
+  },
+  "nodes": [
+    {
+      "id": "repo-agents",
+      "label": "Repository AGENTS.md",
+      "category": "Instructions",
+      "status": "cleaned",
+      "purpose": "The always-loaded execution contract for llm-space-web: tooling, architecture boundaries, verification, release invariants, and code conventions.",
+      "trigger": "Every task rooted in this repository.",
+      "scope": "D:\\1_myCode\\1-novel\\llm-space-web and all descendants unless a nested AGENTS.md overrides it.",
+      "sources": [
+        {
+          "label": "Active AGENTS.md",
+          "path": "D:\\1_myCode\\1-novel\\llm-space-web\\AGENTS.md",
+          "href": "file:///D:/1_myCode/1-novel/llm-space-web/AGENTS.md"
+        }
+      ],
+      "overlaps": [
+        "kaizen-loop",
+        "electrobun-cdp"
+      ],
+      "change": "Rewritten from 8,408 to 1,663 o200k tokens; removed stale desktop-only/web-viewer claims and moved architecture discovery to the code map."
+    },
+    {
+      "id": "global-config",
+      "label": "Global config",
+      "category": "Configuration",
+      "status": "cleaned",
+      "purpose": "Personal model, desktop, plugin, MCP, project trust, memory, and shell defaults.",
+      "trigger": "Every Codex launch; some changes require restart or a new task.",
+      "scope": "All local Codex projects for this Windows user.",
+      "sources": [
+        {
+          "label": "config.toml",
+          "path": "C:\\Users\\陈伟记\\.codex\\config.toml",
+          "href": "file:///C:/Users/陈伟记/.codex/config.toml"
+        }
+      ],
+      "overlaps": [
+        "plugin-bundles",
+        "node-repl",
+        "memory-models",
+        "rules"
+      ],
+      "change": "Removed 36 stale/redundant tables while preserving credentials and active paths; 303 lines became 195."
+    },
+    {
+      "id": "rules",
+      "label": "Approval rules",
+      "category": "Configuration",
+      "status": "reset",
+      "purpose": "Narrow reusable command-prefix approvals. It must not become a history of complete shell scripts.",
+      "trigger": "When Codex evaluates whether a command matches a persisted approval.",
+      "scope": "Global local command execution policy.",
+      "sources": [
+        {
+          "label": "default.rules",
+          "path": "C:\\Users\\陈伟记\\.codex\\rules\\default.rules",
+          "href": "file:///C:/Users/陈伟记/.codex/rules/default.rules"
+        }
+      ],
+      "overlaps": [
+        "global-config",
+        "automation-commands"
+      ],
+      "change": "Archived 73 one-off rules, including 49 BookSim-specific, 21 destructive/process-control, 6 auth-token-handling, and 5 deploy/release commands; active file is now comments only."
+    },
+    {
+      "id": "openai-docs",
+      "label": "OpenAI Docs skill",
+      "category": "Skills",
+      "status": "keep",
+      "purpose": "Current official guidance for Codex/OpenAI settings, APIs, models, skills, plugins, and troubleshooting.",
+      "trigger": "Questions about Codex itself or OpenAI products and APIs.",
+      "scope": "Global system skill; official OpenAI sources only.",
+      "sources": [
+        {
+          "label": "SKILL.md",
+          "path": "C:\\Users\\陈伟记\\.codex\\skills\\.system\\openai-docs\\SKILL.md",
+          "href": "file:///C:/Users/陈伟记/.codex/skills/.system/openai-docs/SKILL.md"
+        }
+      ],
+      "overlaps": [
+        "global-config",
+        "plugin-bundles"
+      ],
+      "change": "Kept unchanged; it is the authoritative route for current Codex behavior."
+    },
+    {
+      "id": "langfuse-skill",
+      "label": "Langfuse skill",
+      "category": "Skills",
+      "status": "keep",
+      "purpose": "Langfuse CLI data access plus documentation-first observability, prompts, datasets, scores, and evaluation workflows.",
+      "trigger": "Langfuse implementation, data, tracing, prompt, evaluation, or documentation requests.",
+      "scope": "Global user skill.",
+      "sources": [
+        {
+          "label": "SKILL.md",
+          "path": "C:\\Users\\陈伟记\\.codex\\skills\\langfuse\\SKILL.md",
+          "href": "file:///C:/Users/陈伟记/.codex/skills/langfuse/SKILL.md"
+        }
+      ],
+      "overlaps": [
+        "archived-items"
+      ],
+      "change": "Kept as the single Langfuse workflow; the redundant docs-only MCP was removed."
+    },
+    {
+      "id": "playwright",
+      "label": "Playwright skill",
+      "category": "Skills",
+      "status": "keep",
+      "purpose": "Terminal-driven real-browser automation, screenshots, snapshots, data extraction, and UI acceptance.",
+      "trigger": "Browser flows that require reproducible terminal automation.",
+      "scope": "Global user skill; operates on ordinary browser targets.",
+      "sources": [
+        {
+          "label": "SKILL.md",
+          "path": "C:\\Users\\陈伟记\\.codex\\skills\\playwright\\SKILL.md",
+          "href": "file:///C:/Users/陈伟记/.codex/skills/playwright/SKILL.md"
+        }
+      ],
+      "overlaps": [
+        "browser",
+        "chrome",
+        "electrobun-cdp"
+      ],
+      "change": "Kept. It overlaps with browser plugins in capability, but differs in execution surface and reproducibility."
+    },
+    {
+      "id": "kaizen-loop",
+      "label": "Kaizen Loop skill",
+      "category": "Skills",
+      "status": "cleaned",
+      "purpose": "One evidence-grounded product iteration with capability freshness, a north-star metric, market evidence, alternatives, and an approval gate.",
+      "trigger": "Requests to inspect the product, choose what to build next, audit a workflow, or plan/implement the next capability.",
+      "scope": "llm-space-web project only.",
+      "sources": [
+        {
+          "label": "SKILL.md",
+          "path": "D:\\1_myCode\\1-novel\\llm-space-web\\.agents\\skills\\kaizen-loop\\SKILL.md",
+          "href": "file:///D:/1_myCode/1-novel/llm-space-web/.agents/skills/kaizen-loop/SKILL.md"
+        }
+      ],
+      "overlaps": [
+        "repo-agents",
+        "browser"
+      ],
+      "change": "Reduced from 2,778 to 916 tokens and replaced unavailable $grill-me / $product-design:audit dependencies with explicit review and rendered acceptance gates."
+    },
+    {
+      "id": "electrobun-cdp",
+      "label": "Electrobun CDP skill",
+      "category": "Skills",
+      "status": "keep",
+      "purpose": "Inspect the actual Electrobun CEF renderer through raw CDP probes without mocking electrobun.rpc.",
+      "trigger": "Desktop renderer debugging or acceptance that depends on Electrobun RPC/CEF.",
+      "scope": "llm-space-web project only.",
+      "sources": [
+        {
+          "label": "SKILL.md",
+          "path": "D:\\1_myCode\\1-novel\\llm-space-web\\.agents\\skills\\electrobun-cdp-debug\\SKILL.md",
+          "href": "file:///D:/1_myCode/1-novel/llm-space-web/.agents/skills/electrobun-cdp-debug/SKILL.md"
+        }
+      ],
+      "overlaps": [
+        "playwright",
+        "chrome",
+        "node-repl"
+      ],
+      "change": "Kept; its CEF boundary is distinct from ordinary Chrome/browser tools, and both referenced scripts exist."
+    },
+    {
+      "id": "artifact-runtime",
+      "label": "Artifact runtime plugins",
+      "category": "Plugins",
+      "status": "keep",
+      "purpose": "Create and visually verify documents, spreadsheets, presentations, PDFs, and reusable templates with bundled runtimes.",
+      "trigger": "DOCX/Docs, XLSX/Sheets, PPTX/Slides, PDF, or artifact-template tasks.",
+      "scope": "Global OpenAI primary-runtime plugins.",
+      "sources": [
+        {
+          "label": "Plugin cache",
+          "path": "C:\\Users\\陈伟记\\.codex\\plugins\\cache\\openai-primary-runtime",
+          "href": "file:///C:/Users/陈伟记/.codex/plugins/cache/openai-primary-runtime"
+        }
+      ],
+      "overlaps": [
+        "default-templates",
+        "archived-items"
+      ],
+      "change": "Kept the current plugin PDF workflow and archived the older global PDF skill that duplicated it."
+    },
+    {
+      "id": "browser",
+      "label": "In-app Browser",
+      "category": "Plugins",
+      "status": "keep",
+      "purpose": "Inspect and control Codex's in-app browser, including its existing signed-in sessions.",
+      "trigger": "Visible web navigation, interaction, screenshots, or local UI testing that fits the in-app browser.",
+      "scope": "Codex browser surface.",
+      "sources": [
+        {
+          "label": "Browser plugin",
+          "path": "C:\\Users\\陈伟记\\.codex\\plugins\\cache\\openai-bundled\\browser",
+          "href": "file:///C:/Users/陈伟记/.codex/plugins/cache/openai-bundled/browser"
+        }
+      ],
+      "overlaps": [
+        "chrome",
+        "playwright",
+        "node-repl",
+        "sites-visualize"
+      ],
+      "change": "Kept; choose it for generic browser work that does not require the user's Chrome state."
+    },
+    {
+      "id": "chrome",
+      "label": "Chrome control",
+      "category": "Plugins",
+      "status": "keep",
+      "purpose": "Control the user's actual Chrome tabs, logged-in sessions, extensions, and browser state.",
+      "trigger": "Tasks that explicitly depend on existing Chrome state.",
+      "scope": "User Chrome, not generic in-app browser or Electrobun CEF.",
+      "sources": [
+        {
+          "label": "Chrome plugin",
+          "path": "C:\\Users\\陈伟记\\.codex\\plugins\\cache\\openai-bundled\\chrome",
+          "href": "file:///C:/Users/陈伟记/.codex/plugins/cache/openai-bundled/chrome"
+        }
+      ],
+      "overlaps": [
+        "browser",
+        "computer-use",
+        "playwright",
+        "node-repl"
+      ],
+      "change": "Kept because its authenticated state boundary is unique; an obsolete temporary Chrome install was archived."
+    },
+    {
+      "id": "computer-use",
+      "label": "Computer Use",
+      "category": "Plugins",
+      "status": "conditional",
+      "purpose": "Control Windows applications when browser- or API-specific tools cannot perform the task.",
+      "trigger": "Explicit Windows app interaction or a task requiring non-browser GUI control.",
+      "scope": "Windows desktop applications.",
+      "sources": [
+        {
+          "label": "Computer Use plugin",
+          "path": "C:\\Users\\陈伟记\\.codex\\plugins\\cache\\openai-bundled\\computer-use",
+          "href": "file:///C:/Users/陈伟记/.codex/plugins/cache/openai-bundled/computer-use"
+        }
+      ],
+      "overlaps": [
+        "chrome",
+        "browser",
+        "node-repl"
+      ],
+      "change": "Kept but marked conditional; prefer purpose-built browser/app connectors first."
+    },
+    {
+      "id": "node-repl",
+      "label": "node_repl MCP",
+      "category": "MCP",
+      "status": "keep",
+      "purpose": "Persistent JavaScript execution and the preferred control substrate for Browser/Chrome integrations.",
+      "trigger": "Persistent JS exploration or plugin-backed Browser/Chrome control.",
+      "scope": "Global local MCP process; executable and every configured path were verified.",
+      "sources": [
+        {
+          "label": "config.toml MCP entry",
+          "path": "C:\\Users\\陈伟记\\.codex\\config.toml",
+          "href": "file:///C:/Users/陈伟记/.codex/config.toml"
+        }
+      ],
+      "overlaps": [
+        "browser",
+        "chrome",
+        "computer-use"
+      ],
+      "change": "Kept; it is the only MCP with observed calls in the current projected history (9 calls)."
+    },
+    {
+      "id": "github",
+      "label": "GitHub plugin",
+      "category": "Plugins",
+      "status": "keep",
+      "purpose": "Read repositories/issues/PRs and perform explicit GitHub workflow actions through the connected app.",
+      "trigger": "GitHub-hosted source, issue, PR, review, CI, or publication tasks.",
+      "scope": "Connected GitHub account and allowed repositories.",
+      "sources": [
+        {
+          "label": "Installed plugin metadata",
+          "path": "C:\\Users\\陈伟记\\.codex\\plugins\\cache\\openai-curated-remote\\github",
+          "href": "file:///C:/Users/陈伟记/.codex/plugins/cache/openai-curated-remote/github"
+        }
+      ],
+      "overlaps": [
+        "plugin-bundles",
+        "automation-commands"
+      ],
+      "change": "Kept. It is installed and inherits the global 'Allow low-risk actions' permission setting."
+    },
+    {
+      "id": "sites-visualize",
+      "label": "Sites & Visualize",
+      "category": "Plugins",
+      "status": "keep",
+      "purpose": "Build/host Sites projects and create inline interactive explainers when a visual materially improves understanding.",
+      "trigger": "Sites projects or explicit interactive visualization/exploration requests.",
+      "scope": "Global bundled plugins; Sites is installed by default and inherits global permissions.",
+      "sources": [
+        {
+          "label": "Sites plugin",
+          "path": "C:\\Users\\陈伟记\\.codex\\plugins\\cache\\openai-bundled\\sites",
+          "href": "file:///C:/Users/陈伟记/.codex/plugins/cache/openai-bundled/sites"
+        },
+        {
+          "label": "Visualize plugin",
+          "path": "C:\\Users\\陈伟记\\.codex\\plugins\\cache\\openai-bundled\\visualize",
+          "href": "file:///C:/Users/陈伟记/.codex/plugins/cache/openai-bundled/visualize"
+        }
+      ],
+      "overlaps": [
+        "browser",
+        "playwright",
+        "artifact-runtime"
+      ],
+      "change": "Kept; build/hosting and in-conversation visualization are separate from ordinary browser acceptance."
+    },
+    {
+      "id": "default-templates",
+      "label": "Default artifact templates",
+      "category": "Plugins",
+      "status": "conditional",
+      "purpose": "Twenty explicitly selected document, presentation, and spreadsheet templates.",
+      "trigger": "Only when the user names or selects a specific template; implicit invocation is disabled.",
+      "scope": "Installed OpenAI Templates plugin.",
+      "sources": [
+        {
+          "label": "Template plugin metadata",
+          "path": "C:\\Users\\陈伟记\\.codex\\plugins\\cache\\openai-curated-remote\\openai-templates",
+          "href": "file:///C:/Users/陈伟记/.codex/plugins/cache/openai-curated-remote/openai-templates"
+        }
+      ],
+      "overlaps": [
+        "artifact-runtime",
+        "sites-visualize"
+      ],
+      "change": "Kept because it does not implicitly trigger; remove later if named templates remain unused."
+    },
+    {
+      "id": "plugin-bundles",
+      "label": "Plugin management",
+      "category": "Plugins",
+      "status": "cleaned",
+      "purpose": "Discover plugins and inspect installation, dependency, connection, and permission state.",
+      "trigger": "Plugin audit, connection, permission, discovery, or explicit removal requests.",
+      "scope": "Global installed Plugin Management bundle.",
+      "sources": [
+        {
+          "label": "Plugin Management",
+          "path": "C:\\Users\\陈伟记\\.codex\\plugins\\cache\\openai-curated-remote\\plugin-management",
+          "href": "file:///C:/Users/陈伟记/.codex/plugins/cache/openai-curated-remote/plugin-management"
+        }
+      ],
+      "overlaps": [
+        "global-config",
+        "github",
+        "sites-visualize"
+      ],
+      "change": "Used to confirm GitHub/Sites installation; removed five config entries whose plugins were not installed."
+    },
+    {
+      "id": "automation-commands",
+      "label": "Commands & automation",
+      "category": "Workflow",
+      "status": "minimal",
+      "purpose": "One Alt+V realtime-voice keybinding and the turn-ended notification hook. No custom prompts, commands, agents, or recurring automations are configured.",
+      "trigger": "Alt+V, turn completion, or a future explicit scheduled-task request.",
+      "scope": "Global desktop behavior.",
+      "sources": [
+        {
+          "label": "keybindings.json",
+          "path": "C:\\Users\\陈伟记\\.codex\\keybindings.json",
+          "href": "file:///C:/Users/陈伟记/.codex/keybindings.json"
+        },
+        {
+          "label": "config.toml notify",
+          "path": "C:\\Users\\陈伟记\\.codex\\config.toml",
+          "href": "file:///C:/Users/陈伟记/.codex/config.toml"
+        }
+      ],
+      "overlaps": [
+        "rules",
+        "computer-use"
+      ],
+      "change": "Kept the valid keybinding and notification executable; confirmed that automations/prompts/commands/agents directories are absent."
+    },
+    {
+      "id": "memory-models",
+      "label": "Memory & model profiles",
+      "category": "Configuration",
+      "status": "keep",
+      "purpose": "Durable user/project history plus OpenAI defaults and two local MiMo provider identities with three profiles.",
+      "trigger": "Memory-grounded tasks or explicit profile/model selection.",
+      "scope": "Global user state. Provider secrets are intentionally omitted from this map.",
+      "sources": [
+        {
+          "label": "config.toml",
+          "path": "C:\\Users\\陈伟记\\.codex\\config.toml",
+          "href": "file:///C:/Users/陈伟记/.codex/config.toml"
+        },
+        {
+          "label": "Memory registry",
+          "path": "C:\\Users\\陈伟记\\.codex\\memories\\MEMORY.md",
+          "href": "file:///C:/Users/陈伟记/.codex/memories/MEMORY.md"
+        }
+      ],
+      "overlaps": [
+        "global-config",
+        "openai-docs"
+      ],
+      "change": "Preserved. The apparent duplicate MiMo profile may represent separate credentials/accounts and requires a user decision."
+    },
+    {
+      "id": "archived-items",
+      "label": "Backup & archives",
+      "category": "Archive",
+      "status": "recoverable",
+      "purpose": "Rollback point for every changed configuration plus stale items moved out of active discovery paths.",
+      "trigger": "Only for audit, rollback, or final deletion after a retention period.",
+      "scope": "Global backup/archive roots outside active skill, project, and plugin discovery.",
+      "sources": [
+        {
+          "label": "Backup manifest",
+          "path": "C:\\Users\\陈伟记\\.codex\\backups\\2026-08-24-155148-toolkit-cleanup\\MANIFEST.md",
+          "href": "file:///C:/Users/陈伟记/.codex/backups/2026-08-24-155148-toolkit-cleanup/MANIFEST.md"
+        },
+        {
+          "label": "Archive root",
+          "path": "C:\\Users\\陈伟记\\.codex\\archives\\2026-08-24-155148-toolkit-cleanup",
+          "href": "file:///C:/Users/陈伟记/.codex/archives/2026-08-24-155148-toolkit-cleanup"
+        }
+      ],
+      "overlaps": [
+        "langfuse-skill",
+        "artifact-runtime",
+        "global-config",
+        "rules"
+      ],
+      "change": "Contains the old PDF skill, empty skill directory, 30 empty projects, 35 state temp files, obsolete plugin staging, 22 old Kaizen logs, 8 old untracked audits, and 4 runtime logs."
+    }
+  ],
+  "edges": [
+    {
+      "id": "kaizen-loop--repo-agents",
+      "from": "repo-agents",
+      "to": "kaizen-loop",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "electrobun-cdp--repo-agents",
+      "from": "repo-agents",
+      "to": "electrobun-cdp",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "global-config--plugin-bundles",
+      "from": "global-config",
+      "to": "plugin-bundles",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "global-config--node-repl",
+      "from": "global-config",
+      "to": "node-repl",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "global-config--memory-models",
+      "from": "global-config",
+      "to": "memory-models",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "global-config--rules",
+      "from": "global-config",
+      "to": "rules",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "automation-commands--rules",
+      "from": "rules",
+      "to": "automation-commands",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "global-config--openai-docs",
+      "from": "openai-docs",
+      "to": "global-config",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "openai-docs--plugin-bundles",
+      "from": "openai-docs",
+      "to": "plugin-bundles",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "archived-items--langfuse-skill",
+      "from": "langfuse-skill",
+      "to": "archived-items",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "browser--playwright",
+      "from": "playwright",
+      "to": "browser",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "chrome--playwright",
+      "from": "playwright",
+      "to": "chrome",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "electrobun-cdp--playwright",
+      "from": "playwright",
+      "to": "electrobun-cdp",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "browser--kaizen-loop",
+      "from": "kaizen-loop",
+      "to": "browser",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "chrome--electrobun-cdp",
+      "from": "electrobun-cdp",
+      "to": "chrome",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "electrobun-cdp--node-repl",
+      "from": "electrobun-cdp",
+      "to": "node-repl",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "artifact-runtime--default-templates",
+      "from": "artifact-runtime",
+      "to": "default-templates",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "archived-items--artifact-runtime",
+      "from": "artifact-runtime",
+      "to": "archived-items",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "browser--chrome",
+      "from": "browser",
+      "to": "chrome",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "browser--node-repl",
+      "from": "browser",
+      "to": "node-repl",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "browser--sites-visualize",
+      "from": "browser",
+      "to": "sites-visualize",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "chrome--computer-use",
+      "from": "chrome",
+      "to": "computer-use",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "chrome--node-repl",
+      "from": "chrome",
+      "to": "node-repl",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "browser--computer-use",
+      "from": "computer-use",
+      "to": "browser",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "computer-use--node-repl",
+      "from": "computer-use",
+      "to": "node-repl",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "github--plugin-bundles",
+      "from": "github",
+      "to": "plugin-bundles",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "automation-commands--github",
+      "from": "github",
+      "to": "automation-commands",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "playwright--sites-visualize",
+      "from": "sites-visualize",
+      "to": "playwright",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "artifact-runtime--sites-visualize",
+      "from": "sites-visualize",
+      "to": "artifact-runtime",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "default-templates--sites-visualize",
+      "from": "default-templates",
+      "to": "sites-visualize",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "plugin-bundles--sites-visualize",
+      "from": "plugin-bundles",
+      "to": "sites-visualize",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "automation-commands--computer-use",
+      "from": "automation-commands",
+      "to": "computer-use",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "memory-models--openai-docs",
+      "from": "memory-models",
+      "to": "openai-docs",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "archived-items--global-config",
+      "from": "archived-items",
+      "to": "global-config",
+      "label": "overlap / handoff"
+    },
+    {
+      "id": "archived-items--rules",
+      "from": "archived-items",
+      "to": "rules",
+      "label": "overlap / handoff"
+    }
+  ]
+}

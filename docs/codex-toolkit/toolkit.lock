@@ -1,0 +1,57 @@
+{
+  "lockVersion": 1,
+  "generatedAt": "2026-08-24T08:20:00.000Z",
+  "status": "verified",
+  "evidence": [
+    {
+      "path": "D:\\1_myCode\\1-novel\\llm-space-web\\AGENTS.md",
+      "sha256": "7845fc925ddce0893ffd55779de7003bc3686a972696962fa8b754f1993cd1f1"
+    },
+    {
+      "path": "D:\\1_myCode\\1-novel\\llm-space-web\\.agents\\skills\\kaizen-loop\\SKILL.md",
+      "sha256": "c7180b4a19e4e89145c44e2176b6aee115b4f9d793281762e42b862c0a58a7e0"
+    },
+    {
+      "path": "D:\\1_myCode\\1-novel\\llm-space-web\\.agents\\skills\\electrobun-cdp-debug\\SKILL.md",
+      "sha256": "4d7d8fb9b4179ca5dd4a958ba31603e5b31e03d3c46df9dc10199d5bd4575b78"
+    },
+    {
+      "path": "C:\\Users\\陈伟记\\.codex\\config.toml",
+      "sha256": "a3685bbe712e6f6902b56431c1ef497622a088b22d9538946a5b9bf8cf9f0649"
+    },
+    {
+      "path": "C:\\Users\\陈伟记\\.codex\\rules\\default.rules",
+      "sha256": "d2dca96167ccfb756df3e4bf38a4fb8a239f1cac5e08dc89fe23e9fc1d8823d0"
+    },
+    {
+      "path": "C:\\Users\\陈伟记\\.codex\\keybindings.json",
+      "sha256": "4f1576bbc69db3a534ffaea56182828df15f4f949578f106be60f6b03cb2a52f"
+    },
+    {
+      "path": "C:\\Users\\陈伟记\\.codex\\skills\\langfuse\\SKILL.md",
+      "sha256": "3de7bf61480e317492e00ace96e7fec1d70b525725924538039c3cc141c66d04"
+    },
+    {
+      "path": "C:\\Users\\陈伟记\\.codex\\skills\\playwright\\SKILL.md",
+      "sha256": "c52cc95125b720cdc3c9829b0294c2752d4ae9b85a5282aa153da8bba929af87"
+    },
+    {
+      "path": "C:\\Users\\陈伟记\\.codex\\backups\\2026-08-24-155148-toolkit-cleanup\\MANIFEST.md",
+      "sha256": "b833799f94c4028a66bc51e53c074e8f509086c5234c4d3a6abe3046598ff998"
+    }
+  ],
+  "artifacts": {
+    "toolkit.json": "f8b4d4136954c4e17ab4ffff88effbd125792d53e7435a4b3acb9cc48f56941b",
+    "toolkit.html": "33e09771e6390c3de36b46f2b600f9467d49166968cea44182f5025079c18faf",
+    "audit.md": "80951ac94a8d480610b0a31eed8898949918ba18b64452754f7caad58f8033ec"
+  },
+  "checks": [
+    "TOML parses and active paths exist",
+    "20 unique nodes and valid overlap references",
+    "embedded HTML data equals toolkit.json",
+    "HTTP browser: 20 nodes, selection, search, category filter, overlap navigation",
+    "Direct file:// Chromium render passed",
+    "Browser console: 0 errors and 0 warnings",
+    "Sanitized artifact scan passed"
+  ]
+}

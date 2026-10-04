@@ -1,0 +1,477 @@
+{
+  "lockVersion": 1,
+  "generatedAt": "2026-08-24T06:25:15.831Z",
+  "repository": {
+    "name": "llm-space-web",
+    "root": "D:\\1_myCode\\1-novel\\llm-space-web",
+    "branch": "main",
+    "commit": "7c41be58581ab5ad69e298ccd4f247f124f77638",
+    "remote": "https://github.com/VikiChan2021/llm-space-web.git",
+    "evidenceBasis": "Current source checkout; deployment and production availability are not inferred."
+  },
+  "sourceFingerprint": {
+    "algorithm": "sha256",
+    "evidenceFileCount": 102,
+    "files": [
+      {
+        "path": ".github/workflows/pages.yml",
+        "sha256": "b4fed031a2ed73682294688a177acb8b3b77214a72e830d72517a4647adbc7d4"
+      },
+      {
+        "path": "apps/cloud/src/config.ts",
+        "sha256": "23f7148010d280fb28bf7ab92f8842b2eb05db53d27125cf44922deec9d19dd3"
+      },
+      {
+        "path": "apps/cloud/src/crypto.test.ts",
+        "sha256": "fd7920803acf960f5d7087222af2c0ed3619192a7a016941b3815ae96510fdbd"
+      },
+      {
+        "path": "apps/cloud/src/github-oauth.test.ts",
+        "sha256": "af657655908ace5b3f72e761266ce6abb9987a3567f9ebe6e7aad06856b584dc"
+      },
+      {
+        "path": "apps/cloud/src/guest-http-server.test.ts",
+        "sha256": "d8ef93daa90ea8db74f03c09f65a5c5b5f8ed27d159de39a1bb41b3636664d01"
+      },
+      {
+        "path": "apps/cloud/src/guest-http-server.ts",
+        "sha256": "71561bf3e1b03701acd1ce5d2763b6c9db263f9d73fda463e3dd9b1012f2921f"
+      },
+      {
+        "path": "apps/cloud/src/guest-json-quota.test.ts",
+        "sha256": "f339c7f33a751948478ec2bccec64c9e0b379a7f0afaa5483dbde702716c387c"
+      },
+      {
+        "path": "apps/cloud/src/guest-model.ts",
+        "sha256": "d494e72dc4ad459be2d6469ee7315da200c3bdacdec9087413ca5539b5ae1234"
+      },
+      {
+        "path": "apps/cloud/src/guest-quota.test.ts",
+        "sha256": "35c64e7569b271b420545f86cb8b874f27b052ad3af6e67fa430314974db43b6"
+      },
+      {
+        "path": "apps/cloud/src/guest-quota.ts",
+        "sha256": "9bfe7381df1c60df59c008b6f90bf69a7c8768ff393273c328ff670f5b9804be"
+      },
+      {
+        "path": "apps/cloud/src/guest-tool-service.test.ts",
+        "sha256": "c0a6d94a0de48015ce462ca8ef1c1a137d79365351990e4b08030dc0703a42f6"
+      },
+      {
+        "path": "apps/cloud/src/guest-tool-service.ts",
+        "sha256": "00e71170cd0cf8432feca8d15f38617ed141ce7412550ef5392d6f87c8ff91c4"
+      },
+      {
+        "path": "apps/cloud/src/http-server.test.ts",
+        "sha256": "dcfc243bfdf68e937931fb48f689eedab9dab90a5ec4b430a1467702475f50b9"
+      },
+      {
+        "path": "apps/cloud/src/http-server.ts",
+        "sha256": "7ee3b294e1f70156280f7191c9ed5500e5509e217eb6db38e1ea68d23c4b68c4"
+      },
+      {
+        "path": "apps/cloud/src/index.ts",
+        "sha256": "4637397cf817ec695874497cf28b176f88971041dced7b1651f687ef3e0e0a27"
+      },
+      {
+        "path": "apps/cloud/src/migrations.ts",
+        "sha256": "9a090d93d292e3407241fc483c0bf913824b9ac87f6df6c484d2ce5ee8add4ca"
+      },
+      {
+        "path": "apps/cloud/src/postgres-integration.test.ts",
+        "sha256": "236b2b096f82e5798867ca1c5b7533ff8c7ae0c3295298d231e76615a27f988a"
+      },
+      {
+        "path": "apps/cloud/src/postgres-repository.ts",
+        "sha256": "46470978b9a5acb9f285c8609d1cbbf04b9821c161c64ad668b5edda8a74435f"
+      },
+      {
+        "path": "apps/desktop/src/app/workspace-model-scope.test.tsx",
+        "sha256": "acb3f3b008c6dad96a432d5def5480590cf8d8847f52f89c19cecddeb2bcc191"
+      },
+      {
+        "path": "apps/desktop/src/bun/app/shutdown-coordinator.test.ts",
+        "sha256": "3e552a3cafb793d5023407075d608ad4da73d66f4f43f366da6f84226167b4e3"
+      },
+      {
+        "path": "apps/desktop/src/bun/app/start-desktop-app.ts",
+        "sha256": "280b06b79f2a92124ccfdd8a6b93f1e812c2c427b8ec2b19910d0786fdfc06fb"
+      },
+      {
+        "path": "apps/desktop/src/bun/auth/github-device-flow.test.ts",
+        "sha256": "ad8638fe6ff7e80a12d35ef1612e087dd952c0581a4f4444f7fdf380d36e7d1d"
+      },
+      {
+        "path": "apps/desktop/src/bun/commands.test.ts",
+        "sha256": "ad839f5a1d745b6df2d1f19dea68ceebc49b82ef625674950804426b74f13a7c"
+      },
+      {
+        "path": "apps/desktop/src/bun/host/desktop-host.test.ts",
+        "sha256": "daa87dfa85c5499198997c4e0a5e7e59660911b0a2b5ff11213f4571502f2095"
+      },
+      {
+        "path": "apps/desktop/src/bun/host/desktop-host.ts",
+        "sha256": "ecd7660c34d0dfcc75351953ef2a745e9610d0e1156ad0697da7591888941139"
+      },
+      {
+        "path": "apps/desktop/src/bun/remote/remote-runtime-client.test.ts",
+        "sha256": "4fd357dc6f1e24c785f31bd317786f7c63faf9745e9f87d9237b52334ff03071"
+      },
+      {
+        "path": "apps/desktop/src/bun/remote/remote-runtime-client.ts",
+        "sha256": "6b4460e629653cd97230814e16c6b5e8e064cbf9de029d77487d7a469215adf8"
+      },
+      {
+        "path": "apps/desktop/src/bun/remote/remote-runtime-manager.ts",
+        "sha256": "815f07deb61d912f5bb92344dcb50e3139e6648856e0d9fdc36b432725cf6a2f"
+      },
+      {
+        "path": "apps/desktop/src/bun/remote/remote-server-manager.test.ts",
+        "sha256": "3d1b6aa164bf2ebabaa6f75c237a09d644e008fefe0123eeb23fd6196b025e64"
+      },
+      {
+        "path": "apps/desktop/src/bun/remote/remote-server-manager.ts",
+        "sha256": "4a352d23a300f88fec4964ca685502e52e341e8dc7677fd2554634692797426a"
+      },
+      {
+        "path": "apps/desktop/src/bun/remote/ssh-remote-runtime.test.ts",
+        "sha256": "426dcbf359c40e069ed2914b917b04fb66fb55e8846a2e1e1622b8bbbeeaa33e"
+      },
+      {
+        "path": "apps/desktop/src/bun/rpc/index.ts",
+        "sha256": "335eb52729017f028e11d7ca74c0b932bc8f6d2dfbbf4e4da4538b51f02f1617"
+      },
+      {
+        "path": "apps/desktop/src/bun/rpc/share-thread.ts",
+        "sha256": "c7c5cf9ba33608cea5fe0eb4658af0b595446f24ee9dc2929636640e768a2e86"
+      },
+      {
+        "path": "apps/desktop/src/bun/rpc/stream-thread-request.test.ts",
+        "sha256": "35cd90f2f40226a8051061ccb15075801892834d8a82d16b4cf8aacca614df62"
+      },
+      {
+        "path": "apps/desktop/src/bun/rpc/stream-thread-request.ts",
+        "sha256": "da8b6fded05b1b30e8d2fa9658061d2183bf5250a32564191baddf483c2a97d6"
+      },
+      {
+        "path": "apps/desktop/src/client/rpc-transport.test.ts",
+        "sha256": "92c4070252e6b6a608ecf4c56a1d00cb42d268a57a6186a780a3d83e095582b1"
+      },
+      {
+        "path": "apps/desktop/src/client/rpc-transport.ts",
+        "sha256": "627432a2c35b2f02526f1e0b2f19cf0d362bec3995dbadffe3ab07ca55c104e6"
+      },
+      {
+        "path": "apps/desktop/src/components/thread-tabs/serialized-persistence.test.ts",
+        "sha256": "122ebc8255d53291419ecd6fbb7c77ef21152f77cd7057c54fe228f295c00652"
+      },
+      {
+        "path": "apps/desktop/src/components/thread-tabs/tab-runtime-scope.test.ts",
+        "sha256": "a453f8872d07d9f06409d95531a96e0702b4a3e20b83b00f3ef84d367eb8c5fb"
+      },
+      {
+        "path": "apps/desktop/src/components/thread-tabs/thread-tab-pane.tsx",
+        "sha256": "e03225a79aabb9d4e5e331fa967f8ce77339c12a0ab6280f34aeded0ae32f29b"
+      },
+      {
+        "path": "apps/desktop/src/host/host-services.test.tsx",
+        "sha256": "ae1b5b8d8c1e79792472a115683a802803929601f6f4799a1a94cbc0b12cb5b0"
+      },
+      {
+        "path": "apps/desktop/src/host/host-services.tsx",
+        "sha256": "dfda8b3d822f98961138978588de5fbeafb765e2d5169a44883fe1c63415c3ee"
+      },
+      {
+        "path": "apps/desktop/src/host/share-thread-action.ts",
+        "sha256": "1721a765a820c79eddaa2252b3f209c983c3d4053467ea75b8ea17fbed1154db"
+      },
+      {
+        "path": "apps/server/scripts/pack-server.test.ts",
+        "sha256": "4a433baa166d95e990daf2e8713e3f9316fb6ca4919687e6f55b6904f2b6ffde"
+      },
+      {
+        "path": "apps/server/src/http-server.test.ts",
+        "sha256": "6c6e862050b245bec88900d8b1358a783e3a83924e742a274d675d7d74d528b7"
+      },
+      {
+        "path": "apps/server/src/http-server.ts",
+        "sha256": "1bfd05deb9bf5d9a60af7e14a576e135d0520b50e09ba3b754bf520a2bc047b6"
+      },
+      {
+        "path": "apps/server/src/rpc.test.ts",
+        "sha256": "bc081aa3699d1f4b1824dc4584e32a4c8dcf7c010b780253dfca3ffe9d06b9f7"
+      },
+      {
+        "path": "apps/server/src/rpc.ts",
+        "sha256": "aeecc043e6551750e7a90a8c04bd4d2121ca359ca7b8211631d0a1f0e5992330"
+      },
+      {
+        "path": "apps/server/src/runtime-factory.ts",
+        "sha256": "47f769d05f93ae54320362eac6764e245c21643515d63178ae24c74dd05b8c8b"
+      },
+      {
+        "path": "apps/server/src/stream.test.ts",
+        "sha256": "ff6d3415c579073f940e0b0235f60adf32db98c43243a9a561284ed280592615"
+      },
+      {
+        "path": "apps/server/src/stream.ts",
+        "sha256": "4a4a8770e7295275986a76d0a2e9b224157c56afb53cbc775dd7db660e8a6344"
+      },
+      {
+        "path": "apps/web/src/app.tsx",
+        "sha256": "5df28e938e0c1fcd89e1e6c80f7fd8e826d2a062b85439bbfab6a0164ab3662c"
+      },
+      {
+        "path": "apps/web/src/guest/guest-api.test.ts",
+        "sha256": "23e9749432fe943f5a6a0663012c48cd34f6bcf7e3aaae6bdfb7e70ee00db72e"
+      },
+      {
+        "path": "apps/web/src/guest/guest-api.ts",
+        "sha256": "dc0dd06d23df039513713ae82c3f2527ca330fc8445908a12590b7b4abdd1f6f"
+      },
+      {
+        "path": "apps/web/src/guest/guest-tools.test.ts",
+        "sha256": "e07d59f50ab239f0a0e3acdcf85cdca644cc640552d35a6bb3e3d7fc5e312e15"
+      },
+      {
+        "path": "apps/web/src/guest/guest-workbench.tsx",
+        "sha256": "fe76eb7357551594a7d5adf5f1022db662f2bf5c3e8473b9054ab6ad736a9072"
+      },
+      {
+        "path": "apps/web/src/guest/guest-workspace.test.ts",
+        "sha256": "901eff7e2526967fcbc85d88cc52fffa0665f91be20f958a1843f0180ef34061"
+      },
+      {
+        "path": "apps/web/src/guest/guest-workspace.ts",
+        "sha256": "a97a60cbce8903abb57a1e495cc9e0e05b832913b5476055b690b4ff5d68e116"
+      },
+      {
+        "path": "apps/web/src/host/web-action-bridge.test.ts",
+        "sha256": "edd10d28d85c688ce1b01be473bfbd0181328a24c12b32a9979430b5c860ab46"
+      },
+      {
+        "path": "apps/web/src/host/web-host.ts",
+        "sha256": "cd16525afacb3967b9123ed89adf6f0046386476dc963b801da4882a50265c4a"
+      },
+      {
+        "path": "apps/web/src/thread-viewer.tsx",
+        "sha256": "9299a9efe848d3cde041b2284b3b91c8782c92db5f5bd58831ad70eed69132c6"
+      },
+      {
+        "path": "packages/core/src/client/api.ts",
+        "sha256": "b691b57321806f3c8eb9e9f6de5a01e700e71ba157ca242d77a3881230977c42"
+      },
+      {
+        "path": "packages/core/src/client/reducer.ts",
+        "sha256": "29dc333f9085df8993ab8e664fe73049d468cc5d95d62d8074d2ead8c14942b6"
+      },
+      {
+        "path": "packages/core/src/server/agent/stream.ts",
+        "sha256": "bf1b1ea0c0255a28b1bf49048ada9ab60f4dc18dfbe553e3d901848429aad6e2"
+      },
+      {
+        "path": "packages/core/src/server/storage/local/file-system.ts",
+        "sha256": "6a22ffab07b6d7ed7d3edd0336c9cda55a0db62c1b9725bbf30229938e357fb7"
+      },
+      {
+        "path": "packages/core/src/server/storage/local/run-history-store.ts",
+        "sha256": "3cb8c0f2216a36cb74cd89d980a6934c5b9e3465f5406b5f1a474c9c97f8a5bd"
+      },
+      {
+        "path": "packages/core/src/storage/gist/gist-thread-reader.ts",
+        "sha256": "14edd0627dfffe976a0c21f06a710dbafb0b9f0e362bfc2f822f13b16382d912"
+      },
+      {
+        "path": "packages/core/src/storage/gist/gist-thread-writer.ts",
+        "sha256": "94104de730de1182373343cbf38be78e531ff38bfb05bfdfb8aacc0f2dde3d45"
+      },
+      {
+        "path": "packages/core/src/thread/template-render.ts",
+        "sha256": "e95d4be4fc54972a88120d8567f959fa29c494d86c69fd492e4775df2d7b7dea"
+      },
+      {
+        "path": "packages/core/tests/client/reducer.test.ts",
+        "sha256": "115ffbcce4d6d2944f9a01eac5515ec31f2173346212f5da3df3322a140791d0"
+      },
+      {
+        "path": "packages/core/tests/generator/langgraph/templates.test.ts",
+        "sha256": "8e1e7700cb532bbf89e0a92e6a6a867bf0c5ac88e1f62e32be69d65c20c822a3"
+      },
+      {
+        "path": "packages/core/tests/server/agent/stream.test.ts",
+        "sha256": "0f0fb9aa9239aefe7d6890c2bc912577bbbc313199deb6285eb9219b221cf300"
+      },
+      {
+        "path": "packages/core/tests/server/storage/local/file-system.test.ts",
+        "sha256": "394f1f41d2a0b1842f82ebff13d81b09aabb2409d89a8265d27c488184e275f4"
+      },
+      {
+        "path": "packages/core/tests/server/storage/local/run-history-store.test.ts",
+        "sha256": "941c58dc4bb957620fbe4471a578d259786350a3780a8243b6b79c414f489cbc"
+      },
+      {
+        "path": "packages/core/tests/storage/gist/gist-thread-reader.test.ts",
+        "sha256": "41395542c775b2fe9fa0a2d8248713ce2c79d5ac0fe7a70d8e1d8c7d642d6c71"
+      },
+      {
+        "path": "packages/core/tests/storage/gist/gist-thread-writer.test.ts",
+        "sha256": "67ec68544264d557b1b2f4aa3c78f1a38ca2931b9c0d9903abd433d07b7c1d61"
+      },
+      {
+        "path": "packages/core/tests/thread/template-render.test.ts",
+        "sha256": "4348a61e4351cbb71ed99819b1213dd936e06e63044885c37923808e24e2a186"
+      },
+      {
+        "path": "packages/runtime/src/mcp/mcp-manager.ts",
+        "sha256": "b7ed1fceaad6767f8a987377b479f1d56a535294730865706e1b1384c066d105"
+      },
+      {
+        "path": "packages/runtime/src/models/model-manager.ts",
+        "sha256": "7cc959573b68c7f768244e1c9985a0b90cc1c1c6a550854b21ae8d895f984c55"
+      },
+      {
+        "path": "packages/runtime/src/network/network-settings-manager.ts",
+        "sha256": "65db4a6143d7488d0482de2e5b1bfb0e4eb424aa787fd62bbc2b07698790d71d"
+      },
+      {
+        "path": "packages/runtime/src/plugins/plugin-manager.ts",
+        "sha256": "840103d7c78b9cadc2fb4cc65c1e26263493aadf4b5f4575031cbb623a760b45"
+      },
+      {
+        "path": "packages/runtime/src/plugins/plugin-subprocess-host.ts",
+        "sha256": "c3f1e5999f6b214b82b8a33da15c81e30ab27508513cde29e2fae2ef4476ccde"
+      },
+      {
+        "path": "packages/runtime/src/runtime/local-runtime-client.ts",
+        "sha256": "e279d6118614fc1602c2dfc717a34c0022873d09a4c470f48b07f2d20fb0c2d5"
+      },
+      {
+        "path": "packages/runtime/src/runtime/runtime-router.ts",
+        "sha256": "e312ef7e0b3a54c406105d5191b9c27342b7c0cd6865f7c369b12df9cee6108b"
+      },
+      {
+        "path": "packages/runtime/src/streaming/stream-thread.ts",
+        "sha256": "f086d92cb12bface479d6229ef56953166a1d2823a9498caabbdf3db26ebab16"
+      },
+      {
+        "path": "packages/runtime/src/tools/tool-registry.ts",
+        "sha256": "055f787a2c374c7d3f8ec0d44745dae431098377b8332d4fd00b046c9d684bab"
+      },
+      {
+        "path": "packages/runtime/src/traces/trace-manager.ts",
+        "sha256": "f0dbd14422220c4e8e2fbc1a42e0864800df2648a4e95ab4b3342dd7051043f2"
+      },
+      {
+        "path": "packages/runtime/tests/mcp/mcp-manager.test.ts",
+        "sha256": "71ad65edbfa0ba5927126d4e6318e0e13c84cee3752657921f50b644cab518c4"
+      },
+      {
+        "path": "packages/runtime/tests/models/model-manager.test.ts",
+        "sha256": "5b5e735688bb1e0aba7644934e9a32b34636e2f78e2f7437ec874f5aa56bef43"
+      },
+      {
+        "path": "packages/runtime/tests/models/providers/deepseek.test.ts",
+        "sha256": "13ccd1bfb42413f3d2aa4a6f4650863eee5fec79517681bdd625b6d514511664"
+      },
+      {
+        "path": "packages/runtime/tests/plugins/plugin-installer.test.ts",
+        "sha256": "34906ed99c798f53954b8cb7bdf87342e504b7565b1543f3c02009085150765c"
+      },
+      {
+        "path": "packages/runtime/tests/plugins/plugin-manager.test.ts",
+        "sha256": "895f1e25dc32a8ce21318356d32859bb632bfcabaed367fe23f9f02207bd23b9"
+      },
+      {
+        "path": "packages/runtime/tests/plugins/plugin-subprocess-host.test.ts",
+        "sha256": "3eb5ceb79f3178d76ce393b092a62529c6a715fd19f383e3db6275a0a83489f7"
+      },
+      {
+        "path": "packages/runtime/tests/runtime/local-runtime-client.test.ts",
+        "sha256": "59fda39c00f66bdab7b93d30e2685211897776020cda23f58707e268f8fa394d"
+      },
+      {
+        "path": "packages/runtime/tests/runtime/runtime-router.test.ts",
+        "sha256": "23d93963928c06c843a57743a0bf371c16adde5218d5167498d9ae22de3a7331"
+      },
+      {
+        "path": "packages/runtime/tests/tools/built-in/web.test.ts",
+        "sha256": "da2789324bbf802887f3f97a3fe4c7170b0dab86e3c72f9dc5633db61f9c4708"
+      },
+      {
+        "path": "packages/runtime/tests/tools/tool-registry.test.ts",
+        "sha256": "597e95e53584abfbbfbda4b5082c3cb0742ba24cc7286c9e6b3b78c8a3c9035b"
+      },
+      {
+        "path": "packages/ui/src/components/thread-playground/stores/thread-store-tool-policy.test.ts",
+        "sha256": "94c964fd4882e058655d90db5aadbeb346ce03b7a44bf9f30aa09f82804bfe98"
+      },
+      {
+        "path": "packages/ui/src/components/thread-playground/stores/thread-store.ts",
+        "sha256": "263a58798142f70067cc7326126cc3db99b186fe3508626c75c1ad4628a0d3dd"
+      },
+      {
+        "path": "packages/ui/src/host/types.ts",
+        "sha256": "b5f351b4f5ba76ace2febb5551572a4015a18bc7afa1faf52f2754f20abe394a"
+      },
+      {
+        "path": "packages/ui/tests/components/thread-playground/stores/thread-store-runtime.test.ts",
+        "sha256": "0290506473e9569564bb84a6eec001d851954b7924cb04a80bdca9b3694f8996"
+      },
+      {
+        "path": "packages/ui/tests/components/thread-playground/stores/thread-store.test.ts",
+        "sha256": "21fb9849e8525316b214d5058deafb5082b97e416be59941287451c8d5d8fb5f"
+      }
+    ]
+  },
+  "artifacts": {
+    "codemap.json": {
+      "sha256": "3de468608cf1396d0d9eb1a08bf4b3b85608ffa35b9d280e7e5c51f650a9bc7c",
+      "schemaVersion": 1
+    },
+    "codemap.html": {
+      "sha256": "99cdcbb273a2b52e7687b8cf2eac9917a2caaf9861bbf07db0fe8d17045a943c",
+      "embeddedCommit": "7c41be58581ab5ad69e298ccd4f247f124f77638"
+    }
+  },
+  "verification": {
+    "status": "passed",
+    "verifiedAt": "2026-08-24T07:09:15.000Z",
+    "checks": [
+      {
+        "name": "evidence-paths",
+        "status": "passed",
+        "detail": "191 references across 102 current files; every path exists and every cited line range is in bounds."
+      },
+      {
+        "name": "graph-integrity",
+        "status": "passed",
+        "detail": "19 unique nodes, 34 valid edges and 5 valid end-to-end flows; all references resolve."
+      },
+      {
+        "name": "primary-node-budget",
+        "status": "passed",
+        "detail": "19 primary nodes, below the 20-node first-screen limit."
+      },
+      {
+        "name": "standalone-file",
+        "status": "passed",
+        "detail": "Chromium loaded file:///D:/1_myCode/1-novel/llm-space-web/docs/codemap/codemap.html and rendered all 19 nodes plus 5 flow options."
+      },
+      {
+        "name": "browser-interactions",
+        "status": "passed",
+        "detail": "Chromium verified node details, upstream/downstream jumps, search, kind filters, all five flow selectors, step navigation and evidence links; zero console errors."
+      },
+      {
+        "name": "targeted-flow-tests",
+        "status": "passed",
+        "detail": "165 tests passed across 21 flow-relevant test files; zero failures."
+      },
+      {
+        "name": "full-repository-tests",
+        "status": "failed-environment",
+        "detail": "mise run test: 839 pass, 1 skip, 25 fail, 2 load errors on Windows; failures are POSIX path/permission/symlink/bash/python3 assumptions plus an existing SelectGroup export error, not codemap artifact failures."
+      }
+    ]
+  }
+}

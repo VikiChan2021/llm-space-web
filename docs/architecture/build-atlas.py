@@ -527,7 +527,7 @@ def main():
             ref=sources[key]
             source_lines.append(f'| [{ref["path"]} · L{ref["line"]}](../../{ref["path"]}#L{ref["line"]}) | `{ref["anchor"]}` |')
         source_lines.append("")
-    (ROOT/"SOURCES.md").write_text("\n".join(source_lines)+"\n",encoding="utf-8")
+    (ROOT/"SOURCES.md").write_text("\n".join(source_lines).rstrip()+"\n",encoding="utf-8")
     if checks:
         report={"generator":"fireworks-tech-graph / authored Python list method","qualityProfile":"showcase","checks":checks,"visual_review":"pending; see VERIFICATION.md for reviewed artifacts"}
         (ROOT/"validation.json").write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
